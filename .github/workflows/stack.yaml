@@ -1,0 +1,61 @@
+name: stack
+
+# One stack's gates, each job one `make` target on a GitHub-hosted runner.
+# No test reads what `build` makes, so neither waits for the other.
+#
+# The runner image's default Xcode trails the one the apps are built with,
+# so every job names it.
+on:
+  workflow_call:
+    inputs:
+      stack:
+        description: The stack's directory.
+        type: string
+        required: true
+      tests:
+        description: The stack's test targets as a JSON list, in the order they run; '[]' for none.
+        type: string
+        default: '["test-unit"]'
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+
+jobs:
+  style:
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v7
+      - run: make -C ${{ inputs.stack }} deps
+      - run: make -C ${{ inputs.stack }} style
+
+  lint:
+    needs: style
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v7
+      - run: make -C ${{ inputs.stack }} deps
+      - run: make -C ${{ inputs.stack }} lint
+
+  build:
+    needs: lint
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v7
+      - run: make -C ${{ inputs.stack }} deps
+      - run: make -C ${{ inputs.stack }} build
+
+  # One at a time, so a tier waits for the one before it and a red tier
+  # stops the rest.
+  test:
+    name: ${{ matrix.target }}
+    needs: lint
+    if: inputs.tests != '[]'
+    runs-on: xcode-27
+    strategy:
+      max-parallel: 1
+      matrix:
+        target: ${{ fromJSON(inputs.tests) }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: make -C ${{ inputs.stack }} deps
+      - run: make -C ${{ inputs.stack }} ${{ matrix.target }}

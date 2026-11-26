@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Outgoing connections only: the app reaches the media server and
+	     opens no port. The keychain, hardware decoding and audio output
+	     need no entitlement inside the sandbox. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- Reads the one file the viewer picks for a playlist's or a
+	     station's image. -->
+	<key>com.apple.security.files.user-selected.read-only</key>
+	<true/>
+</dict>
+</plist>

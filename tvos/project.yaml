@@ -1,0 +1,115 @@
+# XcodeGen spec (`make deps`). RabbitEarsKit is apple/'s kit with this
+# directory's kit sources added, so test bundles link it without hosting
+# the app.
+name: RabbitEars
+options:
+  bundleIdPrefix: enterprises.legitimate
+  deploymentTarget:
+    tvOS: "26.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 23
+    TARGETED_DEVICE_FAMILY: "3"
+
+# Generated from openapi.yaml by `make generate` in apple/.
+packages:
+  RabbitEarsAPI:
+    path: ../apple/api
+
+targets:
+  RabbitEarsKit:
+    type: framework
+    platform: tvOS
+    sources:
+      - path: ../apple/sources/kit
+      - path: sources/kit
+    dependencies:
+      - package: RabbitEarsAPI
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: enterprises.legitimate.rabbit-ears.tvos.kit
+
+  RabbitEars:
+    type: application
+    platform: tvOS
+    # The brand assets hold the app icon and the static Top Shelf image.
+    sources:
+      - path: sources/app
+      - path: resources/Assets.xcassets
+      - path: resources/PrivacyInfo.xcprivacy
+    # Written by XcodeGen; GENERATE_INFOPLIST_FILE merges the INFOPLIST_KEY_ values in.
+    # Plain http only to local addresses (IPs, .local and dotless names), where
+    # a household server usually is; anything else needs https. Choose a
+    # server browses Bonjour, which tvOS allows only for the listed service.
+    # The only encryption is the system's TLS, which is exempt, so App Store
+    # Connect asks no export compliance question per build.
+    info:
+      path: resources/info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: Rabbit Ears plays from the media server on your network.
+        NSBonjourServices: [_rabbit-ears._tcp]
+        UILaunchScreen: {}
+    dependencies:
+      - target: RabbitEarsKit
+        embed: true
+      - package: RabbitEarsAPI
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: enterprises.legitimate.rabbit-ears
+        PRODUCT_NAME: Rabbit Ears
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Rabbit Ears
+        ASSETCATALOG_COMPILER_APPICON_NAME: App Icon & Top Shelf Image
+      # The release names the App Store profile here, not on the command
+      # line, where the frameworks would get it too and refuse it.
+      configs:
+        Release:
+          PROVISIONING_PROFILE_SPECIFIER: $(APP_STORE_PROFILE)
+
+  # The kit's own suite runs here too.
+  RabbitEarsTests:
+    type: bundle.unit-test
+    platform: tvOS
+    sources:
+      - path: tests/unit
+      - path: ../apple/tests/unit
+    dependencies:
+      - target: RabbitEarsKit
+      - package: RabbitEarsAPI
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
+  RabbitEarsUITests:
+    type: bundle.ui-testing
+    platform: tvOS
+    sources:
+      - path: tests/ui
+      - path: ../apple/tests/ui
+    dependencies:
+      - target: RabbitEars
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: RabbitEars
+
+schemes:
+  RabbitEars:
+    build:
+      targets:
+        RabbitEars: all
+    test:
+      targets:
+        - RabbitEarsTests
+        - RabbitEarsUITests

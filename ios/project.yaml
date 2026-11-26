@@ -1,0 +1,137 @@
+# XcodeGen spec (`make deps`). RabbitEarsKit is apple/'s kit with this
+# directory's kit sources added, so test bundles link it without hosting
+# the app.
+name: RabbitEars
+options:
+  bundleIdPrefix: enterprises.legitimate
+  deploymentTarget:
+    iOS: "27.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 24
+
+# Generated from openapi.yaml by `make generate` in apple/.
+packages:
+  RabbitEarsAPI:
+    path: ../apple/api
+
+targets:
+  RabbitEarsKit:
+    type: framework
+    platform: iOS
+    sources:
+      - path: ../apple/sources/kit
+      - path: sources/kit
+    dependencies:
+      - package: RabbitEarsAPI
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: enterprises.legitimate.rabbit-ears.ios.kit
+
+  RabbitEars:
+    type: application
+    platform: iOS
+    sources:
+      - path: sources/app
+      - path: resources/Assets.xcassets
+      - path: resources/PrivacyInfo.xcprivacy
+    # Written by XcodeGen; GENERATE_INFOPLIST_FILE merges the INFOPLIST_KEY_ values in.
+    # The app uses only the system's TLS, which export rules exempt, so no
+    # upload waits on the export compliance question.
+    # Plain http only to local addresses (IPs, .local and dotless names), where
+    # a household server usually is; anything else needs https.
+    # Audio in the background keeps music playing with the screen locked, and picture in picture and AirPlay going.
+    # The Bonjour service lets the app find a server on the network.
+    # The CarPlay scene is declared here; SwiftUI makes the phone's own window scene.
+    info:
+      path: resources/info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSBonjourServices: [_rabbit-ears._tcp]
+        NSLocalNetworkUsageDescription: Rabbit Ears plays from the media server on your network.
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations:
+            CPTemplateApplicationSceneSessionRoleApplication:
+              - UISceneClassName: CPTemplateApplicationScene
+                UISceneConfigurationName: CarPlay
+                UISceneDelegateClassName: CarPlaySceneDelegate
+        UIBackgroundModes: [audio]
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    dependencies:
+      - target: RabbitEarsKit
+        embed: true
+      - package: RabbitEarsAPI
+        embed: true
+    # iPhone only, set on the target because XcodeGen's iOS preset sets both
+    # families there.
+    # The release names its App Store profile here and not on the command
+    # line, where the frameworks, which take no profile, would get it too.
+    settings:
+      base:
+        # One bundle ID for the iOS, Apple TV and macOS apps: App Store
+        # Connect then holds them as one app.
+        PRODUCT_BUNDLE_IDENTIFIER: enterprises.legitimate.rabbit-ears
+        # A CarPlay audio app; a device or App Store build is signed only
+        # by a profile that carries the entitlement.
+        CODE_SIGN_ENTITLEMENTS: resources/RabbitEars.entitlements
+        PRODUCT_NAME: Rabbit Ears
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Rabbit Ears
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
+        TARGETED_DEVICE_FAMILY: "1"
+      configs:
+        Release:
+          PROVISIONING_PROFILE_SPECIFIER: $(APP_STORE_PROFILE)
+
+  # The kit's own suite runs here too.
+  RabbitEarsTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: tests/unit
+      - path: ../apple/tests/unit
+    dependencies:
+      - target: RabbitEarsKit
+      - package: RabbitEarsAPI
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
+  RabbitEarsUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: tests/ui
+      - path: ../apple/tests/ui
+    dependencies:
+      - target: RabbitEars
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: RabbitEars
+
+schemes:
+  RabbitEars:
+    build:
+      targets:
+        RabbitEars: all
+    test:
+      targets:
+        - RabbitEarsTests
+        - RabbitEarsUITests

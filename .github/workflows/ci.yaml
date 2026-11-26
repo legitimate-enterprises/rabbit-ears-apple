@@ -1,0 +1,76 @@
+name: ci
+
+# One chain per stack, each on its own: a stack's lint starts when that
+# stack's style is green, whatever the other stacks are doing. stack.yaml is
+# the chain; a red run names the stack and the gate in its title.
+#
+# A stack runs only when something its gates read differs from the last
+# commit on main that passed, so a green run says every stack is green at
+# this commit, the skipped ones by their last run.
+#
+# `branches` is spelled out: a bare `push:` also matches tags.
+#
+# One run at a time for a branch, so a burst of pushes does not queue macOS
+# jobs behind each other. A push that arrives while another waits takes its
+# place.
+on:
+  push:
+    branches: ['**']
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  changed:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      apple: ${{ steps.changed.outputs.apple }}
+      macos: ${{ steps.changed.outputs.macos }}
+      ios: ${{ steps.changed.outputs.ios }}
+      tvos: ${{ steps.changed.outputs.tvos }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: make --no-print-directory changed | tee -a "$GITHUB_OUTPUT"
+
+  # The kit's tests run in each app; the shared scripts' tests run here.
+  apple:
+    needs: changed
+    if: needs.changed.outputs.apple == 'true'
+    uses: ./.github/workflows/stack.yaml
+    with:
+      stack: apple
+      tests: '["test-unit", "test-integration"]'
+
+  macos:
+    needs: changed
+    if: needs.changed.outputs.macos == 'true'
+    uses: ./.github/workflows/stack.yaml
+    with:
+      stack: macos
+
+  ios:
+    needs: changed
+    if: needs.changed.outputs.ios == 'true'
+    uses: ./.github/workflows/stack.yaml
+    with:
+      stack: ios
+      tests: '["test-unit", "test-ui"]'
+
+  tvos:
+    needs: changed
+    if: needs.changed.outputs.tvos == 'true'
+    uses: ./.github/workflows/stack.yaml
+    with:
+      stack: tvos
+      tests: '["test-unit", "test-ui"]'

@@ -1,0 +1,42 @@
+import Foundation
+import RabbitEarsAPI
+import XCTest
+
+@testable import RabbitEarsKit
+
+/// With no connection, CarPlay browses and plays what the profile has downloaded.
+@MainActor
+final class CarPlayOfflineTests: XCTestCase {
+    func testWithNoConnectionTheCarBrowsesTheProfilesDownloadedMusic() async throws {
+        let adult: Account = Fixtures.decode(Fixtures.adult)
+        XCTAssertEqual(
+            CarPlayGate(phase: .browsing, profile: adult, online: false, reachable: true, downloadedMusic: true),
+            .music(1))
+        XCTAssertEqual(
+            CarPlayGate(phase: .browsing, profile: adult, online: false, reachable: true, downloadedMusic: false),
+            .offline)
+        XCTAssertEqual(
+            CarPlayGate(phase: .signedOut, profile: nil, online: false, reachable: true, downloadedMusic: true),
+            .notSignedIn)
+
+        let harness = DownloadHarness()
+        harness.objects["GET /me"] = Fixtures.me
+        harness.objects["GET /music/songs/5"] = Fixtures.song(5, "Reckoner", album: 50, track: 7)
+        harness.objects["GET /music/albums/50"] = Fixtures.album(50, "In Rainbows")
+        harness.objects["GET /music/artists/40"] = Fixtures.artist
+        harness.resolves["item/5"] = [Fixtures.downloadTitle(5, "song", library: 3)]
+        try await harness.download(.title(5))
+        _ = try await harness.client.getMe()
+        XCTAssertTrue(harness.store.hasMusic(for: 1))
+        XCTAssertFalse(harness.store.hasMusic(for: 2), "another profile's downloads are not this one's")
+
+        harness.goOffline()
+        let offline = CarPlayLibrary(music: MusicModel(client: harness.client, profileId: 1))
+        let roomy = CarPlayLimits(maxItems: 500, maxSections: 50, limited: false)
+        let albums = try await offline.albums(roomy)
+        XCTAssertNil(albums.empty, "not No music yet")
+        XCTAssertEqual(albums.sections.flatMap(\.rows).map(\.text), ["In Rainbows"])
+        let artists = try await offline.artists(roomy)
+        XCTAssertEqual(artists.sections.flatMap(\.rows).map(\.text), ["Radiohead"])
+    }
+}

@@ -1,0 +1,21 @@
+# trailing_comma, closure_parameter_position, and opening_brace (for
+# multiline conditions) contradict swift-format's output; the formatter
+# is authoritative.
+included:
+  - sources
+  - tests
+line_length:
+  warning: 120
+  error: 160
+identifier_name:
+  min_length: 2
+type_body_length:
+  warning: 300
+function_body_length:
+  warning: 60
+disabled_rules:
+  - todo
+  - trailing_comma
+  - closure_parameter_position
+opening_brace:
+  ignore_multiline_statement_conditions: true

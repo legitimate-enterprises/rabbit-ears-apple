@@ -1,0 +1,129 @@
+# XcodeGen spec (`make deps`). RabbitEarsKit is apple/'s kit with this
+# directory's kit sources added, so test bundles link it without hosting
+# the app in a GUI session.
+name: RabbitEars
+options:
+  bundleIdPrefix: enterprises.legitimate
+  deploymentTarget:
+    macOS: "27.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    ARCHS: arm64
+    SWIFT_VERSION: "6.0"
+    CODE_SIGN_IDENTITY: "-"
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 23
+    # `make run` passes DEV_IDENTITY=YES, which derives both suffixes: a
+    # separate bundle ID (own defaults and keychain items) and a distinct
+    # name in the Dock and Force Quit.
+    DEV_IDENTITY: ""
+    BUNDLE_ID_SUFFIX_: ""
+    BUNDLE_ID_SUFFIX_YES: ".dev"
+    BUNDLE_ID_SUFFIX: "$(BUNDLE_ID_SUFFIX_$(DEV_IDENTITY))"
+    APP_NAME_SUFFIX_: ""
+    APP_NAME_SUFFIX_YES: " (dev)"
+    APP_NAME_SUFFIX: "$(APP_NAME_SUFFIX_$(DEV_IDENTITY))"
+
+# Generated from openapi.yaml by `make generate` in apple/.
+packages:
+  RabbitEarsAPI:
+    path: ../apple/api
+
+targets:
+  RabbitEarsKit:
+    type: framework
+    platform: macOS
+    sources:
+      - path: ../apple/sources/kit
+      - path: sources/kit
+    dependencies:
+      - package: RabbitEarsAPI
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: enterprises.legitimate.rabbit-ears.kit
+
+  RabbitEars:
+    type: application
+    platform: macOS
+    sources:
+      - path: sources/app
+      - path: resources/Assets.xcassets
+    # Written by XcodeGen; GENERATE_INFOPLIST_FILE merges the INFOPLIST_KEY_ values in.
+    # Plain http only to local addresses (IPs, .local and dotless names), where
+    # a household server usually is; anything else needs https.
+    # The only encryption is the system's TLS, which is exempt, so App Store
+    # Connect asks no export compliance question per build.
+    info:
+      path: resources/info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: Rabbit Ears plays from the media server on your network.
+    dependencies:
+      - target: RabbitEarsKit
+        embed: true
+      - package: RabbitEarsAPI
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: enterprises.legitimate.rabbit-ears$(BUNDLE_ID_SUFFIX)
+        PRODUCT_NAME: Rabbit Ears$(APP_NAME_SUFFIX)
+        GENERATE_INFOPLIST_FILE: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_CFBundleDisplayName: Rabbit Ears$(APP_NAME_SUFFIX)
+        INFOPLIST_KEY_LSMinimumSystemVersion: "27.0"
+        INFOPLIST_KEY_NSHumanReadableCopyright: "MIT licensed. dev@legitimate.enterprises"
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.entertainment
+        ENABLE_HARDENED_RUNTIME: YES
+        # The Mac App Store takes only sandboxed apps, so every build runs
+        # sandboxed, `make run` included.
+        CODE_SIGN_ENTITLEMENTS: resources/rabbit-ears.entitlements
+      # The release names the App Store profile here, not on the command
+      # line, where the frameworks would get it too and refuse it.
+      configs:
+        Release:
+          PROVISIONING_PROFILE_SPECIFIER: $(APP_STORE_PROFILE)
+
+  # The kit's own suite runs here too, and the app's views compile in to be drawn offscreen.
+  RabbitEarsTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: tests/unit
+      - path: sources/app
+      - path: ../apple/tests/unit
+    dependencies:
+      - target: RabbitEarsKit
+      - package: RabbitEarsAPI
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
+  # Needs a logged-in GUI session and a server; `make test-ui` runs it.
+  RabbitEarsUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: tests/ui
+    dependencies:
+      - target: RabbitEars
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: RabbitEars
+
+schemes:
+  RabbitEars:
+    build:
+      targets:
+        RabbitEars: all
+    test:
+      targets:
+        - RabbitEarsTests
+        - RabbitEarsUITests

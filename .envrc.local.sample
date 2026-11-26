@@ -1,0 +1,7 @@
+# Copy to .envrc.local and replace the values.
+#
+# macOS UI test (`make -C macos test-ui`) against a server with fixtures
+# scanned.
+export TEST_RUNNER_RABBIT_EARS_UI_SERVER=http://localhost:8477
+export TEST_RUNNER_RABBIT_EARS_UI_EMAIL=replace-me
+export TEST_RUNNER_RABBIT_EARS_UI_PASSWORD=replace-me

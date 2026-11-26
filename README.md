@@ -1,0 +1,72 @@
+# Rabbit Ears for Apple
+The macOS, iOS and Apple TV apps for [Rabbit Ears](https://github.com/legitimate-enterprises/rabbit-ears),
+a self-hosted open-source media server. They are for anyone who runs a
+Rabbit Ears server or is invited to one.
+
+------------------------------------------------------------------------
+## How It Works
+- Three Swift apps over one shared kit. Each app compiles the kit and the
+  API package into its own framework and adds its platform's views.
+- The apps talk only to a Rabbit Ears server, through that server's REST
+  API. `openapi.yaml` is the server's spec at the release the apps are built
+  against. `make spec VERSION=<server version>` replaces it with another
+  release's and regenerates the API package; `make lint` fails when the two
+  disagree.
+- The Xcode projects are generated from each app's `project.yaml` by
+  `make deps` and are not committed.
+- Tests that need a server build one from its repository at the tag for
+  `openapi.yaml`'s version, cloned under `build/`. Set
+  `RABBIT_EARS_SERVER_SRC` to a checkout of that repository to use it
+  instead.
+- `make deploy <component>...` tags `<component>-v<version>` once CI is
+  green on `main`. The tag's release job signs the app and uploads it to App
+  Store Connect, where it lands in TestFlight.
+
+Limitations: an upload has no rollback, and promotion from TestFlight to
+the App Store is done by hand in App Store Connect.
+
+------------------------------------------------------------------------
+## Requirements
+- macOS with Homebrew, Xcode 27 and `make`.
+- iOS and Apple TV tests: an iPhone and a tvOS simulator runtime.
+- Tests that run a server: Go and `ffmpeg`, which those targets install,
+  and Python 3, `jq` and `git`.
+- `make deps` installs the rest.
+
+------------------------------------------------------------------------
+## Repository
+- `apple/` Common Swift kit, its tests, the API package and release scripts.
+- `macos/` macOS app.
+- `ios/` iOS app.
+- `tvos/` Apple TV app.
+- `scripts/` release, CI and demo server tooling.
+- `assets/` App Store listing and screenshots.
+
+------------------------------------------------------------------------
+## Simulator UI tests and store screenshots
+`make -C ios test-ui` and `make -C tvos test-ui` exercise sign-in, profile
+selection, movie browsing and advancing video playback. Both run in CI and
+through root `make test`. They require Xcode, compatible iOS/tvOS 27+
+simulator runtimes, a logged-in macOS desktop session, Python 3, Go, `jq`,
+`ffmpeg` and `ffprobe`. Missing prerequisites or skipped tests fail the run.
+
+`make screenshots` runs those flows and exports three anonymous images per
+client: profiles, home and movie details. Each run creates its own simulator
+and local server, with fictional movies, original landscape artwork and demo
+profiles. It never connects to a personal server or reuses a signed-in device.
+No credentials or image redaction are needed. These demo images illustrate the
+real UI; they do not depict commercially released films.
+
+The iPhone images are 1206 × 2622; Apple TV images are 3840 × 2160. Each client
+validates its complete set before replacing its directory under
+`assets/apple-app-store/`. Failed tests or invalid exports preserve the previous
+set. Logs and XCTest result bundles remain under that client's `build/ui-tests/`.
+
+`make screenshots SCREENSHOT_CLIENTS="ios"` selects a subset. The root target
+only dispatches to each selected client's `screenshots` target. To support
+another platform, implement that target in its own directory, including its
+store-specific export validation, then add it to `SCREENSHOT_CLIENTS`.
+macOS is not currently included.
+
+------------------------------------------------------------------------
+*End of README*
