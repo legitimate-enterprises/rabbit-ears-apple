@@ -5,6 +5,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# The runner keeps a backtrace of every error thrown for the life of the process.
+export TEST_RUNNER_SWT_SWIFT_ERROR_BACKTRACING_ENABLED=0
+
 XCODEBUILD=(xcodebuild -project RabbitEars.xcodeproj -scheme RabbitEars -derivedDataPath build)
 
 "${XCODEBUILD[@]}" -destination 'generic/platform=tvOS Simulator' build-for-testing -only-testing:RabbitEarsTests

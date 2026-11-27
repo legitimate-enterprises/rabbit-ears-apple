@@ -35,6 +35,8 @@ path="$products/$bundle.xctest"
     exit 1
 }
 
+# The runner keeps a backtrace of every error thrown for the life of the process.
+export SWT_SWIFT_ERROR_BACKTRACING_ENABLED=0
 # Only the orchestrated runner puts the products dir on the search path.
 export DYLD_FRAMEWORK_PATH="$products"
 export DYLD_LIBRARY_PATH="$products"
