@@ -59,3 +59,14 @@ jobs:
       - uses: actions/checkout@v7
       - run: make -C ${{ inputs.stack }} deps
       - run: make -C ${{ inputs.stack }} ${{ matrix.target }}
+      # The result bundles and crash reports say why a test process died.
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.stack }}-${{ matrix.target }}-diagnostics
+          path: |
+            ${{ inputs.stack }}/build/**/*.xcresult
+            ~/Library/Developer/Xcode/DerivedData/*/Logs/Test/*.xcresult
+            ~/Library/Logs/DiagnosticReports/
+          if-no-files-found: ignore
+          retention-days: 7
