@@ -51,5 +51,23 @@ final class PlaybackUITests: XCTestCase {
         captureStoreImage("03-movie-details", app: app)
         tap(play)
         assertPlaybackStarted(in: app)
+
+        // Off the play button, on the video itself.
+        let video = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        let quality = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH 'Playback quality: '")).firstMatch
+        let menu = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS 'Only for non-English'")).firstMatch
+        // From controls just brought back, so they cannot fade before the tap lands.
+        XCTAssertTrue(quality.waitForNonExistence(timeout: 10), "the controls fade while the video plays")
+        video.tap()
+        app.buttons["Subtitles"].tap()
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        // Open for longer than the controls wait before they fade.
+        Thread.sleep(forTimeInterval: 4)
+        XCTAssertTrue(menu.exists)
+        video.tap()
+        XCTAssertFalse(menu.exists)
+        XCTAssertTrue(quality.waitForNonExistence(timeout: 10), "the controls fade once a closed menu leaves them idle")
     }
 }

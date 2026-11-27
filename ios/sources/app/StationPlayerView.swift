@@ -111,6 +111,8 @@ struct StationSurface: View {
         .foregroundStyle(Theme.primary)
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
+        // A menu holds the fade, so closing one, however it closes, is activity.
+        .onChange(of: popup) { poke() }
         .task(id: lastActivity) {
             guard await ControlsFade.idle(output.player, for: ControlsFade.delay), popup == nil else { return }
             if !reduceMotion { withAnimation(ControlsFade.animation) { showControls = false } }

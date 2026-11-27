@@ -112,6 +112,8 @@ struct PlayerSurface: View {
             if !Task.isCancelled { (showControls, controlsGone) = (false, true) }
         }
         .onChange(of: request.together?.pausedNotice) { poke() }
+        // A menu holds the fade, so closing one, however it closes, is activity.
+        .onChange(of: popup) { poke() }
         .onAppear { output.onEnd = ended }
         .modifier(PlayerLive(request: request, model: model, browser: browser, leave: leave, finish: finish))
         .onChange(of: scenePhase) { _, phase in
