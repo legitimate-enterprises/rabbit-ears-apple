@@ -51,9 +51,12 @@ public final class SyncEngine {
     /// flushes again. Calls made while a pass runs wait for that pass.
     public func catchUp() async throws {
         if let pass { return try await pass.value }
-        let task = Task { try await run() }
+        // Cleared by the pass itself, so no call made after it ends, before its starter resumes, joins it.
+        let task = Task {
+            defer { pass = nil }
+            try await run()
+        }
         pass = task
-        defer { pass = nil }
         try await task.value
     }
 

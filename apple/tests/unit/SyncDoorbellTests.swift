@@ -100,6 +100,23 @@ extension SyncEngineTests {
         XCTAssertEqual(flushes, 2)
     }
 
+    /// A pass the session started on its own task, joined by a pull: the
+    /// pull's next catch-up is a pass of its own, though the starter has
+    /// not resumed yet.
+    func testACatchUpAskedOnceThePassItJoinedEndsRunsAnother() async throws {
+        try adopt(version: 5, titles: ["Antenna"])
+        changes { _ in (.ok, SyncFixture.diff(version: 8)) }
+        let engine = engine()
+        let starter = Task { try await engine.catchUp() }
+        await Task.yield()
+
+        try await engine.catchUp()
+        try await engine.catchUp()
+        try await starter.value
+
+        XCTAssertEqual(queries, ["schema=1&since=5", "schema=1&since=8"])
+    }
+
     func testALocalResetSnapshotsAgainAndKeepsUnsentActions() async throws {
         try adopt(version: 5, titles: ["Antenna"])
         try await replica.write { try $0.execute(sql: ReplicaFixture.enqueue("a")) }
