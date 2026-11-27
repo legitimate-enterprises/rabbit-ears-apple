@@ -4376,6 +4376,33 @@ extension Components {
                 case at
             }
         }
+        /// - Remark: Generated from `#/components/schemas/PlayInput`.
+        public struct PlayInput: Codable, Hashable, Sendable {
+            /// When the play ended; a time ahead of the server's is taken as now.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PlayInput/at`.
+            public var at: Foundation.Date
+            /// The edition, of this item, that played; absent is the default edition.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PlayInput/editionId`.
+            public var editionId: Components.Schemas.Id?
+            /// Creates a new `PlayInput`.
+            ///
+            /// - Parameters:
+            ///   - at: When the play ended; a time ahead of the server's is taken as now.
+            ///   - editionId: The edition, of this item, that played; absent is the default edition.
+            public init(
+                at: Foundation.Date,
+                editionId: Components.Schemas.Id? = nil
+            ) {
+                self.at = at
+                self.editionId = editionId
+            }
+            public enum CodingKeys: String, CodingKey {
+                case at
+                case editionId
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/WatchStatePage`.
         public struct WatchStatePage: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/WatchStatePage/items`.
@@ -7456,15 +7483,25 @@ extension Components {
         public struct YouTubeChannelWatchInput: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/YouTubeChannelWatchInput/watched`.
             public var watched: Swift.Bool
+            /// As WatchStateInput.at, for each video.
+            ///
+            /// - Remark: Generated from `#/components/schemas/YouTubeChannelWatchInput/at`.
+            public var at: Foundation.Date?
             /// Creates a new `YouTubeChannelWatchInput`.
             ///
             /// - Parameters:
             ///   - watched:
-            public init(watched: Swift.Bool) {
+            ///   - at: As WatchStateInput.at, for each video.
+            public init(
+                watched: Swift.Bool,
+                at: Foundation.Date? = nil
+            ) {
                 self.watched = watched
+                self.at = at
             }
             public enum CodingKeys: String, CodingKey {
                 case watched
+                case at
             }
         }
         /// The library kind a playlist holds. movies takes movies and collections; tv takes shows, seasons and episodes; music takes artists, albums and songs.
@@ -8063,6 +8100,10 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/PlaylistEntry/position`.
             public var position: Swift.Int
+            /// What orders the playlist's entries, compared bytewise, ties by id: a key of rocicorp/fractional-indexing with its default alphabet. Always sent; optional so a copy a client stored before the field existed still reads.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PlaylistEntry/rank`.
+            public var rank: Swift.String?
             /// Absent for a collection.
             ///
             /// - Remark: Generated from `#/components/schemas/PlaylistEntry/itemId`.
@@ -8109,6 +8150,7 @@ extension Components {
             ///   - id:
             ///   - playlistId:
             ///   - position: Order from 0 at the top.
+            ///   - rank: What orders the playlist's entries, compared bytewise, ties by id: a key of rocicorp/fractional-indexing with its default alphabet. Always sent; optional so a copy a client stored before the field existed still reads.
             ///   - itemId: Absent for a collection.
             ///   - collectionId: Present for a collection only.
             ///   - kind:
@@ -8127,6 +8169,7 @@ extension Components {
                 id: Components.Schemas.Id,
                 playlistId: Components.Schemas.Id,
                 position: Swift.Int,
+                rank: Swift.String? = nil,
                 itemId: Components.Schemas.Id? = nil,
                 collectionId: Components.Schemas.Id? = nil,
                 kind: Components.Schemas.PlaylistEntryKind,
@@ -8145,6 +8188,7 @@ extension Components {
                 self.id = id
                 self.playlistId = playlistId
                 self.position = position
+                self.rank = rank
                 self.itemId = itemId
                 self.collectionId = collectionId
                 self.kind = kind
@@ -8164,6 +8208,7 @@ extension Components {
                 case id
                 case playlistId
                 case position
+                case rank
                 case itemId
                 case collectionId
                 case kind
@@ -8188,10 +8233,14 @@ extension Components {
             public var itemId: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/PlaylistEntryInput/collectionId`.
             public var collectionId: Components.Schemas.Id?
-            /// Where it goes, from 0; past the end or absent puts it last.
+            /// Where it goes, from 0; past the end or absent puts it last. It takes a rank between its new neighbours', so a late replay can land elsewhere; between two of equal rank it goes after both.
             ///
             /// - Remark: Generated from `#/components/schemas/PlaylistEntryInput/position`.
             public var position: Swift.Int?
+            /// Where it goes, as PlaylistEntry.rank orders it: a key that generateKeyBetween of rocicorp/fractional-indexing makes with its default alphabet from the neighbours' ranks. Taken as given; not with position. A string that is not such a key answers 400.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PlaylistEntryInput/rank`.
+            public var rank: Swift.String?
             /// An edition of itemId; required when that movie, episode or song has more than one.
             ///
             /// - Remark: Generated from `#/components/schemas/PlaylistEntryInput/editionId`.
@@ -8201,23 +8250,27 @@ extension Components {
             /// - Parameters:
             ///   - itemId:
             ///   - collectionId:
-            ///   - position: Where it goes, from 0; past the end or absent puts it last.
+            ///   - position: Where it goes, from 0; past the end or absent puts it last. It takes a rank between its new neighbours', so a late replay can land elsewhere; between two of equal rank it goes after both.
+            ///   - rank: Where it goes, as PlaylistEntry.rank orders it: a key that generateKeyBetween of rocicorp/fractional-indexing makes with its default alphabet from the neighbours' ranks. Taken as given; not with position. A string that is not such a key answers 400.
             ///   - editionId: An edition of itemId; required when that movie, episode or song has more than one.
             public init(
                 itemId: Components.Schemas.Id? = nil,
                 collectionId: Components.Schemas.Id? = nil,
                 position: Swift.Int? = nil,
+                rank: Swift.String? = nil,
                 editionId: Components.Schemas.Id? = nil
             ) {
                 self.itemId = itemId
                 self.collectionId = collectionId
                 self.position = position
+                self.rank = rank
                 self.editionId = editionId
             }
             public enum CodingKeys: String, CodingKey {
                 case itemId
                 case collectionId
                 case position
+                case rank
                 case editionId
             }
         }
@@ -9804,6 +9857,393 @@ extension Components {
                 case cursor
                 case resync
                 case events
+            }
+        }
+        /// What this server syncs with.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SyncRanges`.
+        public struct SyncRanges: Codable, Hashable, Sendable {
+            /// The oldest API version, as info.version, whose action batches the server replays.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncRanges/apiMin`.
+            public var apiMin: Swift.String
+            /// The newest such version, the server's own.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncRanges/apiMax`.
+            public var apiMax: Swift.String
+            /// The oldest sync schema the server serves.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncRanges/schemaMin`.
+            public var schemaMin: Swift.Int
+            /// The newest sync schema the server serves.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncRanges/schemaMax`.
+            public var schemaMax: Swift.Int
+            /// Creates a new `SyncRanges`.
+            ///
+            /// - Parameters:
+            ///   - apiMin: The oldest API version, as info.version, whose action batches the server replays.
+            ///   - apiMax: The newest such version, the server's own.
+            ///   - schemaMin: The oldest sync schema the server serves.
+            ///   - schemaMax: The newest sync schema the server serves.
+            public init(
+                apiMin: Swift.String,
+                apiMax: Swift.String,
+                schemaMin: Swift.Int,
+                schemaMax: Swift.Int
+            ) {
+                self.apiMin = apiMin
+                self.apiMax = apiMax
+                self.schemaMin = schemaMin
+                self.schemaMax = schemaMax
+            }
+            public enum CodingKeys: String, CodingKey {
+                case apiMin
+                case apiMax
+                case schemaMin
+                case schemaMax
+            }
+        }
+        /// A column value as SQLite holds it: a JSON integer, number, string or null, never a boolean, array or object; true and false are 1 and 0. A key part is never null.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SyncScalar`.
+        public typealias SyncScalar = OpenAPIRuntime.OpenAPIValueContainer
+        /// Rows of one table of the sync schema, each a value per column.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SyncTable`.
+        public struct SyncTable: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SyncTable/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SyncTable/columns`.
+            public var columns: [Swift.String]
+            /// - Remark: Generated from `#/components/schemas/SyncTable/rows`.
+            public var rows: [[Components.Schemas.SyncScalar]]
+            /// Creates a new `SyncTable`.
+            ///
+            /// - Parameters:
+            ///   - name:
+            ///   - columns:
+            ///   - rows:
+            public init(
+                name: Swift.String,
+                columns: [Swift.String],
+                rows: [[Components.Schemas.SyncScalar]]
+            ) {
+                self.name = name
+                self.columns = columns
+                self.rows = rows
+            }
+            public enum CodingKeys: String, CodingKey {
+                case name
+                case columns
+                case rows
+            }
+        }
+        /// Rows deleted from one table of the sync schema, each by its primary key, its columns in the table's key order.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SyncTombstones`.
+        public struct SyncTombstones: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SyncTombstones/table`.
+            public var table: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SyncTombstones/keys`.
+            public var keys: [[Components.Schemas.SyncScalar]]
+            /// Creates a new `SyncTombstones`.
+            ///
+            /// - Parameters:
+            ///   - table:
+            ///   - keys:
+            public init(
+                table: Swift.String,
+                keys: [[Components.Schemas.SyncScalar]]
+            ) {
+                self.table = table
+                self.keys = keys
+            }
+            public enum CodingKeys: String, CodingKey {
+                case table
+                case keys
+            }
+        }
+        /// One page of a pass of getSyncChanges, or the mode to take instead.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SyncChanges`.
+        public struct SyncChanges: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SyncChanges/mode`.
+            @frozen public enum ModePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case diff = "diff"
+                case snapshot = "snapshot"
+                case unsupported = "unsupported"
+            }
+            /// - Remark: Generated from `#/components/schemas/SyncChanges/mode`.
+            public var mode: Components.Schemas.SyncChanges.ModePayload
+            /// - Remark: Generated from `#/components/schemas/SyncChanges/ranges`.
+            public var ranges: Components.Schemas.SyncRanges
+            /// With diff, the watermark; see getSyncChanges. Absent otherwise.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncChanges/version`.
+            public var version: Swift.Int64?
+            /// With diff, present while the pass has more pages; pass it back as `cursor`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncChanges/cursor`.
+            public var cursor: Swift.String?
+            /// With diff, the rows that changed, by table.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncChanges/tables`.
+            public var tables: [Components.Schemas.SyncTable]?
+            /// With diff, the rows deleted, by table.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncChanges/tombstones`.
+            public var tombstones: [Components.Schemas.SyncTombstones]?
+            /// Creates a new `SyncChanges`.
+            ///
+            /// - Parameters:
+            ///   - mode:
+            ///   - ranges:
+            ///   - version: With diff, the watermark; see getSyncChanges. Absent otherwise.
+            ///   - cursor: With diff, present while the pass has more pages; pass it back as `cursor`.
+            ///   - tables: With diff, the rows that changed, by table.
+            ///   - tombstones: With diff, the rows deleted, by table.
+            public init(
+                mode: Components.Schemas.SyncChanges.ModePayload,
+                ranges: Components.Schemas.SyncRanges,
+                version: Swift.Int64? = nil,
+                cursor: Swift.String? = nil,
+                tables: [Components.Schemas.SyncTable]? = nil,
+                tombstones: [Components.Schemas.SyncTombstones]? = nil
+            ) {
+                self.mode = mode
+                self.ranges = ranges
+                self.version = version
+                self.cursor = cursor
+                self.tables = tables
+                self.tombstones = tombstones
+            }
+            public enum CodingKeys: String, CodingKey {
+                case mode
+                case ranges
+                case version
+                case cursor
+                case tables
+                case tombstones
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SyncBell`.
+        public struct SyncBell: Codable, Hashable, Sendable {
+            /// True when getSyncChanges since `after` has something to answer.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncBell/changed`.
+            public var changed: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/SyncBell/ranges`.
+            public var ranges: Components.Schemas.SyncRanges
+            /// Creates a new `SyncBell`.
+            ///
+            /// - Parameters:
+            ///   - changed: True when getSyncChanges since `after` has something to answer.
+            ///   - ranges:
+            public init(
+                changed: Swift.Bool,
+                ranges: Components.Schemas.SyncRanges
+            ) {
+                self.changed = changed
+                self.ranges = ranges
+            }
+            public enum CodingKeys: String, CodingKey {
+                case changed
+                case ranges
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SyncActionBatch`.
+        public struct SyncActionBatch: Codable, Hashable, Sendable {
+            /// The API version, as info.version, of the spec the client was built from.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncActionBatch/apiVersion`.
+            public var apiVersion: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SyncActionBatch/actions`.
+            public var actions: [Components.Schemas.SyncAction]
+            /// Creates a new `SyncActionBatch`.
+            ///
+            /// - Parameters:
+            ///   - apiVersion: The API version, as info.version, of the spec the client was built from.
+            ///   - actions:
+            public init(
+                apiVersion: Swift.String,
+                actions: [Components.Schemas.SyncAction]
+            ) {
+                self.apiVersion = apiVersion
+                self.actions = actions
+            }
+            public enum CodingKeys: String, CodingKey {
+                case apiVersion
+                case actions
+            }
+        }
+        /// A row of the sync schema an action may change, by its primary key, its columns in the table's key order.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SyncTouched`.
+        public struct SyncTouched: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SyncTouched/table`.
+            public var table: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SyncTouched/key`.
+            public var key: [Components.Schemas.SyncScalar]
+            /// Creates a new `SyncTouched`.
+            ///
+            /// - Parameters:
+            ///   - table:
+            ///   - key:
+            public init(
+                table: Swift.String,
+                key: [Components.Schemas.SyncScalar]
+            ) {
+                self.table = table
+                self.key = key
+            }
+            public enum CodingKeys: String, CodingKey {
+                case table
+                case key
+            }
+        }
+        /// One queued write, the request it replays and the replica rows it wrote.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SyncAction`.
+        public struct SyncAction: Codable, Hashable, Sendable {
+            /// Chosen by the client, once per action.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncAction/id`.
+            public var id: Swift.String
+            /// Its place in the client's queue.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncAction/seq`.
+            public var seq: Swift.Int64
+            /// - Remark: Generated from `#/components/schemas/SyncAction/operationId`.
+            public var operationId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SyncAction/method`.
+            @frozen public enum MethodPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case put = "PUT"
+                case post = "POST"
+                case delete = "DELETE"
+            }
+            /// - Remark: Generated from `#/components/schemas/SyncAction/method`.
+            public var method: Components.Schemas.SyncAction.MethodPayload
+            /// Relative to /api/v1, path parameters filled in and query included.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncAction/path`.
+            public var path: Swift.String
+            /// The request body; absent for none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncAction/body`.
+            public var body: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/SyncAction/actingProfileId`.
+            public var actingProfileId: Components.Schemas.Id
+            /// When the action was taken on the device. An operation that orders writes by time reads its own instant, the `at` of its body or query, which the client sets to the same.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncAction/at`.
+            public var at: Foundation.Date
+            /// The replica rows the client wrote for the action, including those it deleted.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncAction/touched`.
+            public var touched: [Components.Schemas.SyncTouched]
+            /// Creates a new `SyncAction`.
+            ///
+            /// - Parameters:
+            ///   - id: Chosen by the client, once per action.
+            ///   - seq: Its place in the client's queue.
+            ///   - operationId:
+            ///   - method:
+            ///   - path: Relative to /api/v1, path parameters filled in and query included.
+            ///   - body: The request body; absent for none.
+            ///   - actingProfileId:
+            ///   - at: When the action was taken on the device. An operation that orders writes by time reads its own instant, the `at` of its body or query, which the client sets to the same.
+            ///   - touched: The replica rows the client wrote for the action, including those it deleted.
+            public init(
+                id: Swift.String,
+                seq: Swift.Int64,
+                operationId: Swift.String,
+                method: Components.Schemas.SyncAction.MethodPayload,
+                path: Swift.String,
+                body: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                actingProfileId: Components.Schemas.Id,
+                at: Foundation.Date,
+                touched: [Components.Schemas.SyncTouched]
+            ) {
+                self.id = id
+                self.seq = seq
+                self.operationId = operationId
+                self.method = method
+                self.path = path
+                self.body = body
+                self.actingProfileId = actingProfileId
+                self.at = at
+                self.touched = touched
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case seq
+                case operationId
+                case method
+                case path
+                case body
+                case actingProfileId
+                case at
+                case touched
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SyncActionResult`.
+        public struct SyncActionResult: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SyncActionResult/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SyncActionResult/result`.
+            @frozen public enum ResultPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case accepted = "accepted"
+                case rejected = "rejected"
+            }
+            /// - Remark: Generated from `#/components/schemas/SyncActionResult/result`.
+            public var result: Components.Schemas.SyncActionResult.ResultPayload
+            /// With rejected, an Error code the operation answered, or not_replayable or unsupported_version, as replaySyncActions describes. Not an enum, so a later server may add codes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncActionResult/code`.
+            public var code: Swift.String?
+            /// With rejected, the Error message.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SyncActionResult/message`.
+            public var message: Swift.String?
+            /// Creates a new `SyncActionResult`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - result:
+            ///   - code: With rejected, an Error code the operation answered, or not_replayable or unsupported_version, as replaySyncActions describes. Not an enum, so a later server may add codes.
+            ///   - message: With rejected, the Error message.
+            public init(
+                id: Swift.String,
+                result: Components.Schemas.SyncActionResult.ResultPayload,
+                code: Swift.String? = nil,
+                message: Swift.String? = nil
+            ) {
+                self.id = id
+                self.result = result
+                self.code = code
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case result
+                case code
+                case message
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SyncActionResults`.
+        public struct SyncActionResults: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SyncActionResults/results`.
+            public var results: [Components.Schemas.SyncActionResult]
+            /// Creates a new `SyncActionResults`.
+            ///
+            /// - Parameters:
+            ///   - results:
+            public init(results: [Components.Schemas.SyncActionResult]) {
+                self.results = results
+            }
+            public enum CodingKeys: String, CodingKey {
+                case results
             }
         }
         /// A playback session as the profile's other devices see it.

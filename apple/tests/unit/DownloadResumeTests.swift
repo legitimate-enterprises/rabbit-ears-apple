@@ -72,11 +72,11 @@ extension DownloadStoreTests {
     /// Another adult is active: the server answers for them and their household's kids alone.
     private func activate(_ active: Int64) async throws {
         let quinn = Fixtures.account(4, "Quinn")
-        harness.objects["GET /me"] = Fixtures.me
-            .replacingOccurrences(of: #""activeProfileId":1"#, with: #""activeProfileId":\#(active)"#)
-            .replacingOccurrences(
-                of: #""profiles":[\#(Fixtures.adult),"#, with: #""profiles":[\#(Fixtures.adult),\#(quinn),"#)
-        _ = try await harness.client.getMe()
+        try harness.keep(
+            me: Fixtures.me
+                .replacingOccurrences(of: #""activeProfileId":1"#, with: #""activeProfileId":\#(active)"#)
+                .replacingOccurrences(
+                    of: #""profiles":[\#(Fixtures.adult),"#, with: #""profiles":[\#(Fixtures.adult),\#(quinn),"#))
         let answer = harness.server.answer
         harness.transport.respond = { sent in
             let profile = Int64(sent.path.split(separator: "/").dropFirst().first ?? "") ?? 0
@@ -130,5 +130,16 @@ extension DownloadStoreTests {
         try await becomesOnDevice(33)
         XCTAssertEqual(
             harness.transport.paths(.delete), ["/profiles/4/downloads/\(claim?.id ?? 0)"], "released as Quinn")
+    }
+
+    func testTheLibrariesAreTheReplicasByName() async throws {
+        try await harness.replica.write { db in
+            try db.library(1, "tv")
+            try db.library(3, "movies")
+        }
+        await store.loadLibraries()
+        let tv = DownloadLibrary(id: 1, name: "Tv", kind: .tv)
+        XCTAssertEqual(store.libraries, [DownloadLibrary(id: 3, name: "Movies", kind: .movies), tv])
+        XCTAssertFalse(store.settings(1).keeps(tv), "TV removes watched titles by default")
     }
 }

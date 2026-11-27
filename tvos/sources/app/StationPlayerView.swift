@@ -20,9 +20,11 @@ private struct StationCover: ViewModifier {
 
     func body(content: Content) -> some View {
         content.fullScreenCover(item: $browser.tuning) { station in
-            if let client = app.client, let endpoint = app.endpoint, let profile = app.activeProfile {
+            if let client = app.client, let replica = app.sync?.replica, let endpoint = app.endpoint,
+                let profile = app.activeProfile
+            {
                 StationPlayerScreen(
-                    station: station, client: client, endpoint: endpoint, profileId: profile.id,
+                    station: station, client: client, replica: replica, endpoint: endpoint, profileId: profile.id,
                     capabilities: capabilities, close: { browser.tuning = nil }
                 )
                 .id(station.id)
@@ -37,6 +39,7 @@ private struct StationCover: ViewModifier {
 struct StationPlayerScreen: View {
     let station: Station
     let client: Client
+    let replica: Replica
     let endpoint: ServerEndpoint
     let profileId: Int64
     let capabilities: SystemCapabilities
@@ -58,7 +61,7 @@ struct StationPlayerScreen: View {
             let model = PlayerModel(
                 client: client, endpoint: endpoint, profileId: profileId, item: nil, output: output,
                 capabilities: capabilities, device: "Apple TV")
-            let tuner = StationTuner(client: client, station: station)
+            let tuner = StationTuner(client: client, replica: replica, profileId: profileId, station: station)
             self.output = output
             self.model = model
             self.tuner = tuner

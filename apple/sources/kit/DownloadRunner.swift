@@ -120,8 +120,9 @@ extension DownloadStore {
             var ids: [Int64]
         }
         var batches: [Batch] = []
+        let me = me
         for id in ids {
-            guard let title = ledger.titles[id], title.claim == nil, let profile = claimant(id) else { continue }
+            guard let title = ledger.titles[id], title.claim == nil, let profile = claimant(id, me) else { continue }
             if let index = batches.firstIndex(where: {
                 $0.profile == profile && $0.quality == title.quality && $0.ids.count < 5000
             }) {
@@ -164,16 +165,16 @@ extension DownloadStore {
     /// Who claims the title now: the active profile when it asked for it,
     /// else a profile the server answers for that did. Another adult's title
     /// waits for them.
-    private func claimant(_ id: Int64) -> Int64? {
+    private func claimant(_ id: Int64, _ me: Components.Schemas.Me?) -> Int64? {
         let asking = ledger.requests.filter { $0.titles.contains(id) }.map(\.profileId)
-        if let active = ledger.shelf.me?.activeProfileId, asking.contains(active) { return active }
-        return asking.first(where: answers(for:))
+        if let active = me?.activeProfileId, asking.contains(active) { return active }
+        return asking.first { answers(for: $0, me) }
     }
 
     /// Whether the server answers for the profile now: the active one, or a
     /// kid while an adult is. Not knowing who is active, it may.
-    private func answers(for profile: Int64) -> Bool {
-        guard let me = ledger.shelf.me else { return true }
+    private func answers(for profile: Int64, _ me: Components.Schemas.Me?) -> Bool {
+        guard let me else { return true }
         let kids = Set(me.profiles.filter { $0.kind == .kid }.map(\.id))
         return profile == me.activeProfileId || !kids.contains(me.activeProfileId) && kids.contains(profile)
     }
@@ -185,7 +186,7 @@ extension DownloadStore {
     }
 
     /// Fetches a claimed title once the server has it ready, with its
-    /// subtitles, metadata and artwork, then releases the claim. A claim
+    /// subtitles and artwork, then releases the claim. A claim
     /// the server lost is made again once. False stops the pump: the server
     /// is gone or refuses the device for now.
     func download(_ id: Int64, _ link: Link, again: Bool = false) async -> Bool {
@@ -274,7 +275,7 @@ extension DownloadStore {
     /// The claim expired or went: claimed again once, then the title fails.
     private func reclaim(_ id: Int64, _ link: Link, again: Bool) async -> Bool {
         // Another profile's 404 is the server not answering for it now; its claim waits for it.
-        if let profile = ledger.titles[id]?.claim?.profileId, !answers(for: profile) {
+        if let profile = ledger.titles[id]?.claim?.profileId, !answers(for: profile, me) {
             ledger.titles[id]?.state = .pending
             return true
         }
@@ -299,7 +300,7 @@ extension DownloadStore {
 
     /// Whether the server no longer holds the claim, released now or gone before.
     func release(_ claim: DownloadClaim, _ link: Link) async -> Bool {
-        guard answers(for: claim.profileId) else { return false }
+        guard answers(for: claim.profileId, me) else { return false }
         do {
             _ = try await link.client.deleteDownload(path: .init(profileId: claim.profileId, downloadId: claim.id))
                 .noContent

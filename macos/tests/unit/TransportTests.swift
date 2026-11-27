@@ -16,7 +16,9 @@ final class TransportTests: XCTestCase {
             "GET /playback/sessions": (.ok, Fixtures.page([])),
             "POST /playback/sessions": (.created, Fixtures.audioStream(1)),
         ])
-        let model = AppModel(store: MemoryCredentialStore(), deviceName: "Test Mac", transport: transport)
+        let model = AppModel(
+            store: MemoryCredentialStore(), deviceName: "Test Mac", transport: transport,
+            replicaDirectory: Fixtures.replicas)
         // A loopback server, so the player's stream fails at once rather than reaching the network.
         try await model.signIn(server: "127.0.0.1", email: "a@example.test", password: "x")
         try await model.choose(model.profiles[0])

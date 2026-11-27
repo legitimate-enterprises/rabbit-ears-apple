@@ -20,183 +20,172 @@ extension Fixtures {
 
 @MainActor
 final class CollectionsModelTests: XCTestCase {
-    var transport: RoutingTransport!
+    var synced: SyncedReplica!
     var model: CollectionsModel!
 
+    /// Household 7's Movie night (7, empty) and Rainy days (8), TMDB's
+    /// Comet saga (6, three movies) and Solo (5, one), and Elsewhere (9) of
+    /// another household. Kit (2) is a kid under PG.
     override func setUp() async throws {
-        transport = RoutingTransport()
-        transport.respond = { sent in
-            guard sent.method == .get, sent.path == "/collections" else { return nil }
-            return sent.query.contains("offset=200")
-                ? (.ok, Fixtures.page([Fixtures.collection(8, "Rainy days", count: 1)], total: 3))
-                : (
-                    .ok,
-                    #"{"items":[\#(Fixtures.collection(6, "Comet saga", source: "tmdb", count: 3)),"#
-                        + #"\#(Fixtures.collection(7, "Movie night"))],"total":3,"nextOffset":200}"#
-                )
+        synced = try SyncedReplica { db in
+            try db.account(1, "Avery")
+            try db.account(2, "Kit", kind: "kid", movies: "PG")
+            try db.item(10, "movie", "Comet", rating: "PG", year: 2016)
+            try db.item(11, "movie", "Comet II", rating: "R", year: 2019)
+            try db.item(12, "movie", "Comet III", rating: "PG", year: 2012)
+            try db.item(13, "movie", "Puddles", rating: "G")
+            try db.collection(6, "Comet saga", source: "tmdb")
+            try db.collection(5, "Solo", source: "tmdb")
+            try db.collection(7, "Movie night")
+            try db.collection(8, "Rainy days")
+            try db.collection(9, "Elsewhere", household: 8)
+            for movie: Int64 in [10, 11, 12] { try db.collect(movie, in: 6) }
+            try db.collect(13, in: 5)
+            try db.collect(13, in: 8)
+            try db.collect(10, in: 9)
         }
-        model = CollectionsModel(
-            client: ServerEndpoint(userInput: "192.168.1.9")!.client(token: "t", transport: transport))
+        addTeardownBlock { [synced] in await synced?.remove() }
+        model = synced.collections()
         await model.load()
     }
 
-    func testLoadsEveryPageAndPicksOutTheHouseholdsOwn() {
+    func testLoadsWhatTheHouseholdAndProfileMaySeeByName() async {
         XCTAssertEqual(model.collections.map(\.id), [6, 7, 8])
         XCTAssertEqual(model.custom.map(\.name), ["Movie night", "Rainy days"])
-        XCTAssertEqual(transport.queries(.get, "/collections").count, 2)
         XCTAssertEqual(model.collections.map(\.summary), ["3 movies", "0 movies", "1 movie"])
+        XCTAssertEqual(model.collections.map(\.tmdbId), [600, nil, nil])
+        XCTAssertEqual(model.collections.map(\.householdId), [nil, 7, 7])
+        XCTAssertEqual(model.collections.first?.overview, "Three of them.")
         XCTAssertNil(model.error)
+
+        let kid = synced.collections(2)
+        await kid.load()
+        XCTAssertEqual(kid.collections.map(\.id), [6, 8], "a kid sees none without a movie it may see")
+        XCTAssertEqual(kid.collections.map(\.movieCount), [2, 1])
     }
 
-    func testMoviesAreReadToTheLastPageInTheServersOrder() async throws {
-        transport.respond = { sent in
-            guard sent.path == "/collections/6/movies" else { return nil }
-            return sent.query.contains("offset=200")
-                ? (.ok, Fixtures.page([Fixtures.item(12, "movie", "Comet III")]))
-                : (
-                    .ok,
-                    #"{"items":[\#(Fixtures.item(10, "movie", "Comet")),"#
-                        + #"\#(Fixtures.item(11, "movie", "Comet II"))],"nextOffset":200}"#
-                )
-        }
+    func testMoviesComeInReleaseOrderAndOnlyThoseTheProfileMaySee() async throws {
         let read = await model.movies(of: 6)
-        XCTAssertEqual(try XCTUnwrap(read).map(\.id), [10, 11, 12])
-        let unreadable = await model.movies(of: 99)
-        XCTAssertNil(unreadable)
+        XCTAssertEqual(try XCTUnwrap(read).map(\.id), [12, 10, 11])
+        let kid = synced.collections(2)
+        let seen = await kid.movies(of: 6)
+        XCTAssertEqual(seen?.map(\.id), [12, 10])
+        let unreadable = await model.movies(of: 9)
+        XCTAssertNil(unreadable, "another household's")
+        XCTAssertNotNil(model.error)
     }
 
     func testACollectionReachedByALinkIsReadWithItsMovies() async {
-        transport.respond = { sent in
-            switch sent.path {
-            case "/collections/9": return (.ok, Fixtures.collection(9, "Late shows", count: 1))
-            case "/collections/9/movies": return (.ok, Fixtures.page([Fixtures.item(10, "movie", "Comet")]))
-            default: return nil
-            }
-        }
-        let read = await model.movies(of: 9)
-        XCTAssertEqual(read?.map(\.id), [10])
-        XCTAssertEqual(model.collections.last?.name, "Late shows")
+        let fresh = synced.collections()
+        let read = await fresh.movies(of: 8)
+        XCTAssertEqual(read?.map(\.id), [13])
+        XCTAssertEqual(fresh.collections.map(\.name), ["Rainy days"])
     }
 
-    func testCreateRenameAndDelete() async throws {
-        transport.routes["POST /collections"] = (.created, Fixtures.collection(9, "Snow days"))
-        transport.routes["PUT /collections/9"] = (.ok, Fixtures.collection(9, "Snowed in"))
-        transport.routes["DELETE /collections/9"] = (.noContent, "")
+    func testCreateGoesToTheServerThenCatchesUp() async throws {
+        synced.transport.routes["POST /collections"] = (.created, Fixtures.collection(20, "Snow days"))
         let blank = await model.create(name: "  ")
         XCTAssertNil(blank)
         let made = await model.create(name: " Snow days ")
-        let created = try XCTUnwrap(made)
-        XCTAssertEqual(transport.json(.post, "/collections")?["name"] as? String, "Snow days")
-        XCTAssertEqual(model.collections.map(\.id), [6, 7, 8, 9])
-
-        await model.rename(created, to: "Snowed in")
-        XCTAssertEqual(transport.json(.put, "/collections/9")?["name"] as? String, "Snowed in")
-        XCTAssertEqual(model.collections.last?.name, "Snowed in")
-
-        await model.delete(created)
-        XCTAssertEqual(model.collections.map(\.id), [6, 7, 8])
+        XCTAssertEqual(made?.id, 20)
+        XCTAssertEqual(synced.transport.json(.post, "/collections")?["name"] as? String, "Snow days")
+        XCTAssertTrue(synced.caughtUp)
     }
 
-    func testAddingAndRemovingAMovieRefreshesTheCount() async {
-        transport.routes["PUT /collections/7/movies/10"] = (.noContent, "")
-        transport.routes["DELETE /collections/7/movies/10"] = (.noContent, "")
-        transport.routes["GET /collections/7"] = (.ok, Fixtures.collection(7, "Movie night", count: 1))
+    func testRenameAndDeleteAreQueuedAndDeleteTakesTheEntriesHoldingIt() async throws {
+        try await synced.replica.write { db in
+            try db.playlist(3, "Mix")
+            try db.entry(30, in: 3, collection: 8, rank: "a0")
+            try db.entry(31, in: 3, item: 13, rank: "a1")
+        }
+        let rainy = model.collections[2]
+        await model.rename(rainy, to: " Snowed in ")
+        XCTAssertEqual(model.collections.map(\.name), ["Comet saga", "Movie night", "Snowed in"])
+        XCTAssertEqual(try synced.lastBody()?["name"] as? String, "Snowed in")
+
+        await model.delete(rainy)
+        XCTAssertEqual(model.collections.map(\.id), [6, 7])
+        XCTAssertEqual(try synced.lastTouched(), ["collection 8", "playlist_entry 30"])
+        let entries: [Int64] = try await synced.read("SELECT id FROM playlist_entry")
+        XCTAssertEqual(entries, [31])
+        let queued = try synced.queued()
+        XCTAssertEqual(queued, ["replaceCollection PUT /collections/8", "deleteCollection DELETE /collections/8"])
+        XCTAssertNil(model.error)
+    }
+
+    func testAddingAndRemovingAMovieIsQueuedAndRecounted() async throws {
         let added = await model.add(movie: 10, to: 7)
         XCTAssertTrue(added)
         XCTAssertEqual(model.collections.first { $0.id == 7 }?.movieCount, 1)
+        XCTAssertEqual(try synced.lastTouched(), ["collection_movie 7 10"])
         await model.remove(movie: 10, from: 7)
-        XCTAssertEqual(transport.paths(.delete), ["/collections/7/movies/10"])
+        XCTAssertEqual(model.collections.first { $0.id == 7 }?.movieCount, 0)
+        let queued = try synced.queued()
+        XCTAssertEqual(
+            queued,
+            [
+                "addCollectionMovie PUT /collections/7/movies/10",
+                "removeCollectionMovie DELETE /collections/7/movies/10",
+            ])
         XCTAssertNil(model.error)
     }
 
-    func testARefusedWriteSaysWhy() async {
-        transport.routes["PUT /collections/6/movies/10"] = (
-            .forbidden, Fixtures.error("forbidden", "A TMDB collection can't be changed.")
-        )
-        let added = await model.add(movie: 10, to: 6)
-        XCTAssertFalse(added)
-        XCTAssertEqual(model.error, "A TMDB collection can't be changed.")
-    }
-
-    func testAMoviesCollectionsComeFromItsDetails() async {
-        let movie = Fixtures.item(10, "movie", "Comet").dropLast()
-        transport.routes["GET /items/10"] = (
-            .ok, #"\#(movie),"collections":[\#(Fixtures.collection(6, "Comet saga", source: "tmdb"))]}"#
-        )
-        transport.routes["GET /items/11"] = (.ok, Fixtures.item(11, "movie", "Loner"))
-        let named = await model.collections(of: 10)
-        XCTAssertEqual(named.map(\.name), ["Comet saga"])
-        let none = await model.collections(of: 11)
-        XCTAssertEqual(none, [])
-    }
-
-    func testMovingAMovieSendsItsIndexAndTheFlagFollows() async {
-        transport.routes["PUT /collections/7/movies/10/position"] = (
-            .ok, Fixtures.handOrdered(Fixtures.collection(7, "Movie night", count: 4))
-        )
-        XCTAssertEqual(model.collections.first { $0.id == 7 }?.isHandOrdered, false)
-        let moved = await model.move(10, in: 7, to: 3)
-        XCTAssertTrue(moved)
-        XCTAssertEqual(transport.json(.put, "/collections/7/movies/10/position")?["position"] as? Int, 3)
-        XCTAssertEqual(model.collections.first { $0.id == 7 }?.isHandOrdered, true)
-        XCTAssertEqual(model.collections.first { $0.id == 7 }?.movieCount, 4)
-        XCTAssertNil(model.error)
-    }
-
-    func testResettingTheOrderClearsTheFlag() async {
-        transport.routes["PUT /collections/7/movies/10/position"] = (
-            .ok, Fixtures.handOrdered(Fixtures.collection(7, "Movie night"))
-        )
-        transport.routes["DELETE /collections/7/order"] = (.ok, Fixtures.collection(7, "Movie night"))
-        await model.move(10, in: 7, to: 0)
-        let reset = await model.resetOrder(of: 7)
-        XCTAssertTrue(reset)
-        XCTAssertEqual(transport.paths(.delete), ["/collections/7/order"])
-        XCTAssertEqual(model.collections.first { $0.id == 7 }?.isHandOrdered, false)
-    }
-
-    func testARefusedMoveOrResetLeavesTheCollectionAsItWas() async {
-        let refusal = (
-            HTTPResponse.Status.forbidden, Fixtures.error("forbidden", "A TMDB collection can't be changed.")
-        )
-        transport.routes["PUT /collections/6/movies/10/position"] = refusal
-        transport.routes["DELETE /collections/6/order"] = refusal
+    func testATMDBCollectionIsRefusedAtOnceAndLeftAsItWas() async throws {
         let before = model.collections
+        let added = await model.add(movie: 13, to: 6)
+        XCTAssertFalse(added)
+        XCTAssertEqual(model.error, "A TMDB collection cannot be changed.")
         let moved = await model.move(10, in: 6, to: 1)
         XCTAssertFalse(moved)
-        XCTAssertEqual(model.error, "A TMDB collection can't be changed.")
         let reset = await model.resetOrder(of: 6)
         XCTAssertFalse(reset)
         XCTAssertEqual(model.collections, before)
-        XCTAssertEqual(model.collections.map(\.isHandOrdered), [false, false, false])
+        let queued = try synced.queued()
+        XCTAssertEqual(queued, [])
     }
 
-    func testReorderingAnswersTheMoviesAsTheServerHoldsThemAndAResetDoesToo() async throws {
-        let ids: [Int64] = [11, 12, 10]
-        transport.routes["GET /collections/7/movies"] = (
-            .ok, Fixtures.page(ids.map { Fixtures.item($0, "movie", "Part \($0)") })
-        )
-        transport.routes["PUT /collections/7/movies/10/position"] = (
-            .ok, Fixtures.handOrdered(Fixtures.collection(7, "Movie night"))
-        )
-        transport.routes["DELETE /collections/7/order"] = (.ok, Fixtures.collection(7, "Movie night"))
-        let moved = await model.reorder(10, in: 7, to: 2)
-        XCTAssertEqual(try XCTUnwrap(moved).map(\.id), [11, 12, 10])
-        XCTAssertEqual(model.collections.first { $0.id == 7 }?.isHandOrdered, true)
-        let reset = await model.restoreReleaseOrder(of: 7)
-        XCTAssertNotNil(reset)
+    func testAMoviesCollectionsAreThoseHoldingItThatTheProfileMaySee() async {
+        let named = await model.collections(of: 13)
+        XCTAssertEqual(named.map(\.name), ["Rainy days"], "Solo holds too few to show")
+        let comet = await model.collections(of: 11)
+        XCTAssertEqual(comet.map(\.name), ["Comet saga"])
+        let kid = await synced.collections(2).collections(of: 11)
+        XCTAssertEqual(kid, [], "a movie the profile may not open names none")
+    }
+
+    func testMovingNumbersEveryMovieAndTheFlagFollowsThenAResetClearsIt() async throws {
+        try await synced.replica.write { db in
+            for movie: Int64 in [10, 11, 12] { try db.collect(movie, in: 7) }
+        }
+        await model.load()
         XCTAssertEqual(model.collections.first { $0.id == 7 }?.isHandOrdered, false)
+        let moved = await model.reorder(12, in: 7, to: 2)
+        XCTAssertEqual(try XCTUnwrap(moved).map(\.id), [10, 11, 12])
+        XCTAssertEqual(model.collections.first { $0.id == 7 }?.isHandOrdered, true)
+        XCTAssertEqual(try synced.lastBody()?["position"] as? Int, 2)
+        XCTAssertEqual(
+            try synced.lastTouched(), ["collection_movie 7 12", "collection_movie 7 10", "collection_movie 7 11"])
+        let positions: [Int64] = try await synced.read(
+            "SELECT position FROM collection_movie WHERE collection_id = 7 ORDER BY item_id")
+        XCTAssertEqual(positions, [0, 1, 2])
+
+        let reset = await model.restoreReleaseOrder(of: 7)
+        XCTAssertEqual(reset?.map(\.id), [12, 10, 11])
+        XCTAssertEqual(model.collections.first { $0.id == 7 }?.isHandOrdered, false)
+        let queued = try synced.queued()
+        XCTAssertEqual(
+            queued,
+            [
+                "replaceCollectionMoviePosition PUT /collections/7/movies/12/position",
+                "resetCollectionOrder DELETE /collections/7/order",
+            ])
         XCTAssertNil(model.error)
     }
 
-    func testARefusedReorderStillReadsTheServersOrderAndKeepsTheError() async throws {
-        transport.routes["PUT /collections/6/movies/10/position"] = (
-            .forbidden, Fixtures.error("forbidden", "A TMDB collection can't be changed.")
-        )
-        transport.routes["GET /collections/6/movies"] = (.ok, Fixtures.page([Fixtures.item(10, "movie", "Comet")]))
+    func testARefusedReorderStillReadsTheMoviesAndKeepsTheError() async throws {
         let read = await model.reorder(10, in: 6, to: 0)
-        XCTAssertEqual(try XCTUnwrap(read).map(\.id), [10])
-        XCTAssertEqual(model.error, "A TMDB collection can't be changed.")
+        XCTAssertEqual(try XCTUnwrap(read).map(\.id), [12, 10, 11])
+        XCTAssertEqual(model.error, "A TMDB collection cannot be changed.")
     }
 
     func testARowReadsItsYearAndRuntime() {
@@ -221,39 +210,15 @@ final class CollectionsModelTests: XCTestCase {
         XCTAssertEqual(CollectionsModel.position(moving: 2, toOffset: 2), 2)
     }
 
-    func testMoviesKeepTheServersOrderWhateverTheirYears() async throws {
-        let ids: [Int64] = [12, 10, 11]
-        let page = Fixtures.page(ids.map { Fixtures.item($0, "movie", "Part \($0)") })
-        transport.routes["GET /collections/7/movies"] = (.ok, page)
-        let read = await model.movies(of: 7)
-        XCTAssertEqual(try XCTUnwrap(read).map(\.id), [12, 10, 11])
-    }
-
-    func testADownloadedHandOrderedCollectionReadsOfflineWithItsBadgeAndOrder() async throws {
-        let harness = DownloadHarness()
-        harness.objects["GET /me"] = Fixtures.me
-        harness.objects["GET /items/20"] = Fixtures.item(20, "movie", "Dune", runtime: 166)
-        harness.objects["GET /items/21"] = Fixtures.item(21, "movie", "Arrival", runtime: 116)
-        harness.objects["GET /collections/3"] = Fixtures.handOrdered(Fixtures.collection(3, "Slow burns", count: 2))
-        harness.objects["GET /collections/3/movies"] = Fixtures.page(
-            [Fixtures.item(21, "movie", "Arrival"), Fixtures.item(20, "movie", "Dune")])
-        harness.resolves["collection/3"] = [
-            Fixtures.downloadTitle(20, "movie"), Fixtures.downloadTitle(21, "movie"),
-        ]
-        _ = try await harness.client.getMe()
-        try await harness.download(.init(scope: .collection, id: 3, name: "Slow burns", standing: true))
-        for _ in 0..<400 where harness.store.ledger.shelf.collections[3] == nil {
-            try await Task.sleep(for: .milliseconds(5))
+    func testAHandOrderedCollectionKeepsItsOrderWhateverTheYears() async throws {
+        try await synced.replica.write { db in
+            try db.collect(10, in: 7, at: 1)
+            try db.collect(11, in: 7, at: 0)
+            try db.collect(12, in: 7, at: 2)
         }
-        harness.goOffline()
-        let offline = CollectionsModel(client: harness.client)
-        await offline.load()
-        XCTAssertEqual(offline.collections.map(\.isHandOrdered), [true])
-        let movies = await offline.movies(of: 3)
-        XCTAssertEqual(movies?.map(\.id), [21, 20])
-        // Nothing on the device answers a write, so an edit fails as the server not answering.
-        let moved = await offline.move(21, in: 3, to: 1)
-        XCTAssertFalse(moved)
-        XCTAssertNotNil(offline.error)
+        await model.load()
+        XCTAssertEqual(model.collections.first { $0.id == 7 }?.isHandOrdered, true)
+        let read = await model.movies(of: 7)
+        XCTAssertEqual(try XCTUnwrap(read).map(\.id), [11, 10, 12])
     }
 }

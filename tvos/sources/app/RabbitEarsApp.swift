@@ -11,7 +11,7 @@ struct RabbitEarsApp: App {
         URLCache.shared = URLCache(memoryCapacity: 32 << 20, diskCapacity: 512 << 20)
         let model = AppModel(
             store: KeychainCredentialStore(), deviceName: UIDevice.current.name, platform: .tvos,
-            rememberProfileByDefault: false, cache: ResponseCache())
+            rememberProfileByDefault: false, replicaDirectory: Replica.defaultDirectory)
         _model = State(initialValue: model)
         _center = State(initialValue: SystemNowPlayingCenter(artwork: { await model.artwork?.data($0, .poster) }))
     }

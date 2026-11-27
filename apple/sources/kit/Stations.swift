@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import Observation
 import RabbitEarsAPI
 
@@ -8,9 +9,9 @@ public typealias StationProgram = Components.Schemas.StationProgram
 public typealias StationTimeRange = Components.Schemas.StationTimeRange
 public typealias Weekday = Components.Schemas.Weekday
 
-/// The stations the active profile may see, and the owner's edits to them.
-/// The server decides every schedule, order and program; this only reads
-/// and writes what it is given.
+/// The stations the active profile may see, read from the replica at
+/// `now`, and the owner's edits to them. The server writes every schedule,
+/// order and program; this reads them and what is on.
 @MainActor
 @Observable
 public final class StationsModel {
@@ -21,27 +22,39 @@ public final class StationsModel {
     public private(set) var mine: [Station] = []
     public let client: Client
     public let profileId: Int64
+    private let replica: Replica
+    private let queue: ActionQueue
+    private let engine: SyncEngine
+    private let now: @Sendable () -> Date
+    /// Whose days and hours a schedule's days, ranges and today are.
+    private let calendar: Calendar
+    private let sleep: @MainActor (Date) async throws -> Void
+    /// When the one pending wake at a program's start or end is due.
+    @ObservationIgnored private var wakeAt: Date?
 
-    public init(client: Client, profileId: Int64) {
+    /// Tests pass a `sleep` that returns when they say; it throws when cancelled.
+    public init(
+        client: Client, replica: Replica, queue: ActionQueue, engine: SyncEngine, profileId: Int64,
+        now: @escaping @Sendable () -> Date = Date.init, calendar: Calendar = .autoupdatingCurrent,
+        sleep: @escaping @MainActor (Date) async throws -> Void = { date in
+            try await Task.sleep(for: .seconds(max(0, date.timeIntervalSinceNow)))
+        }
+    ) {
         self.client = client
+        self.replica = replica
+        self.queue = queue
+        self.engine = engine
         self.profileId = profileId
+        self.now = now
+        self.calendar = calendar
+        self.sleep = sleep
     }
 
     /// Only the owner, active, edits, reschedules or deletes a station.
     public func isOwner(_ station: Station) -> Bool { station.ownerId == profileId }
 
     /// One kind's stations, or every kind's; nil when they could not be read.
-    public func list(_ kind: PlaylistKind? = nil) async -> [Station]? {
-        var stations: [Station]?
-        await write {
-            stations = try await allPages { offset in
-                let page = try await self.client.listStations(query: .init(kind: kind, limit: 200, offset: offset))
-                    .ok.body.json
-                return (page.items, page.nextOffset)
-            }
-        }
-        return stations
-    }
+    public func list(_ kind: PlaylistKind? = nil) async -> [Station]? { await stations(kind: kind) }
 
     public func loadMine() async {
         if let all = await list() { mine = all.filter(isOwner) }
@@ -55,29 +68,20 @@ public final class StationsModel {
 
     public static func onNow(_ stations: [Station]) -> [Station] { stations.filter { $0.onAir.status == .onAir } }
 
-    public func station(_ id: Int64) async -> Station? {
-        var station: Station?
-        await write { station = try await client.getStation(path: .init(stationId: id)).ok.body.json }
-        return station
-    }
+    /// Nil when the profile may not see it, or it could not be read.
+    public func station(_ id: Int64) async -> Station? { await stations(id: id)?.first }
 
-    /// The programs that overlap today, which is the server's to name: a
-    /// station's days are its local ones. Nil when they could not be read.
+    /// The programs that overlap this device's today. Nil when the station
+    /// is not the profile's to see or could not be read.
     public func schedule(of id: Int64) async -> [StationProgram]? {
-        var programs: [StationProgram]?
-        await write {
-            programs = try await allPages { offset in
-                let page = try await self.client.listStationSchedule(
-                    path: .init(stationId: id), query: .init(limit: 200, offset: offset)
-                ).ok.body.json
-                return (page.items, page.nextOffset)
-            }
-        }
-        return programs
+        await read { [profileId, calendar] db, at in
+            try StationRows.schedule(db, station: id, profile: profileId, at: at, calendar: calendar)
+        } ?? nil
     }
 
     /// Makes a station, or replaces station `id`; nil when the form is
     /// incomplete or the server refused, with `fieldErrors` set for a 400.
+    /// The replica has caught up with it on return, so it reads back.
     public func save(_ form: StationForm, as id: Int64? = nil) async -> Station? {
         guard let input = form.input else { return nil }
         var saved: Station?
@@ -85,8 +89,10 @@ public final class StationsModel {
         await write {
             do {
                 if let id {
+                    // shortcut: online until station_time rows have a key the client knows, so the times show at once.
                     saved = try await client.replaceStation(path: .init(stationId: id), body: .json(input)).ok.body.json
                 } else {
+                    // shortcut: online-only until offline ids are decided
                     saved = try await client.createStation(body: .json(input)).created.body.json
                 }
             } catch {
@@ -94,22 +100,47 @@ public final class StationsModel {
                 throw error
             }
         }
-        if let saved { keep(saved) }
+        guard let saved else { return nil }
+        keep(saved)
+        try? await engine.catchUp()
         return saved
     }
 
-    /// Reschedule now: the station with its new onAir.
-    public func reschedule(_ id: Int64) async -> Station? {
-        var station: Station?
-        await write { station = try await client.rescheduleStation(path: .init(stationId: id)).ok.body.json }
-        return station
+    /// Reschedule now, queued: the new schedule arrives once the server has made it.
+    @discardableResult
+    public func reschedule(_ id: Int64) async -> Bool {
+        await write { try await queue.rescheduleStation(id, as: profileId) }
     }
 
+    /// Queued: gone here at once, and from the server when the queue reaches it.
     @discardableResult
     public func delete(_ id: Int64) async -> Bool {
         await write {
-            _ = try await client.deleteStation(path: .init(stationId: id)).noContent
+            try await queue.deleteStation(id, as: profileId)
             mine.removeAll { $0.id == id }
+        }
+    }
+
+    private func stations(kind: PlaylistKind? = nil, id: Int64? = nil) async -> [Station]? {
+        let stations = await read { [profileId, calendar] db, at in
+            try StationRows.stations(db, profile: profileId, kind: kind, id: id, at: at, calendar: calendar)
+        }
+        wake(after: stations ?? [])
+        return stations
+    }
+
+    /// What is on changes when a program starts or ends, which commits nothing; the soonest such
+    /// moment among `stations` moves the stations count once, so every board showing them reads them again.
+    private func wake(after stations: [Station]) {
+        let at = now()
+        let moments = stations.flatMap { [$0.onAir.now, $0.onAir.next].compactMap { $0 } }
+            .flatMap { [$0.startsAt, $0.endsAt] }.filter { $0 > at }
+        guard let next = moments.min(), wakeAt.map({ next < $0 }) ?? true else { return }
+        wakeAt = next
+        Task { [weak self, replica, sleep] in
+            guard (try? await sleep(next)) != nil else { return }
+            if self?.wakeAt == next { self?.wakeAt = nil }
+            replica.elapsed(.stations)
         }
     }
 
@@ -118,6 +149,21 @@ public final class StationsModel {
             mine[at] = station
         } else {
             mine.append(station)
+        }
+    }
+
+    /// Nil, and `error` set, when the replica could not be read; nil alone before its first snapshot.
+    private func read<T: Sendable>(_ body: @escaping @Sendable (Database, Date) throws -> T) async -> T? {
+        let at = now()
+        do {
+            let value = try await replica.read { try body($0, at) }
+            error = nil
+            return value
+        } catch Replica.Failure.empty {
+            return nil
+        } catch {
+            self.error = AppError.from(error).localizedDescription
+            return nil
         }
     }
 

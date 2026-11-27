@@ -12,8 +12,14 @@ Rabbit Ears server or is invited to one.
   against. `make spec VERSION=<server version>` replaces it with another
   release's and regenerates the API package; `make lint` fails when the two
   disagree.
+- The apps render from a local SQLite replica kept current by the server's
+  sync API. A change the server can replay applies there at once and queues
+  until the server takes it, so it works offline.
 - The Xcode projects are generated from each app's `project.yaml` by
   `make deps` and are not committed.
+- The kit reads SQLite through GRDB, built by `make deps` under `build/grdb`
+  against the server's own SQLite release, never the system's. Both are
+  pinned in `apple/scripts/grdb-source.sh`.
 - Tests that need a server build one from its repository at the tag for
   `openapi.yaml`'s version, cloned under `build/`. Set
   `RABBIT_EARS_SERVER_SRC` to a checkout of that repository to use it

@@ -39,11 +39,11 @@ public struct PlayerExit {
     /// closed for want of it. An answer that comes after the viewer moved on
     /// to another player does nothing to that player.
     public func ended(client: Client?, profile: Account?) async -> UpNextModel? {
-        guard let client, let profile else {
+        guard client != nil, let profile else {
             leave()
             return nil
         }
-        let next = await UpNextModel.load(after: request, client: client, profile: profile)
+        let next = await UpNextModel.load(after: request, replica: catalog.replica, profile: profile)
         guard stillUp else { return nil }
         if let next { return next }
         leave()

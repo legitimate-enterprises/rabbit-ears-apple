@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import RabbitEarsAPI
 import XCTest
 
@@ -14,6 +15,50 @@ extension Fixtures {
     }
 }
 
+extension XCTestCase {
+    /// CarPlay over a replica of Avery (1) and `rows` at 15:12 UTC on 15
+    /// November 2026, its server `transport`; removed after the test.
+    @MainActor
+    func carPlay(_ transport: RoutingTransport, _ rows: (Database) throws -> Void = { _ in }) throws -> CarPlayLibrary {
+        let fixture = ReplicaFixture()
+        addTeardownBlock { fixture.remove() }
+        let replica = try fixture.v1 { db in
+            try db.account(1, "Avery")
+            try db.artist(40, "Radiohead")
+            try rows(db)
+        }
+        let client = ServerEndpoint(userInput: "192.168.1.9")!.client(token: "t", transport: transport)
+        return CarPlayLibrary(
+            music: MusicModel(client: client, replica: replica, profileId: 1),
+            stations: stationsModel(replica, transport: transport))
+    }
+
+    /// Road trip (3), Avery's, holds In Rainbows, Nude (track 3) and
+    /// Reckoner (7); Movie night (4) is movies; Robin's Elsewhere (5) is
+    /// shared with nobody.
+    func roadTrip(_ db: Database) throws {
+        try db.account(2, "Robin")
+        try db.album(50, "In Rainbows", artist: 40)
+        try db.song(9, "Reckoner", album: 50, track: 7)
+        try db.song(10, "Nude", album: 50, track: 3)
+        try db.playlist(3, "Road trip", kind: "music")
+        try db.entry(1, in: 3, item: 50, rank: "a0")
+        try db.playlist(4, "Movie night")
+        try db.playlist(5, "Elsewhere", owner: 2, kind: "music")
+        try db.entry(2, in: 5, item: 9, rank: "a0")
+    }
+
+    /// Kitchen Radio (8) playing Paper Lanterns from In Rainbows at 15:12, and Sunday Vinyl (9) with nothing on.
+    func kitchenRadio(_ db: Database) throws {
+        try db.album(50, "In Rainbows", artist: 40)
+        try db.song(30, "Paper Lanterns", album: 50)
+        try db.station(8, "Kitchen Radio", kind: "music", timing: "continuous")
+        try db.program(
+            30, station: 8, item: 30, edition: 30, starts: "2026-11-15T15:10:00Z", ends: "2026-11-15T15:14:00Z")
+        try db.station(9, "Sunday Vinyl", kind: "music", timing: "continuous")
+    }
+}
+
 @MainActor
 final class CarPlayLibraryTests: XCTestCase {
     var transport: RoutingTransport!
@@ -22,8 +67,7 @@ final class CarPlayLibraryTests: XCTestCase {
 
     override func setUp() async throws {
         transport = RoutingTransport()
-        let client = ServerEndpoint(userInput: "192.168.1.9")!.client(token: "t", transport: transport)
-        library = CarPlayLibrary(music: MusicModel(client: client, profileId: 1))
+        library = try carPlay(transport)
     }
 
     private func account(_ json: String) -> Account { Fixtures.decode(json) }
@@ -64,16 +108,12 @@ final class CarPlayLibraryTests: XCTestCase {
     }
 
     func testAlbumsThatFitAreOneListAToZWithIndexLetters() async throws {
-        transport.routes = [
-            "GET /music/letters": (.ok, Fixtures.letters([("A", 1), ("B", 2), ("#", 1)])),
-            "GET /music/albums": (
-                .ok,
-                Fixtures.page([
-                    Fixtures.album(1, "1999"), Fixtures.album(2, "Abbey Road"), Fixtures.album(3, "Blue"),
-                    Fixtures.album(4, "The Blue Train"),
-                ])
-            ),
-        ]
+        library = try carPlay(transport) { db in
+            try db.album(1, "1999", artist: 40)
+            try db.album(2, "Abbey Road", artist: 40)
+            try db.album(3, "Blue", artist: 40)
+            try db.album(4, "The Blue Train", artist: 40, sort: "Blue Train")
+        }
         let list = try await library.albums(roomy)
         XCTAssertEqual(list.sections.map(\.index), ["A", "B", "#"])
         XCTAssertEqual(list.sections.map(\.header), ["A", "B", "#"])
@@ -83,12 +123,14 @@ final class CarPlayLibraryTests: XCTestCase {
         XCTAssertEqual(row.art, .square(2))
         XCTAssertTrue(row.opens)
         XCTAssertEqual(row.action, .open(.album(2)))
-        XCTAssertEqual(transport.queries(.get, "/music/letters"), ["of=albums"])
-        XCTAssertEqual(transport.queries(.get, "/music/albums"), ["sort=title&limit=200"])
+        XCTAssertTrue(transport.sent.isEmpty, "read from the replica")
     }
 
     func testAlbumsThatDoNotFitAreLetterRowsWithCounts() async throws {
-        transport.routes["GET /music/letters"] = (.ok, Fixtures.letters([("A", 96), ("B", 1)]))
+        library = try carPlay(transport) { db in
+            for id in Int64(101)...196 { try db.album(id, "A\(id)", artist: 40) }
+            try db.album(197, "Blue", artist: 40)
+        }
         let list = try await library.albums(CarPlayLimits(maxItems: 50, maxSections: 50, limited: false))
         let rows = list.sections.flatMap(\.rows)
         XCTAssertEqual(rows.map(\.text), ["A", "B"])
@@ -96,11 +138,14 @@ final class CarPlayLibraryTests: XCTestCase {
         XCTAssertEqual(rows[0].action, .open(.letter(.albums, "A")))
         XCTAssertTrue(rows[0].opens)
         XCTAssertNil(rows[0].art)
-        XCTAssertTrue(transport.paths(.get).allSatisfy { $0 == "/music/letters" })
+        XCTAssertTrue(transport.sent.isEmpty)
     }
 
     func testMoreLettersThanSectionsAlsoBecomeLetterRows() async throws {
-        transport.routes["GET /music/letters"] = (.ok, Fixtures.letters([("A", 1), ("B", 1), ("C", 1)]))
+        library = try carPlay(transport) { db in
+            try db.execute(sql: "DELETE FROM item")
+            for (id, name) in [(Int64(41), "Abba"), (42, "Blur"), (43, "Cream")] { try db.artist(id, name) }
+        }
         let list = try await library.artists(CarPlayLimits(maxItems: 50, maxSections: 2, limited: false))
         XCTAssertEqual(list.sections.flatMap(\.rows).map(\.detail), ["1 artist", "1 artist", "1 artist"])
     }
@@ -118,13 +163,14 @@ final class CarPlayLibraryTests: XCTestCase {
     }
 
     func testALetterListsItsAlbumsCutToTheCarsLimit() async throws {
-        transport.routes["GET /music/albums"] = (
-            .ok, Fixtures.page([Fixtures.album(1, "Blue"), Fixtures.album(2, "Blue Train")])
-        )
+        library = try carPlay(transport) { db in
+            try db.album(1, "Blue", artist: 40)
+            try db.album(2, "Blue Train", artist: 40)
+            try db.album(3, "Abbey Road", artist: 40)
+        }
         let list = try await library.letter(.albums, "B", CarPlayLimits(maxItems: 1, maxSections: 50, limited: false))
         XCTAssertEqual(list.title, "B")
         XCTAssertEqual(list.sections.flatMap(\.rows).map(\.text), ["Blue"])
-        XCTAssertEqual(transport.queries(.get, "/music/albums"), ["letter=B&sort=title&limit=200"])
     }
 
     func testRecentPlaysOnTapUnderTwoHeadings() async throws {
@@ -135,9 +181,9 @@ final class CarPlayLibraryTests: XCTestCase {
                     Fixtures.recent("album", Fixtures.album(50, "In Rainbows")),
                     Fixtures.recent("playlist", Fixtures.playlist(3, "Road trip", count: 48)),
                 ])
-            ),
-            "GET /music/albums": (.ok, Fixtures.page([Fixtures.album(60, "Punisher")])),
+            )
         ]
+        library = try carPlay(transport) { db in try db.album(60, "Punisher", artist: 40) }
         let list = try await library.recent(roomy)
         XCTAssertEqual(list.sections.map(\.header), ["Recently played", "Recently added"])
         let played = list.sections[0].rows
@@ -152,9 +198,8 @@ final class CarPlayLibraryTests: XCTestCase {
             "GET /profiles/1/music/recently-played": (.ok, Fixtures.page([])),
             "GET /music/albums": (.ok, Fixtures.page([])),
             "GET /music/letters": (.ok, Fixtures.page([])),
-            "GET /profiles/1/playlists": (.ok, Fixtures.page([])),
-            "GET /stations": (.ok, Fixtures.page([])),
         ]
+        library = try carPlay(transport) { try $0.execute(sql: "DELETE FROM item WHERE id = 40") }
         let noMusic = CarPlayMessage("No music yet", "Albums appear here after your server\u{2019}s next scan.")
         let recent = try await library.recent(roomy)
         XCTAssertTrue(recent.sections.isEmpty)
@@ -167,44 +212,28 @@ final class CarPlayLibraryTests: XCTestCase {
         XCTAssertEqual(playlists.empty, noMusic)
     }
 
-    func testPlaylistsListsOnlyMusicPlaylistsWithSongCounts() async throws {
-        transport.routes["GET /profiles/1/playlists"] = (
-            .ok,
-            Fixtures.page([
-                Fixtures.playlist(3, "Road trip", count: 48), Fixtures.playlist(4, "Movie night", kind: "movies"),
-            ])
-        )
-        transport.routes["GET /stations"] = (.ok, Fixtures.page([]))
+    func testPlaylistsListsOnlyTheProfilesMusicPlaylistsWithSongCounts() async throws {
+        library = try carPlay(transport, roadTrip)
         let list = try await library.playlists(roomy)
         let rows = list.sections.flatMap(\.rows)
         XCTAssertEqual(rows.map(\.text), ["Road trip"])
-        XCTAssertEqual(rows.first?.detail, "48 songs")
+        XCTAssertEqual(rows.first?.detail, "2 songs")
         XCTAssertEqual(rows.first?.action, .open(.playlist(3)))
         XCTAssertNil(list.empty)
-        XCTAssertEqual(transport.queries(.get, "/profiles/1/playlists"), ["kind=music&limit=200"])
+        XCTAssertTrue(transport.sent.isEmpty, "the replica lists them")
     }
 
     func testNoPlaylistsInALibraryWithMusicSaysSo() async throws {
-        transport.routes = [
-            "GET /profiles/1/playlists": (.ok, Fixtures.page([])),
-            "GET /music/letters": (.ok, Fixtures.letters([("A", 1)])),
-            "GET /stations": (.ok, Fixtures.page([])),
-        ]
+        library = try carPlay(transport) { db in try db.album(1, "Abbey Road", artist: 40) }
         let list = try await library.playlists(roomy)
         XCTAssertEqual(list.empty, CarPlayMessage("No playlists"))
     }
 
     func testMusicStationsSitAbovePlaylistsAndTuneIn() async throws {
-        let kitchen = Fixtures.station(
-            8, "Kitchen Radio", kind: "music",
-            onAir: Fixtures.onAir("on_air", now: Fixtures.program(30, "Paper Lanterns", kind: "song")))
-        let sunday = Fixtures.station(
-            9, "Sunday Vinyl", kind: "music",
-            onAir: Fixtures.onAir("off_schedule", next: Fixtures.program(31, "Blue Hour", kind: "song")))
-        transport.routes = [
-            "GET /profiles/1/playlists": (.ok, Fixtures.page([Fixtures.playlist(3, "Road trip", count: 48)])),
-            "GET /stations": (.ok, Fixtures.page([kitchen, sunday])),
-        ]
+        library = try carPlay(transport) { db in
+            try kitchenRadio(db)
+            try db.playlist(3, "Road trip", kind: "music")
+        }
         let list = try await library.playlists(roomy)
         XCTAssertEqual(list.sections.map(\.header), ["Stations", "Playlists"])
         let stations = list.sections.first?.rows ?? []
@@ -212,20 +241,18 @@ final class CarPlayLibraryTests: XCTestCase {
         let row = try XCTUnwrap(stations.first)
         XCTAssertEqual(row.detail, "On now: Paper Lanterns \u{B7} Radiohead")
         XCTAssertEqual(row.art, .square(50))
-        XCTAssertEqual(row.action, .tune(Fixtures.decode(kitchen)))
+        guard case .tune(let tuned) = row.action else { return XCTFail("\(row.action)") }
+        XCTAssertEqual(tuned.id, 8)
         XCTAssertFalse(row.opens)
         XCTAssertEqual(list.sections.last?.rows.map(\.text), ["Road trip"])
-        XCTAssertEqual(transport.queries(.get, "/stations"), ["kind=music&limit=200"])
+        XCTAssertFalse(transport.sent.contains { $0.path.hasPrefix("/stations") }, "the replica lists them")
     }
 
     func testNoStationOnAirLeavesOnlyPlaylists() async throws {
-        let sunday = Fixtures.station(
-            9, "Sunday Vinyl", kind: "music",
-            onAir: Fixtures.onAir("between_programs", next: Fixtures.program(31, "Blue Hour", kind: "song")))
-        transport.routes = [
-            "GET /profiles/1/playlists": (.ok, Fixtures.page([Fixtures.playlist(3, "Road trip", count: 48)])),
-            "GET /stations": (.ok, Fixtures.page([sunday])),
-        ]
+        library = try carPlay(transport) { db in
+            try db.station(9, "Sunday Vinyl", kind: "music", timing: "continuous")
+            try db.playlist(3, "Road trip", kind: "music")
+        }
         let list = try await library.playlists(roomy)
         XCTAssertEqual(list.sections.map(\.header), [nil])
         XCTAssertEqual(list.sections.flatMap(\.rows).map(\.text), ["Road trip"])
@@ -237,29 +264,25 @@ final class CarPlayLibraryTests: XCTestCase {
     }
 
     func testStationsWithNoPlaylistsShowAlone() async throws {
-        let onAir = Fixtures.onAir("on_air", now: Fixtures.program(30, "Paper Lanterns", kind: "song"))
-        let kitchen = Fixtures.station(8, "Kitchen Radio", kind: "music", onAir: onAir)
-        transport.routes = [
-            "GET /profiles/1/playlists": (.ok, Fixtures.page([])),
-            "GET /stations": (.ok, Fixtures.page([kitchen])),
-        ]
+        library = try carPlay(transport, kitchenRadio)
         let list = try await library.playlists(roomy)
         XCTAssertEqual(list.sections.map(\.header), ["Stations"])
         XCTAssertNil(list.empty)
     }
 
     func testArtistHasADetailsHeaderAndListsAlbumsOnly() async throws {
-        transport.routes = [
-            "GET /music/artists/40": (.ok, Fixtures.artist),
-            "GET /music/songs": (.ok, Fixtures.page([Fixtures.song(4, "Weird Fishes / Arpeggi")])),
-            "GET /music/albums": (.ok, Fixtures.page([Fixtures.album(50, "In Rainbows")])),
-        ]
+        transport.routes["GET /music/songs"] = (.ok, Fixtures.page([Fixtures.song(4, "Weird Fishes / Arpeggi")]))
+        library = try carPlay(transport) { db in
+            try db.album(50, "In Rainbows", artist: 40, year: 2007)
+            try db.song(4, "Weird Fishes / Arpeggi", album: 50)
+            try db.song(5, "Nude", album: 50)
+        }
         let list = try await library.artist(40, roomy)
         XCTAssertEqual(list.title, "Artist")
         XCTAssertEqual(
             list.header,
             CarPlayHeader(
-                art: .round(40), title: "Radiohead", subtitle: "9 albums \u{B7} 112 songs",
+                art: .round(40), title: "Radiohead", subtitle: "1 album \u{B7} 2 songs",
                 play: .artist(40, name: "Radiohead")))
         let rows = list.sections.flatMap(\.rows)
         XCTAssertEqual(rows.map(\.text), ["In Rainbows"])
@@ -268,14 +291,11 @@ final class CarPlayLibraryTests: XCTestCase {
     }
 
     func testAlbumListsTracksByTitleInAlbumOrder() async throws {
-        transport.routes = [
-            "GET /music/albums/50": (.ok, Fixtures.album(50, "In Rainbows")),
-            "GET /music/albums": (.ok, Fixtures.page([])),
-            "GET /music/songs": (
-                .ok,
-                Fixtures.page([Fixtures.song(1, "15 Step", track: 1), Fixtures.song(2, "Bodysnatchers", track: 2)])
-            ),
-        ]
+        library = try carPlay(transport) { db in
+            try db.album(50, "In Rainbows", artist: 40, year: 2007)
+            try db.song(2, "Bodysnatchers", album: 50, track: 2)
+            try db.song(1, "15 Step", album: 50, track: 1)
+        }
         let list = try await library.album(50, roomy)
         XCTAssertEqual(list.title, "Album")
         XCTAssertEqual(list.header?.subtitle, "Radiohead \u{B7} 2007")
@@ -291,19 +311,25 @@ final class CarPlayLibraryTests: XCTestCase {
     }
 
     func testAPlaylistPlaysWithItsIdSoItCountsAsPlayed() async throws {
-        transport.routes = [
-            "GET /profiles/1/playlists/3": (.ok, Fixtures.playlist(3, "Road trip", count: 2)),
-            "GET /profiles/1/playlists/3/play-order": (
-                .ok, Fixtures.page([Fixtures.row(entry: 1, song: 9), Fixtures.row(entry: 1, song: 10)])
-            ),
-        ]
+        library = try carPlay(transport, roadTrip)
         let queue = try await library.queue(for: .playlist(3))
-        XCTAssertEqual(queue.songs.map(\.id), [9, 10], "an album entry plays as the songs the server expands it to")
+        XCTAssertEqual(queue.songs.map(\.id), [10, 9], "an album entry plays as its songs in album order")
         XCTAssertEqual(queue.source, "Road trip")
         XCTAssertEqual(queue.playlistId, 3)
         let list = try await library.playlist(3, roomy)
         XCTAssertEqual(list.header?.subtitle, "2 songs")
         XCTAssertEqual(list.sections.flatMap(\.rows).first?.detail, "Radiohead")
+        XCTAssertTrue(transport.sent.isEmpty, "the replica holds them")
+    }
+
+    func testAPlaylistThatReachesNobodyHereIsNotFound() async throws {
+        library = try carPlay(transport, roadTrip)
+        do {
+            _ = try await library.playlist(5, roomy)
+            XCTFail("Robin's playlist is not Avery's")
+        } catch {
+            XCTAssertEqual(error as? AppError, .server("not found"))
+        }
     }
 
     func testAnUnreachableServerIsThrownAsSuch() async {

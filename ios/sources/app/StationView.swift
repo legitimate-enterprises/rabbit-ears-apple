@@ -51,7 +51,7 @@ struct StationView: View {
             if let station, owns(station) { ToolbarItem(placement: .topBarTrailing) { EditButton() } }
             BrowseToolbar()
         }
-        .imageSheet($imaging, client: services.stations.client) { await reload() }
+        .imageSheet($imaging, playlists: services.playlists) { await reload() }
         .task(id: "\(id)/\(browser.revision)") {
             station = await services.stations.station(id)
             failed = station == nil
@@ -87,7 +87,7 @@ struct StationView: View {
             .font(.system(size: 13)).foregroundStyle(Theme.secondary)
             HStack(spacing: 10) {
                 Button {
-                    browser.tune(station, music: services.player, client: app.client)
+                    browser.tune(station, music: services.player, app: app)
                 } label: {
                     Label("Tune in", systemImage: "play.fill").frame(maxWidth: .infinity)
                 }
@@ -101,7 +101,7 @@ struct StationView: View {
                     .buttonStyle(SecondaryButtonStyle(fullWidth: true))
                     Menu {
                         ImageActions(
-                            request: ImageRequest(station: station, profileId: services.stations.profileId),
+                            request: ImageRequest(station: station),
                             client: services.stations.client, imaging: $imaging
                         ) { await reload() }
                     } label: {

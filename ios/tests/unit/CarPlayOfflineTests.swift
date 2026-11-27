@@ -30,8 +30,17 @@ final class CarPlayOfflineTests: XCTestCase {
         XCTAssertTrue(harness.store.hasMusic(for: 1))
         XCTAssertFalse(harness.store.hasMusic(for: 2), "another profile's downloads are not this one's")
 
+        let fixture = ReplicaFixture()
+        defer { fixture.remove() }
+        let replica = try fixture.v1 { db in
+            try db.account(1, "Avery")
+            try db.artist(40, "Radiohead")
+            try db.album(50, "In Rainbows", artist: 40)
+            try db.song(5, "Reckoner", album: 50, track: 7)
+        }
         harness.goOffline()
-        let offline = CarPlayLibrary(music: MusicModel(client: harness.client, profileId: 1))
+        let offline = CarPlayLibrary(
+            music: MusicModel(client: harness.client, replica: replica, profileId: 1), stations: stationsModel(replica))
         let roomy = CarPlayLimits(maxItems: 500, maxSections: 50, limited: false)
         let albums = try await offline.albums(roomy)
         XCTAssertNil(albums.empty, "not No music yet")

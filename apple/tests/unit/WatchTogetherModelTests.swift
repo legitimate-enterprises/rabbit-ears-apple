@@ -345,7 +345,9 @@ final class WatchTogetherProfileTests: XCTestCase {
             "GET /watch-together": (.ok, Fixtures.page([waiting])),
             "POST /watch-together/5/join": (.ok, joined),
         ])
-        let app = AppModel(store: MemoryCredentialStore(), deviceName: "Test Mac", transport: transport)
+        let app = AppModel(
+            store: MemoryCredentialStore(), deviceName: "Test Mac", transport: transport,
+            replicaDirectory: Fixtures.replicas)
         try await app.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
         XCTAssertNil(app.watchTogether(itemId: 20), "nobody is watching yet")
         try await app.choose(XCTUnwrap(app.profiles.last), pin: "1234")

@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import OpenAPIRuntime
 import RabbitEarsAPI
 
@@ -41,16 +42,23 @@ extension DownloadStore {
         ).ok.body.json.titles
     }
 
-    /// While online with the profile active: sends its offline watch
-    /// changes, drops what it may no longer keep, brings each standing
-    /// request up to date, and fetches what is new. A profile the server
-    /// no longer knows loses its downloads, and a device it no longer
-    /// knows loses all of them. What already waits is fetched whether or not
-    /// the rest went through.
+    /// While online with the profile active: drops what it may no longer
+    /// keep, brings each standing request up to date, and fetches what is
+    /// new. A profile the server no longer knows loses its downloads, and a
+    /// device it no longer knows loses all of them. What already waits is
+    /// fetched whether or not the rest went through.
     public func sync(profile: Int64) async {
         guard let link else { return }
-        if await flushWatch(profile: profile, link) { await refresh(profile: profile, link) }
+        forgetProfilesGone()
+        await refresh(profile: profile, link)
         await pump()
+    }
+
+    /// Only the owner's Me lists pending adults, so only it names every profile the household has.
+    private func forgetProfilesGone() {
+        guard let me, me.household?.adultId == me.activeProfileId else { return }
+        let known = Set(ledger.requests.map(\.profileId)).union(ledger.settings.keys)
+        for profile in known.subtracting(me.profiles.map(\.id)) { wipe(profile: profile) }
     }
 
     private func refresh(profile: Int64, _ link: Link) async {
@@ -94,129 +102,66 @@ extension DownloadStore {
         }
     }
 
-    /// Sends the profile's offline watch changes oldest first, each with
-    /// when it happened, so the server keeps whichever change is newer.
-    /// False while a change is left to send.
-    func flushWatch(profile: Int64, _ link: Link) async -> Bool {
-        let changes = unsynced(profile).sorted { $0.value.at < $1.value.at }
-        for (itemId, change) in changes {
-            do {
-                let state = try await link.client.putWatchState(
-                    path: .init(profileId: profile, itemId: itemId),
-                    body: .json(
-                        .init(
-                            watched: change.watched, positionMs: change.positionMs, editionId: change.editionId,
-                            at: change.at))
-                ).ok.body.json
-                ledger.shelf.watch[profile, default: [:]][itemId] = state
-                ledger.unsynced[profile]?[itemId] = nil
-            } catch {
-                guard let api = APIError.from(error) else { return false }
-                if api.code == .unauthorized {
-                    wipe()
-                    return false
-                }
-                // The title, its edition or the profile went, or the change
-                // is one the server never takes; anything else, as a proxy's
-                // 404, is tried again.
-                guard api.status == 400 || api.code == .notFound else { return false }
-                ledger.unsynced[profile]?[itemId] = nil
-            }
-        }
-        save()
-        return true
-    }
-
-    /// Keeps what a collection or playlist screen shows of it, with its art.
+    /// Keeps the artwork a collection or playlist shows with; a playlist's
+    /// is its art title's, as the replica reads it to the profile.
     func describe(_ target: DownloadTarget, profile: Int64, _ link: Link) async {
         let client = link.client
+        var keys: [ArtKey] = []
         switch target.scope {
         case .item: return
-        case .collection:
-            guard let collection = try? await client.getCollection(path: .init(collectionId: target.id)).ok.body.json
-            else { return }
-            let movies: [Item] =
-                (try? await allPages { offset in
-                    let page = try await client.listCollectionMovies(
-                        path: .init(collectionId: target.id), query: .init(limit: 200, offset: offset)
-                    ).ok.body.json
-                    return (page.items, page.nextOffset)
-                }) ?? []
-            ledger.shelf.collections[target.id] = StoredCollection(collection: collection, movieIds: movies.map(\.id))
-            for kind in [ArtworkStore.Kind.poster, .backdrop] {
-                await keepArt(ArtKey(id: target.id, kind: kind, collection: true), client)
-            }
+        case .collection: keys = [.poster, .backdrop].map { ArtKey(id: target.id, kind: $0, collection: true) }
         case .playlist:
-            let path = Operations.GetPlaylist.Input.Path(profileId: profile, playlistId: target.id)
-            guard let playlist = try? await client.getPlaylist(path: path).ok.body.json else { return }
-            let entries: [PlaylistEntry] =
-                (try? await allPages { offset in
-                    let page = try await client.listPlaylistEntries(
-                        path: .init(profileId: profile, playlistId: target.id),
-                        query: .init(limit: 200, offset: offset)
-                    ).ok.body.json
-                    return (page.items, page.nextOffset)
-                }) ?? []
-            let rows: [PlayOrderRow] =
-                (try? await allPages { offset in
-                    let page = try await client.listPlaylistPlayOrder(
-                        path: .init(profileId: profile, playlistId: target.id),
-                        query: .init(limit: 200, offset: offset)
-                    ).ok.body.json
-                    return (page.items, page.nextOffset)
-                }) ?? []
-            ledger.shelf.playlists[target.id] = StoredPlaylist(playlist: playlist, entries: entries, rows: rows)
-            if let art = playlist.artItemId { await keepArt(ArtKey(id: art, kind: .poster), client) }
+            guard
+                let art = try? await replica?.read({ db in
+                    try PlaylistRows.playlist(db, profile: profile, id: target.id)?.artItemId
+                }) ?? nil
+            else { return }
+            keys = [ArtKey(id: art, kind: .poster)]
+        }
+        for key in keys { await keepArt(key, client) }
+        if let index = ledger.requests.firstIndex(where: { $0.profileId == profile && $0.target == target }) {
+            ledger.requests[index].art = keys.map(\.file)
         }
         save()
     }
 
-    // MARK: Metadata
+    // MARK: Artwork
 
-    /// Keeps what the screens show of a title, with its parents and their
-    /// artwork; whatever the server does not answer is left out.
+    /// Keeps the artwork a title shows with, its parents' included, as the
+    /// replica holds them; whatever the server does not answer is left out.
     func describe(_ title: StoredTitle, _ link: Link) async {
-        let client = link.client
-        var art: [ArtKey] = []
-        switch title.kind {
-        case .movie, .episode:
-            var next: Int64? = title.itemId
-            while let id = next, let item = try? await client.getItem(path: .init(itemId: id)).ok.body.json {
-                ledger.shelf.items[id] = item
-                art += [ArtKey(id: id, kind: .poster), ArtKey(id: id, kind: .backdrop)]
-                next = item.parentId
-            }
-        case .song:
-            art += await describeSong(title.itemId, client)
-        case .video:
-            guard let video = try? await client.getYouTubeVideo(path: .init(videoId: title.itemId)).ok.body.json
-            else { break }
-            ledger.shelf.videos[video.id] = video
-            if let channel = try? await client.getYouTubeChannel(path: .init(channelId: video.channelId)).ok.body
-                .json
-            {
-                ledger.shelf.channels[channel.id] = channel
-            }
-            art += [ArtKey(id: video.id, kind: .poster), ArtKey(id: video.channelId, kind: .poster)]
-        }
-        for key in art { await keepArt(key, client) }
+        let (id, kind) = (title.itemId, title.kind)
+        let art = (try? await replica?.read { db in try Self.art(of: id, kind, db) }) ?? []
+        for key in art { await keepArt(key, link.client) }
+        ledger.titles[title.itemId]?.art = art.map(\.file)
     }
 
-    /// A song with its album and artists; the artwork to keep for it.
-    private func describeSong(_ id: Int64, _ client: Client) async -> [ArtKey] {
-        guard let song = try? await client.getMusicSong(path: .init(songId: id)).ok.body.json else {
-            return []
-        }
-        ledger.shelf.songs[song.id] = song
-        if let album = try? await client.getMusicAlbum(path: .init(albumId: song.albumId)).ok.body.json {
-            ledger.shelf.albums[album.id] = album
-        }
-        for id in Set([song.artistId, song.albumArtistId]) {
-            if let artist = try? await client.getMusicArtist(path: .init(artistId: id)).ok.body.json {
-                ledger.shelf.artists[id] = artist
+    /// A movie or episode and each item above it, both images; a song's
+    /// album, performer and album artist; a video and its channel.
+    private nonisolated static func art(
+        of id: Int64, _ kind: DownloadTitle.KindPayload, _ db: Database
+    ) throws -> [ArtKey] {
+        switch kind {
+        case .movie, .episode:
+            var art: [ArtKey] = []
+            var next: Int64? = id
+            while let current = next,
+                let row = try Row.fetchOne(db, sql: "SELECT parent_id FROM item WHERE id = ?", arguments: [current])
+            {
+                art += [ArtKey(id: current, kind: .poster), ArtKey(id: current, kind: .backdrop)]
+                next = row["parent_id"]
             }
+            return art
+        case .song:
+            guard let song = try PlaylistRows.songs(db, [id])[id] else { return [] }
+            return [song.albumId, song.artistId, song.albumArtistId].map { ArtKey(id: $0, kind: .poster) }
+        case .video:
+            guard
+                let channel = try Int64.fetchOne(
+                    db, sql: "SELECT parent_id FROM item WHERE id = ? AND kind = 'video'", arguments: [id])
+            else { return [] }
+            return [ArtKey(id: id, kind: .poster), ArtKey(id: channel, kind: .poster)]
         }
-        return [song.albumId, song.artistId, song.albumArtistId].map { ArtKey(id: $0, kind: .poster) }
     }
 
     /// One artwork file, fetched once.

@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import HTTPTypes
 import RabbitEarsAPI
 import XCTest
@@ -252,112 +253,5 @@ final class StationFormTests: XCTestCase {
         let date = StationForm.date("22:30")
         XCTAssertEqual(StationForm.clock(date), "22:30")
         XCTAssertEqual(StationForm.clock(StationForm.date("02:05")), "02:05")
-    }
-}
-
-@MainActor
-final class StationsModelTests: XCTestCase {
-    var transport: RoutingTransport!
-    var model: StationsModel!
-
-    override func setUp() async throws {
-        transport = RoutingTransport([
-            "GET /stations": (
-                .ok,
-                Fixtures.page([
-                    Fixtures.bigScreen,
-                    Fixtures.station(
-                        7, "Creature Double", onAir: Fixtures.onAir("between_programs", next: Fixtures.salt)),
-                ])
-            )
-        ])
-        model = StationsModel(
-            client: ServerEndpoint(userInput: "192.168.1.9")!.client(token: "t", transport: transport), profileId: 1)
-    }
-
-    func testAListAsksForItsKind() async {
-        let stations = await model.list(.movies)
-        XCTAssertEqual(stations?.map(\.name), ["The Big Screen", "Creature Double"])
-        XCTAssertEqual(transport.queries(.get, "/stations").first?.contains("kind=movies"), true)
-    }
-
-    func testOnNowIsEveryKindWithSomethingOn() async {
-        let stations = await model.onNow()
-        XCTAssertEqual(stations.map(\.id), [5])
-        XCTAssertEqual(transport.queries(.get, "/stations").first?.contains("kind"), false)
-    }
-
-    func testTheScheduleLeavesTheDayToTheServer() async {
-        transport.routes["GET /stations/5/schedule"] = (.ok, Fixtures.page([Fixtures.lantern, Fixtures.salt]))
-        let programs = await model.schedule(of: 5)
-        XCTAssertEqual(programs?.map(\.itemId), [20, 21])
-        XCTAssertEqual(transport.queries(.get, "/stations/5/schedule"), ["limit=200"])
-    }
-
-    func testOnlyTheOwnerOwnsIt() {
-        XCTAssertTrue(model.isOwner(Fixtures.decode(Fixtures.bigScreen)))
-        XCTAssertFalse(model.isOwner(Fixtures.decode(Fixtures.station(8, "Theirs", owner: 2))))
-    }
-
-    func testSaveCreatesThenReplaces() async throws {
-        transport.routes["POST /stations"] = (.created, Fixtures.station(9, "Late show"))
-        transport.routes["PUT /stations/9"] = (.ok, Fixtures.station(9, "Later show"))
-        var form = StationForm(kind: .music)
-        form.name = "Late show"
-        let made = await model.save(form)
-        XCTAssertEqual(made?.id, 9)
-        XCTAssertNil(transport.json(.post, "/stations")?["playlistId"])
-        XCTAssertEqual(transport.json(.post, "/stations")?["kind"] as? String, "music")
-        form.name = "Later show"
-        let saved = await model.save(form, as: 9)
-        XCTAssertEqual(saved?.name, "Later show")
-        XCTAssertEqual(transport.json(.put, "/stations/9")?["name"] as? String, "Later show")
-        XCTAssertNil(model.error)
-    }
-
-    func testARefusedSaveShowsEachFieldsMessage() async {
-        transport.routes["POST /stations"] = (
-            .badRequest,
-            #"{"code":"bad_request","message":"invalid request","#
-                + #""fields":[{"field":"name","message":"too long"}]}"#
-        )
-        var form = StationForm(kind: .movies)
-        form.name = "Late show"
-        let made = await model.save(form)
-        XCTAssertNil(made)
-        XCTAssertEqual(model.fieldErrors, ["name": "too long"])
-        transport.routes["POST /stations"] = (.created, Fixtures.station(9, "Late show"))
-        _ = await model.save(form)
-        XCTAssertEqual(model.fieldErrors, [:])
-    }
-
-    func testRescheduleAndDelete() async {
-        transport.routes["POST /stations/5/reschedule"] = (.ok, Fixtures.bigScreen)
-        transport.routes["DELETE /stations/5"] = (.noContent, "")
-        let rescheduled = await model.reschedule(5)
-        XCTAssertEqual(rescheduled?.id, 5)
-        let deleted = await model.delete(5)
-        XCTAssertTrue(deleted)
-        XCTAssertEqual(transport.paths(.delete), ["/stations/5"])
-    }
-
-    func testMineAreTheOwnersStationsKeptThroughSavesAndDeletes() async {
-        transport.routes["GET /stations"] = (
-            .ok, Fixtures.page([Fixtures.bigScreen, Fixtures.station(8, "Theirs", owner: 2)])
-        )
-        await model.loadMine()
-        XCTAssertEqual(model.mine.map(\.id), [5])
-        transport.routes["POST /stations"] = (.created, Fixtures.station(9, "Late tunes", kind: "music"))
-        var form = StationForm(kind: .music)
-        form.name = "Late tunes"
-        _ = await model.save(form)
-        XCTAssertEqual(model.mine.map(\.id), [5, 9])
-        XCTAssertEqual(model.mine(.music).map(\.id), [9])
-        transport.routes["PUT /stations/9"] = (.ok, Fixtures.station(9, "Later tunes", kind: "music"))
-        _ = await model.save(form, as: 9)
-        XCTAssertEqual(model.mine.map(\.name), ["The Big Screen", "Later tunes"])
-        transport.routes["DELETE /stations/5"] = (.noContent, "")
-        await model.delete(5)
-        XCTAssertEqual(model.mine.map(\.id), [9])
     }
 }

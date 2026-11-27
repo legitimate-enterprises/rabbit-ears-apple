@@ -61,8 +61,9 @@ test: ## Every gate CI enforces; every group runs even when one fails
 test-unit: ## Unit suites in every stack
 	@for s in $(STACKS); do $(MAKE) --no-print-directory -C $$s test-unit || exit $$?; done
 
-test-integration: ## The demo server the UI tests use, against a real server
+test-integration: ## The demo server the UI tests use, and the macOS sync end-to-end test, against a real server
 	$(MAKE) --no-print-directory -C apple test-integration
+	$(MAKE) --no-print-directory -C macos test-integration
 
 test-ui: ## iPhone and Apple TV simulator UI flows against a real server
 	$(MAKE) --no-print-directory -C ios test-ui

@@ -14,6 +14,7 @@ help: ## Print this target list
 deps: ## Install tooling and generate the Xcode project
 	brew list --formula xcodegen >/dev/null 2>&1 || brew install xcodegen
 	brew list --formula swiftlint >/dev/null 2>&1 || brew install swiftlint
+	../apple/scripts/grdb-source.sh
 	$(MAKE) --no-print-directory generate
 
 generate: ## Regenerate the Xcode project from project.yaml

@@ -150,7 +150,7 @@ struct OnNowStrip: View {
 
     private func tile(_ station: Station) -> some View {
         Button {
-            browser.tune(station, music: services.player, client: app.client)
+            browser.tune(station, music: services.player, app: app)
         } label: {
             VStack(alignment: .leading, spacing: 5) {
                 StationArt(station: station)

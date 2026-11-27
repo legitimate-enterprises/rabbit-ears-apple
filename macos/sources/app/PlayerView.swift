@@ -274,9 +274,9 @@ struct PlayerSurface: View {
 
     private func ended() {
         guard upNext == nil else { return }
-        guard let client = app.client, let profile = app.activeProfile else { return leave() }
+        guard let replica = app.sync?.replica, let profile = app.activeProfile else { return leave() }
         Task {
-            if let next = await UpNextModel.load(after: request, client: client, profile: profile) {
+            if let next = await UpNextModel.load(after: request, replica: replica, profile: profile) {
                 upNext = next
             } else {
                 leave()

@@ -152,9 +152,9 @@ struct MainView: View {
             }
         }
         .task(id: model.activeProfile?.id) {
-            guard let client = model.client, let endpoint = model.endpoint, let profile = model.activeProfile else {
-                return
-            }
+            guard let client = model.client, let sync = model.sync, let endpoint = model.endpoint,
+                let profile = model.activeProfile
+            else { return }
             browser.path = []
             browser.tab = .home
             browser.tuning = nil
@@ -164,11 +164,17 @@ struct MainView: View {
                 capabilities: capabilities)
             player.attach(center)
             music = player
-            let lists = PlaylistsModel(client: client, profileId: profile.id, adult: profile.kind == .adult)
+            let lists = PlaylistsModel(
+                client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profile.id,
+                adult: profile.kind == .adult)
             playlists = lists
-            collections = CollectionsModel(client: client)
-            stations = StationsModel(client: client, profileId: profile.id)
-            let next = CatalogModel(client: client, profileId: profile.id, hidingKids: profile.hideKidsContent == true)
+            collections = CollectionsModel(
+                client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profile.id)
+            stations = StationsModel(
+                client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profile.id)
+            let next = CatalogModel(
+                client: client, replica: sync.replica, queue: sync.queue, profileId: profile.id,
+                hidingKids: profile.hideKidsContent == true)
             catalog = next
             await next.load()
             await collections?.load()

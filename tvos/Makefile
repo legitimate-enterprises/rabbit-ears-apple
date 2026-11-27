@@ -16,6 +16,7 @@ deps: ## Install tooling and the tvOS simulator, generate the Xcode project
 	brew list --formula xcodegen >/dev/null 2>&1 || brew install xcodegen
 	brew list --formula swiftlint >/dev/null 2>&1 || brew install swiftlint
 	$(MAKE) --no-print-directory runtime
+	../apple/scripts/grdb-source.sh
 	$(MAKE) --no-print-directory generate
 
 # Several gigabytes, fetched once. A machine that refuses the install

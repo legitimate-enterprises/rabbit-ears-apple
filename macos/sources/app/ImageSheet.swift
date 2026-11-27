@@ -9,7 +9,7 @@ extension View {
         @Bindable var browser = browser
         return sheet(item: $browser.imaging) { request in
             if let client {
-                ImageSheet(model: CustomImageModel(client: client), request: request) {
+                ImageSheet(model: CustomImageModel(client: client), playlists: playlists, request: request) {
                     Task {
                         await playlists?.load()
                         browser.revision += 1
@@ -22,6 +22,7 @@ extension View {
 
 struct ImageSheet: View {
     @State var model: CustomImageModel
+    let playlists: PlaylistsModel?
     let request: ImageRequest
     let done: () -> Void
     @Environment(\.dismiss) private var dismiss
@@ -61,7 +62,7 @@ struct ImageSheet: View {
             if scoped { url.stopAccessingSecurityScopedResource() }
             run { await model.set(.file(data ?? Data()), on: request.target) }
         }
-        .task { choices = await model.choices(profileId: request.profileId, playlistId: request.playlistId) }
+        .task { choices = await playlists?.artChoices(of: request.playlistId) ?? [] }
     }
 
     @ViewBuilder private var picks: some View {

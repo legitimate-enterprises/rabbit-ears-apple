@@ -46,6 +46,27 @@ final class CustomImagesTests: XCTestCase {
             CustomImage.choices(entries).map(\.id), ["4/poster", "4/backdrop", "6/poster"])
     }
 
+    func testThePicksAreThePlaylistsTitlesInTheReplica() async throws {
+        let synced = try SyncedReplica { db in
+            try db.account(1, "Avery")
+            try db.account(2, "Robin")
+            try db.item(4, "movie", "Heat")
+            try db.music(6, "song", "Teardrop")
+            try db.playlist(3, "Mine")
+            try db.entry(1, in: 3, item: 4, rank: "a0")
+            try db.entry(2, in: 3, item: 6, rank: "a1")
+            try db.playlist(5, "Robin's", owner: 2)
+            try db.entry(3, in: 5, item: 4, rank: "a0")
+        }
+        defer { synced.remove() }
+        let playlists = synced.playlists()
+        let mine = await playlists.artChoices(of: 3)
+        XCTAssertEqual(mine.map(\.id), ["4/poster", "4/backdrop", "6/poster"])
+        let robins = await playlists.artChoices(of: 5)
+        XCTAssertEqual(robins, [], "not the profile's to read")
+        XCTAssertTrue(synced.transport.sent.isEmpty)
+    }
+
     func testTurnsAnyImageIntoABoundedJPEGAndRefusesTheRest() throws {
         for type in [UTType.png, .heic, .tiff] {
             let jpeg = try XCTUnwrap(

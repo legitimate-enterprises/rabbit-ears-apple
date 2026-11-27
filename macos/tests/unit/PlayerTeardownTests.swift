@@ -10,7 +10,9 @@ import XCTest
 final class PlayerTeardownTests: XCTestCase {
     func testAPlayerThatGoesAwayEndsItsSession() async throws {
         let transport = RoutingTransport()
-        let app = AppModel(store: MemoryCredentialStore(), deviceName: "Test Mac", transport: transport)
+        let app = AppModel(
+            store: MemoryCredentialStore(), deviceName: "Test Mac", transport: transport,
+            replicaDirectory: Fixtures.replicas)
         let request = PlayRequest(item: Fixtures.decode(Fixtures.item(21, "episode", "Pilot"), as: Item.self))
         let model = PlayerModel(
             client: ServerEndpoint.default.client(token: "t", transport: transport), endpoint: .default,

@@ -22,39 +22,48 @@ final class PlaylistSharesTests: XCTestCase {
         XCTAssertTrue(write.isEditable)
     }
 
-    func testAKidGetsAPlaylistsViewOnlyForWhatIsSharedAndAddsToNone() async {
-        let transport = RoutingTransport([
-            "GET /profiles/2/playlists": (
-                .ok, Fixtures.page([Fixtures.playlist(3, "Cartoons", kind: "movies", access: "read", ownerName: "Ann")])
-            )
-        ])
-        let client = ServerEndpoint(userInput: "192.168.1.9")!.client(token: "t", transport: transport)
-        let kid = PlaylistsModel(client: client, profileId: 2, adult: false)
+    func testAKidGetsAPlaylistsViewOnlyForWhatIsSharedAndAddsToNone() async throws {
+        let synced = try SyncedReplica { db in
+            try db.account(1, "Avery")
+            try db.account(2, "Kit", kind: "kid")
+            try db.card(9, "Ann")
+            try db.playlist(3, "Theirs", owner: 9)
+            try db.playlist(4, "Ours", owner: 9)
+            try db.playlist(5, "Mine")
+            try db.share(3, with: 1, "read")
+            try db.share(3, with: 2, "read")
+            try db.share(4, with: 1, "write")
+        }
+        addTeardownBlock { await synced.remove() }
+        let kid = synced.playlists(2, adult: false)
         await kid.load()
         XCTAssertTrue(kid.offersView(.movies))
         XCTAssertFalse(kid.offersView(.music))
         XCTAssertEqual(kid.editable(.movies).map(\.id), [])
 
-        transport.routes["GET /profiles/1/playlists"] = (
-            .ok,
-            Fixtures.page([
-                Fixtures.playlist(3, "Theirs", kind: "movies", access: "read", ownerName: "Ann"),
-                Fixtures.playlist(4, "Ours", kind: "movies", access: "write", ownerName: "Ann"),
-                Fixtures.playlist(5, "Mine", kind: "movies"),
-            ])
-        )
-        let adult = PlaylistsModel(client: client, profileId: 1)
+        let adult = synced.playlists(1)
         await adult.load()
         XCTAssertTrue(adult.offersView(.music))
-        XCTAssertEqual(adult.editable(.movies).map(\.id), [4, 5])
+        XCTAssertEqual(adult.editable(.movies).map(\.id), [5, 4])
     }
 
-    private func model(_ routes: [String: (HTTPResponse.Status, String)]) -> (PlaylistSharesModel, RoutingTransport) {
-        let transport = RoutingTransport(routes)
-        let model = PlaylistSharesModel(
-            client: ServerEndpoint(userInput: "192.168.1.9")!.client(token: "t", transport: transport),
-            profileId: 1, playlistId: 3)
-        return (model, transport)
+    private var synced: SyncedReplica?
+
+    override func tearDown() async throws { await synced?.remove() }
+
+    private func model(_ routes: [String: (HTTPResponse.Status, String)]) throws -> (
+        PlaylistSharesModel, RoutingTransport
+    ) {
+        let synced = try SyncedReplica { db in
+            try db.account(1, "Avery")
+            try db.playlist(3, "Mix")
+        }
+        self.synced = synced
+        synced.transport.routes = routes
+        return (
+            PlaylistSharesModel(client: synced.client, queue: synced.queue, profileId: 1, playlistId: 3),
+            synced.transport
+        )
     }
 
     private static func household(_ id: Int64, _ name: String, profiles: Int) -> String {
@@ -75,8 +84,8 @@ final class PlaylistSharesTests: XCTestCase {
             + #""householdName":"\#(householdName)","color":"\#(color)"}"#
     }
 
-    func testListsHouseholdsAndProfilesWithWhatEachMayDo() async {
-        let (model, _) = model([
+    func testListsHouseholdsAndProfilesWithWhatEachMayDo() async throws {
+        let (model, _) = try model([
             "GET /profiles/1/share-households": (
                 .ok,
                 Fixtures.page([
@@ -121,8 +130,8 @@ final class PlaylistSharesTests: XCTestCase {
         XCTAssertEqual(PlaylistShareAccess?.some(.write).label, "Can edit")
     }
 
-    func testOneHouseholdGoesUnnamed() async {
-        let (model, _) = model([
+    func testOneHouseholdGoesUnnamed() async throws {
+        let (model, _) = try model([
             "GET /profiles/1/share-households": (.ok, Fixtures.page([Self.household(7, "Home", profiles: 3)])),
             "GET /profiles/1/playlists/3/household-shares": (.ok, Fixtures.page([])),
             "GET /profiles/1/playlists/3/shares": (.ok, Fixtures.page([])),
@@ -138,60 +147,56 @@ final class PlaylistSharesTests: XCTestCase {
         XCTAssertEqual(model.profiles.map(\.subtitle), [nil, "Kid"])
     }
 
-    func testEachChangeCreatesReplacesOrDeletesAShare() async {
-        let (model, transport) = model([
+    func testEachChangeIsQueuedAndShowsAtOnce() async throws {
+        let (model, transport) = try model([
             "GET /profiles/1/share-households": (.ok, Fixtures.page([Self.household(7, "Home", profiles: 3)])),
             "GET /profiles/1/playlists/3/household-shares": (.ok, Fixtures.page([])),
             "GET /profiles/1/playlists/3/shares": (.ok, Fixtures.page([])),
-            "GET /profiles/1/share-candidates": (.ok, Fixtures.page([Self.candidate(2, "Sam")])),
-            "POST /profiles/1/playlists/3/household-shares": (.created, Self.householdShare(7, "Home")),
-            "PUT /profiles/1/playlists/3/household-shares/7": (.ok, Self.householdShare(7, "Home", access: "write")),
-            "DELETE /profiles/1/playlists/3/household-shares/7": (.noContent, ""),
-            "POST /profiles/1/playlists/3/shares": (.created, Fixtures.share(2, "Sam")),
-            "PUT /profiles/1/playlists/3/shares/2": (.ok, Fixtures.share(2, "Sam", access: "write")),
-            "DELETE /profiles/1/playlists/3/shares/2": (.noContent, ""),
+            "GET /profiles/1/share-candidates": (.ok, Fixtures.page([Self.candidate(2, "Sam", color: "#6B3A2E")])),
         ])
         await model.load()
+        let synced = try XCTUnwrap(synced)
         let home = model.households[0]
         let sam = model.profiles[0]
+        let loaded = transport.sent.count
 
-        transport.routes["GET /profiles/1/playlists/3/household-shares"] = (
-            .ok, Fixtures.page([Self.householdShare(7, "Home")])
-        )
         await model.set(home, to: .read)
-        XCTAssertEqual(transport.json(.post, "/profiles/1/playlists/3/household-shares")?["householdId"] as? Int, 7)
-        XCTAssertEqual(transport.json(.post, "/profiles/1/playlists/3/household-shares")?["access"] as? String, "read")
         XCTAssertEqual(model.access(home), .read)
-
+        XCTAssertEqual(try synced.lastBody()?["householdId"] as? Int, 7)
+        XCTAssertEqual(try synced.lastBody()?["access"] as? String, "read")
+        XCTAssertEqual(try synced.lastTouched(), ["playlist_household_share 3 7"])
         await model.set(home, to: .write)
-        XCTAssertEqual(
-            transport.json(.put, "/profiles/1/playlists/3/household-shares/7")?["access"] as? String, "write")
+        XCTAssertEqual(model.access(home), .write)
+        XCTAssertEqual(try synced.lastBody()?["access"] as? String, "write")
         await model.set(home, to: nil)
-        XCTAssertEqual(transport.paths(.delete), ["/profiles/1/playlists/3/household-shares/7"])
+        XCTAssertNil(model.access(home))
 
-        transport.routes["GET /profiles/1/playlists/3/shares"] = (.ok, Fixtures.page([Fixtures.share(2, "Sam")]))
         await model.set(sam, to: .read)
-        XCTAssertEqual(transport.json(.post, "/profiles/1/playlists/3/shares")?["profileId"] as? Int, 2)
         XCTAssertEqual(model.access(sam), .read)
+        XCTAssertEqual(try synced.lastBody()?["profileId"] as? Int, 2)
+        XCTAssertEqual(model.shares.map(\.name), ["Sam"])
+        XCTAssertEqual(model.shares.map(\.color), ["#6B3A2E"])
+        let local: [String] = try await synced.read(
+            "SELECT access FROM playlist_share WHERE playlist_id = 3 AND account_id = 2")
+        XCTAssertEqual(local, ["read"])
         await model.set(sam, to: .write)
-        XCTAssertEqual(transport.json(.put, "/profiles/1/playlists/3/shares/2")?["access"] as? String, "write")
+        XCTAssertEqual(model.access(sam), .write)
         await model.set(sam, to: nil)
-        XCTAssertEqual(transport.paths(.delete).last, "/profiles/1/playlists/3/shares/2")
-        XCTAssertNil(model.error)
-    }
+        XCTAssertNil(model.access(sam))
+        XCTAssertEqual(model.profiles.map(\.name), ["Sam"], "still a candidate")
 
-    func testAFailedChangeSaysWhyAndKeepsTheAccess() async {
-        let (model, _) = model([
-            "GET /profiles/1/share-households": (.ok, Fixtures.page([Self.household(7, "Home", profiles: 3)])),
-            "GET /profiles/1/playlists/3/household-shares": (.ok, Fixtures.page([])),
-            "GET /profiles/1/playlists/3/shares": (.ok, Fixtures.page([])),
-            "GET /profiles/1/share-candidates": (.ok, Fixtures.page([])),
-            "POST /profiles/1/playlists/3/household-shares": (.conflict, Fixtures.error("conflict", "Already shared.")),
-        ])
-        await model.load()
-        XCTAssertTrue(model.profiles.isEmpty)
-        await model.set(model.households[0], to: .write)
-        XCTAssertNotNil(model.error)
-        XCTAssertNil(model.access(model.households[0]))
+        let queued = try synced.queued()
+        XCTAssertEqual(
+            queued,
+            [
+                "createPlaylistHouseholdShare POST /profiles/1/playlists/3/household-shares",
+                "replacePlaylistHouseholdShare PUT /profiles/1/playlists/3/household-shares/7",
+                "deletePlaylistHouseholdShare DELETE /profiles/1/playlists/3/household-shares/7",
+                "createPlaylistShare POST /profiles/1/playlists/3/shares",
+                "replacePlaylistShare PUT /profiles/1/playlists/3/shares/2",
+                "deletePlaylistShare DELETE /profiles/1/playlists/3/shares/2",
+            ])
+        XCTAssertEqual(transport.sent.count, loaded, "nothing goes until the queue flushes")
+        XCTAssertNil(model.error)
     }
 }

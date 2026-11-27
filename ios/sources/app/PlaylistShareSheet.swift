@@ -8,9 +8,7 @@ struct PlaylistShareSheet: View {
     private let name: String
 
     init(playlists: PlaylistsModel, playlist: Playlist) {
-        _model = State(
-            initialValue: PlaylistSharesModel(
-                client: playlists.client, profileId: playlists.profileId, playlistId: playlist.id))
+        _model = State(initialValue: playlists.shares(of: playlist.id))
         name = playlist.name
     }
 

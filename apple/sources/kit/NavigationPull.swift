@@ -9,14 +9,18 @@ extension LibrarySection {
 }
 
 extension AppModel {
-    /// What a pull to refresh calls: `reload` asks the server again rather
-    /// than reading what is kept, as do the libraries behind the primary
-    /// navigation, and this returns once both have applied their answers.
+    /// What a pull to refresh calls: the replica catches up with the
+    /// server, then `reload` and the libraries behind the primary navigation
+    /// read it again, and this returns once both have. It runs on its own
+    /// task, so a pull that the system cancels, as a view redrawing under
+    /// it, does not stop half-way and leave the old data.
     public func pull(_ reload: @escaping @MainActor () async -> Void) async {
-        await live.pull {
+        let engine = sync?.engine
+        await Task {
+            try? await engine?.catchUp()
             async let libraries: Void = self.loadLibrarySections()
             await reload()
             await libraries
-        }
+        }.value
     }
 }

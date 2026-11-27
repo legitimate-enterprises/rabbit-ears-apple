@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import RabbitEarsAPI
 
 public typealias YouTubeChannel = Components.Schemas.YouTubeChannel
@@ -44,16 +45,19 @@ public struct VideoDetail: Equatable, Sendable {
     public let moreFromChannel: [YouTubeVideo]
 }
 
-/// Reads the YouTube catalog for the active profile. The server leaves out,
-/// and answers 404 for, what a kid may not see, so nothing here checks the
-/// profile kind.
+/// Reads the YouTube catalog for the active profile from the replica, as
+/// the server's views let it see, and marks its watch state.
 @MainActor
 public final class YouTubeModel {
     public let client: Client
+    public let replica: Replica
+    public let queue: ActionQueue
     public let profileId: Int64
 
-    public init(client: Client, profileId: Int64) {
+    public init(client: Client, replica: Replica, queue: ActionQueue, profileId: Int64) {
         self.client = client
+        self.replica = replica
+        self.queue = queue
         self.profileId = profileId
     }
 
@@ -64,9 +68,8 @@ public final class YouTubeModel {
 
     /// Home's Continue watching videos: those with a resume position, latest played first.
     public func inProgress(limit: Int = 20) async throws -> [YouTubeVideo] {
-        try await call {
-            try await client.listYouTubeVideos(query: .init(inProgress: true, sort: .played, limit: limit)).ok.body.json
-                .items
+        try await read { db, me in
+            try YouTubeRows.videos(db, me, .init(inProgress: true, sort: "played", limit: limit)).0
         }
     }
 
@@ -75,78 +78,56 @@ public final class YouTubeModel {
         sort: YouTubeVideoSort = .newest, channelId: Int64? = nil,
         unwatched: Bool = false, query: String? = nil, offset: Int? = nil, limit: Int = 100
     ) async throws -> Components.Schemas.YouTubeVideoPage {
-        try await call {
-            try await client.listYouTubeVideos(
-                query: .init(
-                    channelId: channelId, unwatched: unwatched ? true : nil,
-                    q: query.map { String($0.prefix(200)) }, sort: sort, limit: limit, offset: offset)
-            ).ok.body.json
+        let filter = YouTubeRows.VideoFilter(
+            channelId: channelId, unwatched: unwatched, query: query.map { String($0.prefix(200)) },
+            sort: sort.rawValue, limit: limit, offset: offset ?? 0)
+        return try await read { db, me in
+            let (items, next) = try YouTubeRows.videos(db, me, filter)
+            return .init(items: items, nextOffset: next)
         }
     }
 
     public func channels(sort: YouTubeChannelSort = .title) async throws -> [YouTubeChannel] {
-        try await call {
-            try await allPages { offset in
-                let page = try await self.client.listYouTubeChannels(
-                    query: .init(sort: sort, limit: 200, offset: offset)
-                ).ok.body.json
-                return (page.items, page.nextOffset)
-            }
-        }
+        try await read { db, me in try YouTubeRows.channels(db, me, sort: sort.rawValue) }
     }
 
     public func channel(_ id: Int64, sort: YouTubeVideoSort = .newest) async throws -> ChannelDetail {
-        try await call {
-            async let channel = client.getYouTubeChannel(path: .init(channelId: id)).ok.body.json
-            async let videos = allPages { offset in
-                let page = try await self.client.listYouTubeVideos(
-                    query: .init(channelId: id, sort: sort, limit: 200, offset: offset)
-                ).ok.body.json
-                return (page.items, page.nextOffset)
-            }
-            return ChannelDetail(channel: try await channel, videos: try await videos)
+        try await read { db, me in
+            let channel = try found(YouTubeRows.channels(db, me, id: id, audience: .open))
+            let videos = try YouTubeRows.videos(db, me, .init(channelId: id, sort: sort.rawValue, limit: .max - 1)).0
+            return ChannelDetail(channel: channel, videos: videos)
         }
     }
 
     public func video(_ id: Int64) async throws -> VideoDetail {
-        try await call {
-            let video = try await client.getYouTubeVideo(path: .init(videoId: id)).ok.body.json
-            let more = try await client.listYouTubeVideos(
-                query: .init(channelId: video.channelId, sort: .newest, limit: 13)
-            ).ok.body.json.items
+        try await read { db, me in
+            let video = try found(YouTubeRows.videos(db, me, .init(id: id, audience: .open)).0)
+            let more = try YouTubeRows.videos(db, me, .init(channelId: video.channelId, limit: 13)).0
             return VideoDetail(video: video, moreFromChannel: Array(more.filter { $0.id != id }.prefix(12)))
         }
     }
 
     public func setWatched(_ watched: Bool, channel id: Int64) async throws {
-        try await call {
-            _ = try await client.putYouTubeChannelWatchState(
-                path: .init(profileId: profileId, channelId: id), body: .json(.init(watched: watched))
-            ).noContent
-        }
+        try await call { try await markChannel(id, watched: watched) }
     }
 
     /// Any adult marks a channel for kids, which kids under rating ceilings then see.
-    public func setForKids(_ forKids: Bool, channel id: Int64) async throws -> YouTubeChannel {
-        try await call {
-            try await client.setYouTubeChannelForKids(path: .init(channelId: id), body: .json(.init(forKids: forKids)))
-                .ok.body.json
-        }
+    public func setForKids(_ forKids: Bool, channel id: Int64) async throws {
+        try await call { try await queue.setYouTubeChannelForKids(forKids, channel: id, as: profileId) }
     }
 
-    /// Marks a selection of channels and videos in one request; a channel marks each video.
+    /// Marks a selection of channels and videos; a channel marks each video.
     public func setWatched(_ watched: Bool, items ids: [Int64]) async throws {
-        try await call {
-            _ = try await client.putWatchStates(
-                path: .init(profileId: profileId), body: .json(.init(itemIds: ids, watched: watched))
-            ).noContent
-        }
+        try await call { try await queue.putWatchStates(watched, items: ids, as: profileId, in: replica) }
     }
 
     public func setForKids(_ forKids: Bool, channels ids: [Int64]) async throws {
-        try await call {
-            _ = try await client.setKidsContents(body: .json(.init(itemIds: ids, kidsContent: forKids))).noContent
-        }
+        try await call { try await queue.setKidsContents(forKids, for: ids, as: profileId) }
+    }
+
+    private func read<T: Sendable>(_ body: @escaping @Sendable (Database, Int64) throws -> T) async throws -> T {
+        let profile = profileId
+        return try await call { try await replica.read { try body($0, profile) } }
     }
 
     private func call<T>(_ body: () async throws -> T) async throws -> T {

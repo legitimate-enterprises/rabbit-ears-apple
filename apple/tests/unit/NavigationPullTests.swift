@@ -11,19 +11,23 @@ final class NavigationPullTests: XCTestCase {
         XCTAssertNil(LibrarySection.selection(nil, in: []), "Home stays with nothing else")
     }
 
-    func testAPullReloadsAndReadsTheLibrariesAgain() async throws {
-        let host = "pull-\(UUID().uuidString.prefix(8).lowercased()).test"
-        addTeardownBlock { UserDefaults.standard.removeObject(forKey: "librarySections https://\(host)") }
-        let transport = RoutingTransport([
-            "POST /auth/sign-in": (.created, Fixtures.signedIn),
-            "GET /me": (.ok, Fixtures.me),
-            "GET /libraries": (.ok, Fixtures.page([])),
-        ])
-        let model = AppModel(store: MemoryCredentialStore(), deviceName: "t", transport: transport)
-        try await model.signIn(server: "https://\(host)", email: "a@example.test", password: "x")
+    func testAPullCatchesUpThenReadsTheLibrariesAgain() async throws {
+        let app = try SyncedApp { try $0.library(1, "tv") }
+        defer { app.remove() }
+        _ = try await app.synced()
+        await app.until { app.model.librarySections == [.tv] }
+        app.routes.respond = { sent in
+            sent.path == "/sync/changes"
+                ? (
+                    .ok,
+                    SyncFixture.diff(
+                        version: 2, tables: [.init("library", #"["id","name","kind"]"#, #"[[2,"M","music"]]"#)])
+                )
+                : nil
+        }
         var reloaded = false
-        await model.pull { reloaded = true }
+        await app.model.pull { reloaded = true }
         XCTAssertTrue(reloaded)
-        XCTAssertEqual(model.librarySections, [])
+        XCTAssertEqual(app.model.librarySections, [.tv, .music])
     }
 }

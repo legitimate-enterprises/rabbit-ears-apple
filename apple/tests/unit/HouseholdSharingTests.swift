@@ -88,7 +88,9 @@ final class HouseholdSharingTests: XCTestCase {
             "GET /profiles": (.ok, Fixtures.page([Fixtures.adult, Fixtures.shared(Fixtures.kid)])),
             "GET /household/offers": (.ok, #"{"incoming":[\#(incoming)],"outgoing":[\#(outgoing)]}"#),
         ])
-        app = AppModel(store: MemoryCredentialStore(), deviceName: "Mac", transport: transport)
+        app = AppModel(
+            store: MemoryCredentialStore(), deviceName: "Mac", transport: transport, replicaDirectory: Fixtures.replicas
+        )
         try await app.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
         model = HouseholdModel(app: app)
     }

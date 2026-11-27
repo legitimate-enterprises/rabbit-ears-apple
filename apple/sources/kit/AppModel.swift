@@ -25,8 +25,10 @@ public final class AppModel {
     /// Kept as it changes, for the next launch to open with before the server answers.
     public private(set) var me: Components.Schemas.Me? {
         didSet {
-            guard let me, let endpoint, store.token != nil else { return }
-            live.cache?.keep(me: me, for: endpoint.baseURL)
+            guard let me, let endpoint, let sync, store.token != nil,
+                let kept = try? DownloadStore.encoder.encode(me)
+            else { return }
+            sync.replica.keep(kept, as: Self.keptMe(endpoint))
         }
     }
     public private(set) var activeProfile: Account?
@@ -34,7 +36,7 @@ public final class AppModel {
     public private(set) var client: Client?
     /// The sections of primary navigation the server has libraries for; all until a server has answered.
     public internal(set) var librarySections = Set(LibrarySection.allCases)
-    private let generation = ArtworkGeneration()
+    let generation = ArtworkGeneration()
     /// The lock last sent, which an unlock waits on.
     @ObservationIgnored private var locking: Task<Void, Never>?
     /// Each profile's HomeSlots as read or last kept, so a Home redraw reads no file.
@@ -42,9 +44,15 @@ public final class AppModel {
     public private(set) var artwork: ArtworkStore?
     /// The remembered profile whose PIN a launch asks for at Who's watching, until a profile is picked.
     public private(set) var pinPrompt: Account?
-    /// What the server says has changed, for what is on screen to load
-    /// again; it holds the cache the client reads through.
+    /// What has changed, for what is on screen to load again.
     public let live: LiveFeed
+    /// The signed-in server's replica, its action queue and its sync engine.
+    public internal(set) var sync: SyncSession?
+    /// A signed-out session's last flush and wipe, which the next one waits on.
+    @ObservationIgnored var ending: Task<Void, Never>?
+    /// Reads the sections again each time the replica's libraries change.
+    @ObservationIgnored var sections: Task<Void, Never>?
+    let replicaDirectory: URL
     /// What this device keeps for offline play; nil where nothing is downloaded, as on Apple TV.
     public let downloads: DownloadStore?
     /// Each server's name by address, as it said this launch.
@@ -57,13 +65,15 @@ public final class AppModel {
     let rememberProfileByDefault: Bool
 
     /// `rememberProfileByDefault` is Remember profile and Skip PIN for an adult who has set neither on this device.
+    /// `replicaDirectory` holds the signed-in server's replica, as `Replica.defaultDirectory`.
     public init(
         store: any CredentialStore, deviceName: String, platform: Components.Schemas.Platform = .macos,
         rememberProfileByDefault: Bool = true, transport: (any ClientTransport)? = nil,
-        downloads: DownloadStore? = nil, cache: ResponseCache? = nil
+        downloads: DownloadStore? = nil, replicaDirectory: URL
     ) {
         self.downloads = downloads
-        live = LiveFeed(cache: cache)
+        self.replicaDirectory = replicaDirectory
+        live = LiveFeed()
         self.store = store
         self.deviceName = deviceName
         self.platform = platform
@@ -83,9 +93,10 @@ public final class AppModel {
             return
         }
         phase = .starting
-        let client = client(endpoint, token: token)
-        if let kept = live.cache?.me(for: endpoint.baseURL) {
-            live.cache?.profile = kept.locked == true ? nil : kept.activeProfileId
+        let client = await connect(endpoint, token: token, fresh: false)
+        if let kept = sync?.replica.kept(Self.keptMe(endpoint)),
+            let kept = try? DownloadStore.decoder.decode(Components.Schemas.Me.self, from: kept)
+        {
             await enter(endpoint, client, kept, launching: true)
             return await refresh(endpoint, client)
         }
@@ -161,7 +172,8 @@ public final class AppModel {
                 .noContent
         } catch {
             if APIError.from(error)?.code == .forbidden { throw AppError.wrongPin }
-            throw AppError.from(error, unauthorized: .signedOut)
+            // Offline a profile without a PIN is switched to here alone; `reload` tells the server once it answers.
+            try await switchOffline(to: profile, after: error)
         }
         me?.activeProfileId = profile.id
         me?.locked = false
@@ -195,6 +207,8 @@ public final class AppModel {
     /// Re-reads the household after a change made elsewhere in the app.
     public func reload() async {
         if let fresh = try? await client?.getMe().ok.body.json { me = fresh }
+        if let known = me { await unlockSwitchedOffline(known) }
+        if let kept = me { me = await replicaSettings(kept) }
         if let id = activeProfile?.id, let fresh = profiles.first(where: { $0.id == id }) { activeProfile = fresh }
     }
 
@@ -207,12 +221,17 @@ public final class AppModel {
     public func chooseHousehold(_ choice: Components.Schemas.HouseholdChoice) async throws {
         if choice.id != households.first?.id {
             let client = try signedInClient()
+            // What is unsent belongs to the household the device is leaving.
+            if let sync, !sync.replica.isEmpty, await sync.queue.flush() != .done {
+                throw AppError.server("Changes made here haven't reached the server yet. Try again once it's back.")
+            }
             do {
                 _ = try await client.moveDevice(body: .json(.init(householdId: choice.id))).noContent
                 me = try await client.getMe().ok.body.json
             } catch {
                 throw AppError.from(error, unauthorized: .signedOut)
             }
+            if let engine = sync?.engine { Task { try? await engine.reset() } }
         }
         households = []
         if me?.locked != true { await lock() }
@@ -262,15 +281,18 @@ public final class AppModel {
         client = nil
         households = []
         phase = .signedOut
+        // The queue's last flush needs the token the server is about to forget.
+        await ending?.value
         _ = try? await signedIn?.signOut().noContent
     }
 
     /// Signed out, the device keeps nothing of the account: no token, no
-    /// downloads, no kept answer, no cached response.
+    /// downloads, no replica once its queue has had its last flush, no
+    /// cached response.
     private func forget() {
         store.token = nil
         downloads?.wipe()
-        live.cache?.clear()
+        end()
         heldHomeSlots = [:]
         URLCache.shared.removeAllCachedResponses()
     }
@@ -308,15 +330,8 @@ public final class AppModel {
             _ = try? await endpoint.client(token: result.token, transport: transport).signOut().noContent
             throw AppError.server("This device couldn't keep the sign-in. Try again.")
         }
-        await enter(endpoint, client(endpoint, token: result.token), result.me, households: households)
-    }
-
-    private func client(_ endpoint: ServerEndpoint, token: String) -> Client {
-        let client = endpoint.client(
-            token: token, transport: transport, generation: generation, offline: downloads, cache: live.cache
-        ) { [weak self] in self?.lockedOut() }
-        downloads?.connect(client: client, endpoint: endpoint, token: token)
-        return client
+        await enter(
+            endpoint, await connect(endpoint, token: result.token, fresh: true), result.me, households: households)
     }
 
     /// A launch, unlike a sign-in, may continue as the remembered profile.
@@ -326,7 +341,7 @@ public final class AppModel {
     ) async {
         self.endpoint = endpoint
         self.client = client
-        librarySections = Self.rememberedLibrarySections(endpoint.baseURL)
+        await loadLibrarySections()
         // Off the way in, as a launch offline must not wait on the server.
         Task { await learnName(endpoint) }
         artwork = ArtworkStore(client: client, generation: generation)
@@ -370,7 +385,7 @@ public final class AppModel {
     }
 
     /// The server answered device_locked, so a profile must be picked again.
-    private func lockedOut() {
+    func lockedOut() {
         guard me != nil else { return }
         me?.locked = true
         activeProfile = nil

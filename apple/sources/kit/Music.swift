@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import RabbitEarsAPI
 
 public typealias MusicArtist = Components.Schemas.MusicArtist
@@ -66,28 +67,29 @@ public struct MusicHome: Equatable, Sendable {
     public let recentlyAdded: [MusicAlbum]
 }
 
-/// Reads the music catalog for the active profile. The server leaves out
-/// what a kid may not hear, so nothing here checks the profile kind.
+/// Reads the music catalog for the active profile from the replica, as
+/// the server's views let it hear; what reads the profile's plays asks the
+/// server.
 @MainActor
 public final class MusicModel {
     public let client: Client
+    public let replica: Replica
     public let profileId: Int64
 
-    public init(client: Client, profileId: Int64) {
+    public init(client: Client, replica: Replica, profileId: Int64) {
         self.client = client
+        self.replica = replica
         self.profileId = profileId
     }
 
     public func home(limit: Int = 20) async throws -> MusicHome {
-        try await call {
-            async let played = recentlyPlayed(limit: limit)
-            async let added = client.listMusicAlbums(query: .init(sort: .added, limit: limit)).ok.body.json.items
-            return MusicHome(recentlyPlayed: try await played, recentlyAdded: try await added)
-        }
+        async let played = recentlyPlayed(limit: limit)
+        let added = try await albums(sort: .added, limit: limit).items
+        return MusicHome(recentlyPlayed: try await played, recentlyAdded: added)
     }
 
     /// Without a kind, albums and music playlists mixed; with one, CarPlay's
-    /// 12 most recent for a limited list.
+    /// 12 most recent for a limited list. Online only: plays are not in the replica.
     public func recentlyPlayed(
         kind: Components.Schemas.MusicRecentKind? = nil, limit: Int = 20
     ) async throws -> [MusicRecent] {
@@ -102,91 +104,94 @@ public final class MusicModel {
         sort: MusicAlbumSort = .title, genreId: Int64? = nil, letter: String? = nil, offset: Int? = nil,
         limit: Int = 100
     ) async throws -> Components.Schemas.MusicAlbumPage {
-        try await call {
-            try await client.listMusicAlbums(
-                query: .init(genreId: genreId, letter: letter, sort: sort, limit: limit, offset: offset)
-            ).ok.body.json
+        let filter = MusicRows.Filter(
+            genreId: genreId, letter: letter, sort: sort.rawValue, limit: limit, offset: offset ?? 0)
+        return try await read { db, me in
+            let (items, next) = try MusicRows.albums(db, me, filter)
+            return .init(items: items, nextOffset: next, total: try MusicRows.countAlbums(db, me, filter))
         }
     }
 
     public func artists(
         genreId: Int64? = nil, letter: String? = nil, offset: Int? = nil, limit: Int = 100
     ) async throws -> Components.Schemas.MusicArtistPage {
-        try await call {
-            try await client.listMusicArtists(
-                query: .init(genreId: genreId, letter: letter, limit: limit, offset: offset)
-            ).ok.body.json
+        let filter = MusicRows.Filter(genreId: genreId, letter: letter, limit: limit, offset: offset ?? 0)
+        return try await read { db, me in
+            let (items, next) = try MusicRows.artists(db, me, filter)
+            return .init(items: items, nextOffset: next, total: try MusicRows.countArtists(db, me, filter))
         }
     }
 
     public func songs(
         sort: MusicSongSort = .title, genreId: Int64? = nil, offset: Int? = nil, limit: Int = 100
     ) async throws -> Components.Schemas.MusicSongPage {
-        try await call {
-            try await client.listMusicSongs(query: .init(genreId: genreId, sort: sort, limit: limit, offset: offset))
-                .ok.body.json
+        let filter = MusicRows.Filter(genreId: genreId, sort: sort.rawValue, limit: limit, offset: offset ?? 0)
+        return try await read { db, me in
+            let (items, next) = try MusicRows.songs(db, me, filter)
+            return .init(items: items, nextOffset: next, total: try MusicRows.countSongs(db, me, filter))
         }
     }
 
+    /// Popular, the most played across every profile, is online only: plays are not in the replica.
     public func artist(_ id: Int64) async throws -> ArtistDetail {
-        try await call {
-            async let artist = client.getMusicArtist(path: .init(artistId: id)).ok.body.json
-            async let popular = client.listMusicSongs(query: .init(artistId: id, sort: .popular, limit: 5))
-                .ok.body.json.items
-            async let albums = allPages { offset in
-                let page = try await self.client.listMusicAlbums(
-                    query: .init(artistId: id, sort: .year, limit: 200, offset: offset)
-                ).ok.body.json
-                return (page.items, page.nextOffset)
-            }
-            return ArtistDetail(artist: try await artist, popular: try await popular, albums: try await albums)
+        let (artist, albums) = try await read { db, me in
+            (
+                try found(MusicRows.artists(db, me, .init(id: id)).0),
+                try MusicRows.albums(db, me, .init(artistId: id, sort: "year", limit: MusicRows.Filter.all)).0
+            )
         }
+        let popular = try await call {
+            try await client.listMusicSongs(query: .init(artistId: id, sort: .popular, limit: 5)).ok.body.json.items
+        }
+        return ArtistDetail(artist: artist, popular: popular, albums: albums)
     }
 
     public func album(_ id: Int64) async throws -> AlbumDetail {
-        try await call {
-            let album = try await client.getMusicAlbum(path: .init(albumId: id)).ok.body.json
-            async let songs = allPages { offset in
-                let page = try await self.client.listMusicSongs(
-                    query: .init(albumId: id, limit: 200, offset: offset)
-                ).ok.body.json
-                return (page.items, page.nextOffset)
-            }
-            async let more = client.listMusicAlbums(query: .init(artistId: album.artistId, sort: .year, limit: 21))
-                .ok.body.json.items
-            return AlbumDetail(
-                album: album, songs: try await songs, moreByArtist: try await more.filter { $0.id != id })
+        try await read { db, me in
+            let album = try found(MusicRows.albums(db, me, .init(id: id)).0)
+            let songs = try MusicRows.songs(db, me, .init(albumId: id, limit: MusicRows.Filter.all)).0
+            let more = try MusicRows.albums(db, me, .init(artistId: album.artistId, sort: "year", limit: 21)).0
+            return AlbumDetail(album: album, songs: songs, moreByArtist: more.filter { $0.id != id })
         }
     }
 
     /// Every song an artist plays, album by album, for Play and Shuffle on Artist.
     public func songs(byArtist id: Int64) async throws -> [MusicSong] {
-        try await call {
-            try await allPages { offset in
-                let page = try await self.client.listMusicSongs(
-                    query: .init(artistId: id, sort: .album, limit: 200, offset: offset)
-                ).ok.body.json
-                return (page.items, page.nextOffset)
-            }
+        try await read { db, me in
+            try MusicRows.songs(db, me, .init(artistId: id, sort: "album", limit: MusicRows.Filter.all)).0
         }
     }
 
     /// Letters A to Z then #, each with how many albums or artists it files.
     public func letters(of group: Components.Schemas.MusicLetterGroup) async throws -> [MusicLetterCount] {
-        try await call { try await client.listMusicLetters(query: .init(of: group)).ok.body.json.items }
+        try await read { db, me in try MusicRows.letters(db, me, kind: group == .artists ? "artist" : "album") }
     }
 
     public func search(_ query: String, limit: Int = 20) async throws -> MusicSearchResult {
         let query = query.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return MusicSearchResult(artists: [], albums: [], songs: []) }
-        return try await call {
-            try await client.searchMusic(query: .init(q: String(query.prefix(200)), limit: limit)).ok.body.json
+        let filter = MusicRows.Filter(query: String(query.prefix(200)), limit: limit)
+        return try await read { db, me in
+            MusicSearchResult(
+                artists: try MusicRows.artists(db, me, filter).0, albums: try MusicRows.albums(db, me, filter).0,
+                songs: try MusicRows.songs(db, me, filter).0)
         }
+    }
+
+    func read<T: Sendable>(_ body: @escaping @Sendable (Database, Int64) throws -> T) async throws -> T {
+        let profile = profileId
+        return try await call { try await replica.read { try body($0, profile) } }
     }
 
     private func call<T>(_ body: () async throws -> T) async throws -> T {
         do { return try await body() } catch { throw AppError.from(error, unauthorized: .signedOut) }
     }
+}
+
+/// What a by-id read of the replica found, or the server's not found.
+func found<T>(_ rows: [T]) throws -> T {
+    guard let first = rows.first else { throw AppError.server("not found") }
+    return first
 }
 
 /// Every page of a paged listing, in order.

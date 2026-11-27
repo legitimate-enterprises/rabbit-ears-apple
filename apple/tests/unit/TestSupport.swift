@@ -67,7 +67,7 @@ final class RoutingTransport: ClientTransport, @unchecked Sendable {
         // As URLSession: a cancelled task sends nothing, and one cancelled in flight reads no answer.
         try Task.checkCancellation()
         var text = ""
-        if let body { text = try await String(collecting: body, upTo: 1 << 20) }
+        if let body { text = try await String(collecting: body, upTo: 1 << 25) }
         let parts = (request.path ?? "").split(separator: "?", maxSplits: 1).map(String.init)
         let path = parts.first ?? ""
         let record = Sent(
@@ -86,6 +86,9 @@ final class RoutingTransport: ClientTransport, @unchecked Sendable {
 }
 
 enum Fixtures {
+    /// A replica directory of its own, for an AppModel or a catalog that reads nothing from it.
+    static var replicas: URL { FileManager.default.temporaryDirectory.appending(path: "Replica \(UUID().uuidString)") }
+
     static func error(_ code: String, _ message: String = "nope") -> String {
         #"{"code":"\#(code)","message":"\#(message)"}"#
     }
@@ -200,16 +203,32 @@ enum Fixtures {
     }
 }
 
-/// Counts requests held at once: each waits until `count` have arrived, or
-/// a second has passed, so requests sent one after another never overlap.
-actor InFlight {
-    private(set) var peak = 0
-    private var now = 0
+extension CatalogModel {
+    /// Over a replica with no snapshot, for what reads nothing from it.
+    convenience init(client: Client, profileId: Int64, hidingKids: Bool = false) {
+        self.init(
+            client: client, replica: Replica(directory: Fixtures.replicas), profileId: profileId,
+            hidingKids: hidingKids)
+    }
 
-    func arriveAndWait(for count: Int) async {
-        now += 1
-        peak = max(peak, now)
-        for _ in 0..<100 where peak < count { try? await Task.sleep(for: .milliseconds(10)) }
-        now -= 1
+    /// Over `replica`, with a queue on it that sends through `client`.
+    convenience init(client: Client, replica: Replica, profileId: Int64, hidingKids: Bool = false) {
+        self.init(
+            client: client, replica: replica, queue: ActionQueue(replica: replica, client: client),
+            profileId: profileId,
+            hidingKids: hidingKids)
+    }
+}
+
+/// Holds the server's answers until opened; after five seconds it opens by
+/// itself, so a read that waits on it fails its test rather than hanging.
+final class Gate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var opened = false
+
+    func open() { lock.withLock { opened = true } }
+
+    func wait() async throws {
+        for _ in 0..<1000 where !lock.withLock({ opened }) { try await Task.sleep(for: .milliseconds(5)) }
     }
 }

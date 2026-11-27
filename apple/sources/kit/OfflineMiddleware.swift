@@ -47,10 +47,9 @@ struct LocalAnswer: Sendable {
     }
 }
 
-/// Lets every screen run on what is downloaded: plays a title kept on the
-/// device from its file when the profile prefers local copies, and answers
-/// what the store can while the server cannot be reached. On the way back
-/// it notes who is signed in, for opening the app offline.
+/// Plays a title kept on the device from its file when the profile prefers
+/// local copies or the server cannot be reached; while it cannot, answers
+/// kept artwork and a lock.
 public struct OfflineMiddleware: ClientMiddleware {
     let store: DownloadStore
 
@@ -64,23 +63,15 @@ public struct OfflineMiddleware: ClientMiddleware {
         if let body { data = try await Data(collecting: body, upTo: 16 << 20) }
         let call = LocalCall(operation: operationID, path: request.path ?? "", body: data)
         if let answer = await store.answerFirst(call) { return Self.response(answer) }
-        let response: HTTPResponse
-        let responseBody: HTTPBody?
         do {
-            (response, responseBody) = try await next(request, data.map { HTTPBody($0) }, baseURL)
+            let answer = try await next(request, data.map { HTTPBody($0) }, baseURL)
+            await store.reached()
+            return answer
         } catch {
             guard Self.unreachable(error) else { throw error }
             if let answer = await store.answerOffline(call) { return Self.response(answer) }
             throw error
         }
-        guard (200..<300).contains(response.status.code), store.notes(operationID) else {
-            await store.reached()
-            return (response, responseBody)
-        }
-        var answer = Data()
-        if let responseBody { answer = try await Data(collecting: responseBody, upTo: 16 << 20) }
-        await store.heard(call, answer: answer)
-        return (response, HTTPBody(answer))
     }
 
     /// No answer at all, as opposed to the server refusing or the caller giving up.
@@ -112,16 +103,16 @@ extension DownloadStore {
     static let offlineGrace: TimeInterval = 15
 
     /// A local session, or a title to play from its file; while the server
-    /// was just found unreachable, anything the store can answer. Offline a
-    /// kept copy plays whatever edition it is, as it plays the audio and
-    /// quality it was kept with.
+    /// was just found unreachable, what `offline` answers. Offline a kept
+    /// copy plays whatever edition it is, as it plays the audio and quality
+    /// it was kept with.
     func answerFirst(_ call: LocalCall) async -> LocalAnswer? {
         if call.segments.first == "playback", let id = call.id(after: "sessions"), id < 0 {
             return await session(id, call)
         }
         if call.operation == "startPlayback", let request = call.decode(Components.Schemas.PlaybackRequest.self),
             settings(request.profileId).preferLocal || isOffline,
-            let answer = startLocal(request, anyEdition: isOffline)
+            let answer = await startLocal(request, anyEdition: isOffline)
         {
             return answer
         }
@@ -131,7 +122,7 @@ extension DownloadStore {
     func answerOffline(_ call: LocalCall) async -> LocalAnswer? {
         unreachableSince = now()
         if call.operation == "startPlayback", let request = call.decode(Components.Schemas.PlaybackRequest.self) {
-            return startLocal(request, anyEdition: true)
+            return await startLocal(request, anyEdition: true)
         }
         return offline(call)
     }
@@ -142,35 +133,22 @@ extension DownloadStore {
 
     func reached() { unreachableSince = nil }
 
-    nonisolated func notes(_ operation: String) -> Bool {
-        ["getMe", "listLibraries", "unlockProfile", "lockDevice"].contains(operation)
-    }
-
-    /// Keeps the last Me, its lock and active profile, and the libraries, for
-    /// the app to open with offline. A profile the household no longer has
-    /// loses its downloads.
-    func heard(_ call: LocalCall, answer: Data) {
-        unreachableSince = nil
+    /// Kept artwork, and a lock while there is a kept Me; nil for the rest,
+    /// which then fail as the server not answering.
+    private func offline(_ call: LocalCall) -> LocalAnswer? {
         switch call.operation {
-        case "getMe":
-            let me = try? Self.decoder.decode(Components.Schemas.Me.self, from: answer)
-            ledger.shelf.me = me
-            // Only the owner's answer lists pending adults, so only it names every profile the household has.
-            guard let me, me.household?.adultId == me.activeProfileId else { break }
-            let known = Set(ledger.requests.map(\.profileId)).union(ledger.settings.keys).union(ledger.unsynced.keys)
-            for profile in known.subtracting(me.profiles.map(\.id)) { wipe(profile: profile) }
-        case "listLibraries":
-            guard let page = try? Self.decoder.decode(Components.Schemas.LibraryPage.self, from: answer) else {
-                return
+        case "getItemArtwork", "getCollectionArtwork":
+            let collection = call.operation == "getCollectionArtwork"
+            guard let id = call.id(after: collection ? "collections" : "items"),
+                let kind = call.segments.last.flatMap(ArtworkStore.Kind.init(rawValue:))
+            else { return .notFound }
+            let key = ArtKey(id: id, kind: kind, collection: collection).file
+            guard ledger.shelf.art.contains(key), let data = try? Data(contentsOf: art.appending(path: key)) else {
+                return .notFound
             }
-            ledger.shelf.libraries = page.items
-        case "unlockProfile":
-            guard let id = call.id(after: "profiles") else { return }
-            ledger.shelf.me?.activeProfileId = id
-            ledger.shelf.me?.locked = false
-        case "lockDevice": ledger.shelf.me?.locked = true
-        default: return
+            return LocalAnswer(status: 200, body: data, contentType: "image/jpeg")
+        case "lockDevice": return me == nil ? nil : .noContent
+        default: return nil
         }
-        save()
     }
 }

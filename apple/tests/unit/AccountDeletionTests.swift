@@ -18,7 +18,8 @@ final class AccountDeletionTests: XCTestCase {
             "GET /me": (.ok, Fixtures.me),
             "GET /me/deletion": (.ok, #"{"outcome":"transfer","newOwnerName":"Bea","kidNames":[]}"#),
         ])
-        model = AppModel(store: store, deviceName: "Test Mac", transport: transport)
+        model = AppModel(
+            store: store, deviceName: "Test Mac", transport: transport, replicaDirectory: Fixtures.replicas)
         try await model.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
     }
 

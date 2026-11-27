@@ -1,3 +1,4 @@
+import GRDB
 import RabbitEarsAPI
 import XCTest
 
@@ -53,82 +54,90 @@ final class SelectionTests: XCTestCase {
 final class BulkActionTests: XCTestCase {
     private let transport = RoutingTransport()
 
-    private func catalogModel() async -> CatalogModel {
+    private func catalogModel() async throws -> CatalogModel {
         let items = [
-            "movie": [Fixtures.item(20, "movie", "Dune")],
-            "show": [Fixtures.item(30, "show", "Andor")],
-            "season": [Fixtures.item(31, "season", "Andor", parent: 30, season: 1)],
-            "episode": [
-                Fixtures.item(32, "episode", "Andor", parent: 31, episode: 1),
-                Fixtures.item(33, "episode", "Andor", parent: 31, episode: 2),
-            ],
+            Fixtures.item(20, "movie", "Dune"), Fixtures.item(30, "show", "Andor"),
+            Fixtures.item(31, "season", "Andor", parent: 30, season: 1),
+            Fixtures.item(32, "episode", "Andor", parent: 31, episode: 1),
+            Fixtures.item(33, "episode", "Andor", parent: 31, episode: 2),
         ]
-        transport.respond = { @Sendable sent in
-            guard sent.method == .get, sent.path == "/items" else { return nil }
-            let kind = sent.query.split(separator: "&").first { $0.hasPrefix("kind=") }?.dropFirst(5) ?? ""
-            return (.ok, Fixtures.page(items[String(kind)] ?? []))
-        }
-        transport.routes["GET /profiles/2/watch-state"] = (.ok, Fixtures.page([Fixtures.watch(32, position: 60_000)]))
-        let model = CatalogModel(client: ServerEndpoint.default.client(token: "t", transport: transport), profileId: 2)
+        let model = CatalogModel(
+            client: ServerEndpoint.default.client(token: "t", transport: transport),
+            replica: try replica(items, watch: [Fixtures.watch(32, position: 60_000)], profile: 2), profileId: 2)
         await model.load()
         return model
     }
 
-    func testMarkingASelectionIsOneRequestAndMarksAShowsEpisodes() async throws {
-        transport.routes["PUT /profiles/2/watch-state/batch"] = (.noContent, "")
-        let model = await catalogModel()
+    func testMarkingASelectionIsOneActionAndMarksAShowsEpisodes() async throws {
+        let model = try await catalogModel()
         await model.setWatched(true, for: [model.catalog.item(30)!, model.catalog.item(20)!])
         XCTAssertNil(model.error)
-        XCTAssertEqual(transport.paths(.put), ["/profiles/2/watch-state/batch"])
-        let body = try XCTUnwrap(transport.json(.put, "/profiles/2/watch-state/batch"))
-        XCTAssertEqual(body["itemIds"] as? [Int64], [30, 20])
-        XCTAssertEqual(body["watched"] as? Bool, true)
+        let queued = try await model.replica.read {
+            try String.fetchAll($0, sql: "SELECT operation_id || ' ' || path FROM queue.action")
+        }
+        XCTAssertEqual(queued, ["putWatchStates /profiles/2/watch-state/batch"])
         XCTAssertEqual(model.catalog.unwatchedCount(30), 0)
         XCTAssertTrue(model.catalog.isWatched(20))
         XCTAssertFalse(model.catalog.isInProgress(32))
     }
 
-    func testAFailedMarkChangesNothing() async {
-        transport.routes["PUT /profiles/2/watch-state/batch"] = (.notFound, Fixtures.error("not_found"))
-        let model = await catalogModel()
-        await model.setWatched(true, for: [model.catalog.item(20)!])
+    func testAMarkOnATitleTheProfileMayNotSeeChangesNothing() async throws {
+        let model = try await catalogModel()
+        await model.setWatched(
+            true, for: [model.catalog.item(20)!, Fixtures.decode(Fixtures.item(99, "movie", "Gone"))])
         XCTAssertNotNil(model.error)
         XCTAssertFalse(model.catalog.isWatched(20))
+        let queued = try await model.replica.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM queue.action") }
+        XCTAssertEqual(queued, 0)
     }
 
-    func testKidsContentForASelectionIsOneRequest() async throws {
-        transport.routes["PUT /items/kids-content/batch"] = (.noContent, "")
-        let model = await catalogModel()
+    func testKidsContentForASelectionIsOneAction() async throws {
+        let model = try await catalogModel()
         await model.setKidsContent(true, for: [model.catalog.item(20)!, model.catalog.item(30)!])
-        let body = try XCTUnwrap(transport.json(.put, "/items/kids-content/batch"))
-        XCTAssertEqual(body["itemIds"] as? [Int64], [20, 30])
-        XCTAssertEqual(body["kidsContent"] as? Bool, true)
+        XCTAssertNil(model.error)
+        let queued = try await model.replica.read {
+            try String.fetchAll($0, sql: "SELECT operation_id || ' ' || path FROM queue.action")
+        }
+        XCTAssertEqual(queued, ["setKidsContents /items/kids-content/batch"])
         XCTAssertEqual(model.catalog.item(30)?.kidsContent, true)
         XCTAssertEqual(model.catalog.item(30)?.kidsContentOverride, true)
+        XCTAssertEqual(model.catalog.item(20)?.kidsContent, true)
     }
 
     func testAddingASelectionToAPlaylistIsOneRequest() async throws {
-        transport.routes["POST /profiles/2/playlists/9/entries/batch"] = (.noContent, "")
-        transport.routes["GET /profiles/2/playlists/9"] = (
-            .ok,
-            #"{"id":9,"profileId":2,"name":"Mix","kind":"music","access":"owner","itemCount":2,"durationMs":0,"#
-                + #""createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}"#
-        )
-        let model = PlaylistsModel(
-            client: ServerEndpoint.default.client(token: "t", transport: transport), profileId: 2)
+        let synced = try SyncedReplica { try $0.account(2, "Avery") }
+        addTeardownBlock { await synced.remove() }
+        synced.transport.routes["POST /profiles/2/playlists/9/entries/batch"] = (.noContent, "")
+        let model = synced.playlists(2)
         let added = await model.add([101, 100], to: 9)
         XCTAssertTrue(added)
-        let body = try XCTUnwrap(transport.json(.post, "/profiles/2/playlists/9/entries/batch"))
+        let body = try XCTUnwrap(synced.transport.json(.post, "/profiles/2/playlists/9/entries/batch"))
         XCTAssertEqual((body["entries"] as? [[String: Any]])?.compactMap { $0["itemId"] as? Int64 }, [101, 100])
     }
 
-    func testYouTubeSelectionsMarkAndSetForKidsInOneRequestEach() async throws {
-        transport.routes["PUT /profiles/1/watch-state/batch"] = (.noContent, "")
-        transport.routes["PUT /items/kids-content/batch"] = (.noContent, "")
-        let model = YouTubeModel(client: ServerEndpoint.default.client(token: "t", transport: transport), profileId: 1)
-        try await model.setWatched(false, items: [60, 61])
+    func testYouTubeSelectionsMarkAndSetForKidsInOneActionEach() async throws {
+        let fixture = ReplicaFixture()
+        defer { fixture.remove() }
+        let replica = try fixture.v1 { db in
+            try db.account(1, "Avery")
+            try db.channel(60, "Workbench Weekly")
+            try db.channel(61, "Lathe Talk")
+            try db.video(70, "Dovetails", channel: 60)
+            try db.video(71, "Chucks", channel: 61)
+        }
+        let client = ServerEndpoint.default.client(token: "t", transport: transport)
+        let model = YouTubeModel(
+            client: client, replica: replica, queue: ActionQueue(replica: replica, client: client), profileId: 1)
+        try await model.setWatched(true, items: [60, 61])
         try await model.setForKids(true, channels: [60, 61])
-        XCTAssertEqual(transport.json(.put, "/profiles/1/watch-state/batch")?["itemIds"] as? [Int64], [60, 61])
-        XCTAssertEqual(transport.json(.put, "/items/kids-content/batch")?["kidsContent"] as? Bool, true)
+        let queued = try await replica.read {
+            try String.fetchAll($0, sql: "SELECT operation_id || ' ' || path FROM queue.action ORDER BY seq")
+        }
+        XCTAssertEqual(
+            queued, ["putWatchStates /profiles/1/watch-state/batch", "setKidsContents /items/kids-content/batch"])
+        let channels = try await model.channels()
+        XCTAssertEqual(channels.map(\.forKids), [true, true])
+        let video = try await model.video(70).video
+        XCTAssertEqual(video.watched, true, "a channel marks its videos")
     }
 }

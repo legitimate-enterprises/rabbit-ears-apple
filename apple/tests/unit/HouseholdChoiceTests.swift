@@ -23,7 +23,9 @@ final class HouseholdChoiceTests: XCTestCase {
             "PUT /me/household": (.noContent, ""),
             "GET /me": (.ok, Fixtures.me),
         ])
-        app = AppModel(store: MemoryCredentialStore(), deviceName: "Mac", transport: transport)
+        app = AppModel(
+            store: MemoryCredentialStore(), deviceName: "Mac", transport: transport, replicaDirectory: Fixtures.replicas
+        )
     }
 
     private func signIn() async throws {

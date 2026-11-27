@@ -8,7 +8,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-bundle="${1:?usage: run-xctest.sh <BundleName>}"
+bundle="${1:?usage: run-xctest.sh <BundleName> [<Bundle.Class>]}"
+only="${2:-}"
 
 PROJECT="RabbitEars.xcodeproj"
 SCHEME="RabbitEars"
@@ -37,4 +38,4 @@ path="$products/$bundle.xctest"
 # Only the orchestrated runner puts the products dir on the search path.
 export DYLD_FRAMEWORK_PATH="$products"
 export DYLD_LIBRARY_PATH="$products"
-exec xcrun xctest "$path"
+exec xcrun xctest ${only:+-XCTest "$only"} "$path"

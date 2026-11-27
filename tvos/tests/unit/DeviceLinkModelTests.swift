@@ -32,7 +32,9 @@ final class DeviceLinkModelTests: XCTestCase {
     func model(_ transport: RoutingTransport, store: CredentialStore = MemoryCredentialStore()) -> (
         AppModel, DeviceLinkModel
     ) {
-        let app = AppModel(store: store, deviceName: "Living Room", platform: .tvos, transport: transport)
+        let app = AppModel(
+            store: store, deviceName: "Living Room", platform: .tvos, transport: transport,
+            replicaDirectory: Fixtures.replicas)
         return (app, DeviceLinkModel(app: app, server: server, interval: .zero))
     }
 

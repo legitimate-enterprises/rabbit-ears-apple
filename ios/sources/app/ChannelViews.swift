@@ -106,7 +106,7 @@ struct ChannelView: View {
                     get: { channel.forKids == true },
                     set: { on in
                         Task {
-                            _ = try? await services.youtube.setForKids(on, channel: channel.id)
+                            try? await services.youtube.setForKids(on, channel: channel.id)
                             await load()
                         }
                     }))

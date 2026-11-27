@@ -1,0 +1,53 @@
+diff --git a/Package.swift b/Package.swift
+index 057c6f1..20583c6 100644
+--- a/Package.swift
++++ b/Package.swift
+@@ -62,9 +62,26 @@ let package = Package(
+     dependencies: dependencies,
+     targets: [
+         // GRDB+SQLCipher: Delete the GRDBSQLite target
+-        .systemLibrary(
++        .target(
+             name: "GRDBSQLite",
+-            providers: [.apt(["libsqlite3-dev"])]),
++            publicHeadersPath: ".",
++            cSettings: [
++                .define("SQLITE_THREADSAFE", to: "2"),
++                .define("SQLITE_DEFAULT_MEMSTATUS", to: "0"),
++                .define("SQLITE_ENABLE_COLUMN_METADATA"),
++                .define("SQLITE_ENABLE_DBPAGE_VTAB"),
++                .define("SQLITE_ENABLE_DBSTAT_VTAB"),
++                .define("SQLITE_ENABLE_FTS5"),
++                .define("SQLITE_ENABLE_GEOPOLY"),
++                .define("SQLITE_ENABLE_MATH_FUNCTIONS"),
++                .define("SQLITE_ENABLE_OFFSET_SQL_FUNC"),
++                .define("SQLITE_ENABLE_PREUPDATE_HOOK"),
++                .define("SQLITE_ENABLE_RTREE"),
++                .define("SQLITE_ENABLE_SNAPSHOT"),
++                .define("SQLITE_ENABLE_STAT4"),
++                .define("SQLITE_LIKE_DOESNT_MATCH_BLOBS"),
++                .define("SQLITE_SOUNDEX"),
++            ]),
+         // GRDB+SQLCipher: Uncomment the GRDBSQLCipher target
+         //.target(
+         //    name: "GRDBSQLCipher",
+diff --git a/Sources/GRDBSQLite/module.modulemap b/Sources/GRDBSQLite/module.modulemap
+index 95e4e88..f3be1b5 100644
+--- a/Sources/GRDBSQLite/module.modulemap
++++ b/Sources/GRDBSQLite/module.modulemap
+@@ -1,5 +1,4 @@
+ module GRDBSQLite [system] {
+     header "shim.h"
+-    link "sqlite3"
+     export *
+ }
+diff --git a/Sources/GRDBSQLite/shim.h b/Sources/GRDBSQLite/shim.h
+index 8a10c34..2dfa53a 100644
+--- a/Sources/GRDBSQLite/shim.h
++++ b/Sources/GRDBSQLite/shim.h
+@@ -1,4 +1,4 @@
+-#include <sqlite3.h>
++#include "sqlite3.h"
+ 
+ typedef void(*_errorLogCallback)(void *pArg, int iErrCode, const char *zMsg);
+ 

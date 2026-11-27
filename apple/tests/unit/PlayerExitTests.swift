@@ -19,6 +19,9 @@ final class PlayerExitTests: XCTestCase {
     var client: Client!
     private var cover: Cover!
     var closed = 0
+    var fixture: ReplicaFixture!
+    /// Alpha's pilot (21), and its second episode (22) once `answerSecond` adds it.
+    var replica: Replica!
     let avery = Fixtures.decode(Fixtures.adult, as: Account.self)
     let pilot = PlayRequest(item: Fixtures.decode(Fixtures.item(21, "episode", "Pilot"), as: Item.self))
 
@@ -29,6 +32,23 @@ final class PlayerExitTests: XCTestCase {
         cover = Cover()
         cover.playing = pilot
         closed = 0
+        fixture = ReplicaFixture()
+        replica = try library(second: false)
+    }
+
+    override func tearDown() { fixture.remove() }
+
+    private func library(second: Bool) throws -> Replica {
+        try fixture.v1 { db in
+            try db.account(1, "Avery")
+            try db.item(10, "show", "Alpha", rating: "TV-14")
+            try db.item(11, "season", "Season 1", parent: 10, season: 1)
+            try db.item(21, "episode", "Pilot", parent: 11, season: 1, episode: 1)
+            if second {
+                try db.item(22, "episode", "Second", parent: 11, season: 1, episode: 2)
+                try db.playable(22)
+            }
+        }
     }
 
     private func exit(_ request: PlayRequest) -> PlayerExit {
@@ -37,18 +57,18 @@ final class PlayerExitTests: XCTestCase {
             client: client, endpoint: server, profileId: 1, item: request.item, output: FakeOutput(),
             capabilities: FakeCapabilities())
         return PlayerExit(
-            request: request, model: model, catalog: CatalogModel(client: client, profileId: 1), browser: cover
+            request: request, model: model, catalog: CatalogModel(client: client, replica: replica, profileId: 1),
+            browser: cover
         ) { [unowned self] in
             closed += 1
             cover.playing = nil
         }
     }
 
-    private func answerSecond() {
-        let second = Fixtures.item(22, "episode", "Second")
-        transport.routes["GET /profiles/1/up-next/21"] = (
-            .ok, #"{"itemId":22,"kind":"episode","title":"Second","item":"# + second + "}"
-        )
+    private func answerSecond() throws {
+        fixture.remove()
+        fixture = ReplicaFixture()
+        replica = try library(second: true)
     }
 
     func testLeavingClosesThePlayer() {
@@ -65,8 +85,8 @@ final class PlayerExitTests: XCTestCase {
         XCTAssertEqual(closed, 0)
     }
 
-    func testAnEndWithSomethingNextOffersIt() async {
-        answerSecond()
+    func testAnEndWithSomethingNextOffersIt() async throws {
+        try answerSecond()
         let next = await exit(pilot).ended(client: client, profile: avery)
         XCTAssertEqual(next?.request.item.id, 22)
         XCTAssertEqual(closed, 0)
@@ -82,21 +102,21 @@ final class PlayerExitTests: XCTestCase {
         let other = PlayRequest(item: Fixtures.decode(Fixtures.item(30, "movie", "Other"), as: Item.self))
         let cover = cover!
         cover.instead = other
-        // Back, then another title, while the lookup is in flight.
-        transport.hold = { _ in await cover.moveOn() }
+        // Back, then another title, before the lookup answers.
+        cover.moveOn()
         let next = await exit(pilot).ended(client: client, profile: avery)
         XCTAssertNil(next)
         XCTAssertEqual(closed, 0)
         XCTAssertEqual(cover.playing?.id, other.id)
     }
 
-    func testALookupAnsweredAfterNextEpisodeOffersNothingOverIt() async {
+    func testALookupAnsweredAfterNextEpisodeOffersNothingOverIt() async throws {
         let second = PlayRequest(
             id: pilot.id, item: Fixtures.decode(Fixtures.item(22, "episode", "Second"), as: Item.self))
         let cover = cover!
         cover.instead = second
-        transport.hold = { _ in await cover.moveOn() }
-        answerSecond()
+        cover.moveOn()
+        try answerSecond()
         let next = await exit(pilot).ended(client: client, profile: avery)
         XCTAssertNil(next)
         XCTAssertEqual(closed, 0)

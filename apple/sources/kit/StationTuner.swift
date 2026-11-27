@@ -22,19 +22,29 @@ public final class StationTuner {
     @ObservationIgnored public var onWake: (@MainActor () async -> Void)?
 
     private let client: Client
+    private let replica: Replica
+    private let profileId: Int64
+    private let now: @Sendable () -> Date
+    private let calendar: Calendar
     private let sleep: @MainActor (Date) async throws -> Void
     @ObservationIgnored private var waker: Task<Void, Never>?
 
+    /// What is on is read from `replica` as `profileId` sees it at `now`.
     /// Tests pass a `sleep` that returns at once; it throws when cancelled.
     /// The wait is a second at least: to a device whose clock runs ahead of
     /// the server's, the program on now has already ended.
     public init(
-        client: Client, station: Station,
+        client: Client, replica: Replica, profileId: Int64, station: Station,
+        now: @escaping @Sendable () -> Date = Date.init, calendar: Calendar = .autoupdatingCurrent,
         sleep: @escaping @MainActor (Date) async throws -> Void = { date in
             try await Task.sleep(for: .seconds(max(1, date.timeIntervalSinceNow)))
         }
     ) {
         self.client = client
+        self.replica = replica
+        self.profileId = profileId
+        self.now = now
+        self.calendar = calendar
         self.station = station
         self.sleep = sleep
     }
@@ -56,9 +66,7 @@ public final class StationTuner {
             offAir = true
             live = false
             // The refusal carries only when; the station says whether that is a gap or off schedule, and what is next.
-            if let fresh = try? await client.getStation(path: .init(stationId: station.id)).ok.body.json {
-                station = fresh
-            }
+            if let fresh = await read() { station = fresh }
             wake(at: APIError.from(error)?.resumesAt)
             return nil
         } catch {
@@ -88,9 +96,16 @@ public final class StationTuner {
     /// Reads what is on now, and waits for its end or the next start. A
     /// station that cannot be read is read again in a minute.
     private func follow() async {
-        let fresh = try? await client.getStation(path: .init(stationId: station.id)).ok.body.json
+        let fresh = await read()
         if let fresh { station = fresh }
         wake(at: fresh.map { $0.onAir.now?.endsAt ?? $0.onAir.next?.startsAt } ?? Date(timeIntervalSinceNow: 60))
+    }
+
+    private func read() async -> Station? {
+        let (id, profile, at, calendar) = (station.id, profileId, now(), calendar)
+        return try? await replica.read {
+            try StationRows.stations($0, profile: profile, id: id, at: at, calendar: calendar).first
+        }
     }
 
     private func wake(at date: Date?) {

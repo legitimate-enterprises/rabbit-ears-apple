@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import Observation
 import RabbitEarsAPI
 
@@ -117,38 +118,62 @@ public final class HouseholdModel {
         }
     }
 
-    /// The titles a kid on an allow list may see; one that fails to load is left out.
+    /// The titles a kid on an allow list may see, as getItem finds each for
+    /// the active profile; a channel or a title it does not find is left out.
     public func allowed(_ kid: Account) async throws -> [Item] {
-        try await call { client in
-            let ids = try await client.listAllowedItems(path: .init(profileId: kid.id)).ok.body.json.itemIds
-            var items: [Item] = []
-            for id in ids {
-                if let item = try? await client.getItem(path: .init(itemId: id)).ok.body.json { items.append(item) }
-            }
-            return items
+        let (kidId, viewer) = (kid.id, try acting())
+        return try await read { db in
+            let ids = try Int64.fetchAll(
+                db, sql: "SELECT item_id FROM account_allow WHERE account_id = ? ORDER BY item_id", arguments: [kidId])
+            let items = try ReplicaRows.items(
+                db,
+                "i.id IN (SELECT value FROM json_each(?))"
+                    + " AND i.id IN (SELECT item_id FROM profile_item_open WHERE account_id = ?)", ["\(ids)", viewer])
+            return Self.ordered(items, ids)
         }
     }
 
-    /// Movies and shows matching the query, the only kinds an allow list holds.
+    /// Movies and shows matching the query, the only kinds an allow list
+    /// holds, from the first page of 20 listItems answers for it.
     public func findTitles(_ query: String) async throws -> [Item] {
-        try await call {
-            try await $0.listItems(query: .init(q: query, limit: 20)).ok.body.json.items
-                .filter { $0.kind == .movie || $0.kind == .show }
+        let viewer = try acting()
+        return try await read { db in
+            let page = try Int64.fetchAll(
+                db,
+                sql: """
+                    SELECT i.id FROM item i WHERE i.id IN (SELECT value FROM json_each(?))
+                        AND i.id IN (SELECT item_id FROM profile_item WHERE account_id = ?)
+                    ORDER BY i.parsed_title COLLATE NOCASE, i.season_number, i.episode_number, i.id LIMIT 20
+                    """, arguments: ["\(try ReplicaSearch.items(matching: query, in: db))", viewer])
+            return Self.ordered(
+                try ReplicaRows.items(db, "i.id IN (SELECT value FROM json_each(?))", ["\(page)"]), page
+            )
+            .filter { $0.kind == .movie || $0.kind == .show }
         }
     }
 
-    /// The kids on an allow list whose list holds this title or channel.
+    /// The kids of the device's household on an allow list whose list holds this title or channel.
     public func allowedFor(_ itemId: Int64) async throws -> Set<Account.ID> {
-        try await call { Set(try await $0.listAllowedFor(path: .init(itemId: itemId)).ok.body.json.profileIds) }
+        try await read { db in
+            Set(
+                try Int64.fetchAll(
+                    db,
+                    sql: """
+                        SELECT a.id FROM account a JOIN account_allow w ON w.account_id = a.id
+                        WHERE a.id IN (SELECT account_id FROM household_member
+                                WHERE household_id = (SELECT household_id FROM replica_meta))
+                            AND a.kind = 'kid' AND a.filter_mode = 'allow_list' AND w.item_id = ?
+                        """, arguments: [itemId]))
+        }
     }
 
     public func allow(_ kid: Account, _ itemId: Item.ID) async throws {
-        try await call { _ = try await $0.allowItem(path: .init(profileId: kid.id, itemId: itemId)).noContent }
+        try await write { try await $0.allowItem(itemId, for: kid.id, as: $1) }
         app.allowLists.record(kid.id, allowed: true, for: itemId)
     }
 
     public func disallow(_ kid: Account, _ itemId: Item.ID) async throws {
-        try await call { _ = try await $0.disallowItem(path: .init(profileId: kid.id, itemId: itemId)).noContent }
+        try await write { try await $0.disallowItem(itemId, for: kid.id, as: $1) }
         app.allowLists.record(kid.id, allowed: false, for: itemId)
     }
 
@@ -204,6 +229,27 @@ public final class HouseholdModel {
                 try await $0.makeProfileAdult(path: .init(profileId: member.id), body: .json(.init(email: email)))
                     .created.body.json
             })
+    }
+
+    /// The profile the server answers as, whose reads and writes these are.
+    private func acting() throws -> Int64 {
+        guard let id = app.serverActiveProfile?.id else { throw AppError.signedOut }
+        return id
+    }
+
+    private func read<T: Sendable>(_ body: @escaping @Sendable (Database) throws -> T) async throws -> T {
+        guard let replica = app.sync?.replica else { throw AppError.signedOut }
+        do { return try await replica.read(body) } catch { throw AppError.from(error) }
+    }
+
+    private func write(_ action: (ActionQueue, Int64) async throws -> Void) async throws {
+        guard let queue = app.sync?.queue else { throw AppError.signedOut }
+        do { try await action(queue, try acting()) } catch { throw AppError.from(error) }
+    }
+
+    private nonisolated static func ordered(_ items: [Item], _ ids: [Int64]) -> [Item] {
+        let byId = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        return ids.compactMap { byId[$0] }
     }
 
     /// Runs one request that leaves the members as they are.

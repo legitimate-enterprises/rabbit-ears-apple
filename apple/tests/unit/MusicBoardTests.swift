@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import RabbitEarsAPI
 import XCTest
 
@@ -6,40 +7,45 @@ import XCTest
 
 @MainActor
 final class MusicBoardTests: XCTestCase {
-    var transport: RoutingTransport!
+    var fixture: ReplicaFixture!
+    var replica: Replica!
     var board: MusicBoard!
 
+    /// 201 albums of one artist, each with one song (its id plus 1000): one more than a page.
     override func setUp() async throws {
-        transport = RoutingTransport()
+        fixture = ReplicaFixture()
+        replica = try fixture.v1 { db in
+            try db.account(1, "Avery")
+            try db.library(3, "music")
+            try db.artist(40, "Radiohead")
+            for id in Int64(100)...300 {
+                try db.album(id, "Album \(id)", artist: 40, year: Int(id))
+                try db.song(id + 1000, "Song \(id)", album: id)
+            }
+            try db.genre(5, "Jazz", on: 100)
+            try db.genre(5, "Jazz", on: 101)
+        }
         board = MusicBoard(
             music: MusicModel(
-                client: ServerEndpoint(userInput: "192.168.1.9")!.client(token: "t", transport: transport),
-                profileId: 1))
+                client: ServerEndpoint(userInput: "192.168.1.9")!.client(token: "t", transport: RoutingTransport()),
+                replica: replica, profileId: 1))
     }
 
+    override func tearDown() async throws { fixture.remove() }
+
     func testAlbumsReadEveryPageWithTheChosenSortAndGenre() async {
-        transport.respond = { sent in
-            guard sent.path == "/music/albums" else { return nil }
-            return sent.query.contains("offset=200")
-                ? (.ok, Fixtures.page([Fixtures.album(51, "Kid A")], total: 2))
-                : (.ok, #"{"items":[\#(Fixtures.album(50, "In Rainbows"))],"total":2,"nextOffset":200}"#)
-        }
+        await board.load(.albums, sort: .year, genre: nil)
+        XCTAssertEqual(board.albums?.items.count, 201)
+        XCTAssertEqual(board.albums?.items.first?.id, 300, "newest year first")
+        XCTAssertEqual(board.caption(.albums, playlists: 0), "201 albums")
         await board.load(.albums, sort: .year, genre: 5)
-        XCTAssertEqual(board.albums?.items.map(\.id), [50, 51])
-        XCTAssertEqual(board.caption(.albums, playlists: 0), "2 albums")
-        XCTAssertEqual(
-            transport.queries(.get, "/music/albums"),
-            ["genreId=5&sort=year&limit=200", "genreId=5&sort=year&limit=200&offset=200"])
+        XCTAssertEqual(board.albums?.items.map(\.id), [101, 100])
     }
 
     func testSongsReadOnePageAndCountThemAllFromIt() async {
-        transport.routes["GET /music/songs"] = (
-            .ok, #"{"items":[\#(Fixtures.song(1, "15 Step"))],"total":201,"nextOffset":200}"#
-        )
         await board.load(.songs, sort: .title, genre: nil)
-        XCTAssertEqual(board.songs?.items.count, 1)
+        XCTAssertEqual(board.songs?.items.count, 200)
         XCTAssertEqual(board.caption(.songs, playlists: 0), "201 songs")
-        XCTAssertEqual(transport.queries(.get, "/music/songs").count, 1)
     }
 
     func testCaptionsBeforeAnythingLoadsAndForPlaylists() {
@@ -54,30 +60,28 @@ final class MusicBoardTests: XCTestCase {
         XCTAssertEqual(board.caption(.stations, playlists: 2, stations: 6), "6 stations")
     }
 
-    func testAChoiceWithNoGenresLeavesTheMenuEmpty() async {
+    func testTheGenreMenuIsTheLibrarysGenres() async {
         await board.loadGenres()
-        XCTAssertTrue(board.genres.isEmpty)
+        XCTAssertEqual(board.genres.map(\.name), ["Jazz"])
     }
 
-    func testARefreshReadsTheTabAgainInPlace() async {
-        transport.routes["GET /music/albums"] = (.ok, Fixtures.page([Fixtures.album(50, "In Rainbows")]))
-        transport.routes["GET /music/songs"] = (.ok, Fixtures.page([Fixtures.song(1, "15 Step")]))
-        await board.load(.albums, sort: .added, genre: nil)
-        await board.load(.songs, sort: .added, genre: nil)
+    func testARefreshReadsTheTabAgainInPlace() async throws {
+        await board.load(.albums, sort: .added, genre: 5)
+        await board.load(.songs, sort: .added, genre: 5)
         let (albums, songs) = (board.albums, board.songs)
-        transport.routes["GET /music/albums"] = (
-            .ok, Fixtures.page([Fixtures.album(50, "In Rainbows"), Fixtures.album(51, "Kid A")])
-        )
-        transport.routes["GET /music/songs"] = (.ok, Fixtures.page([Fixtures.song(2, "Bodysnatchers")]))
+        try await replica.write { db in
+            try db.genre(5, "Jazz", on: 102)
+            try db.execute(sql: "DELETE FROM item_genre WHERE item_id = 100")
+        }
 
         await board.refresh(.albums)
         XCTAssertTrue(board.albums === albums)
-        XCTAssertEqual(board.albums?.items.map(\.id), [50, 51])
-        XCTAssertEqual(board.songs?.items.map(\.id), [1], "only the tab in view")
+        XCTAssertEqual(board.albums?.items.map(\.id), [102, 101])
+        XCTAssertEqual(board.songs?.items.map(\.id), [1100, 1101], "only the tab in view")
 
         await board.refresh(.songs)
         XCTAssertTrue(board.songs === songs)
-        XCTAssertEqual(board.songs?.items.map(\.id), [2])
+        XCTAssertEqual(board.songs?.items.map(\.id), [1101, 1102])
     }
 
     func testAKidHasEveryMusicTabButPlaylists() {

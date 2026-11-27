@@ -5,13 +5,16 @@ import SwiftUI
 
 extension Browser {
     /// Tunes in: a music station in the music player, shown on Now playing; any other in the player.
-    func tune(_ station: Station, music: RabbitEarsKit.MusicPlayer?, client: Client?) {
+    func tune(_ station: Station, music: RabbitEarsKit.MusicPlayer?, app: AppModel) {
         guard station.kind == .music else {
             tuning = station
             return
         }
-        guard let music, let client else { return }
-        Task { await music.tune(StationTuner(client: client, station: station)) }
+        guard let music, let client = app.client, let replica = app.sync?.replica, let profile = app.activeProfile
+        else { return }
+        Task {
+            await music.tune(StationTuner(client: client, replica: replica, profileId: profile.id, station: station))
+        }
         if path.last != .nowPlaying { path.append(.nowPlaying) }
     }
 }
@@ -21,6 +24,7 @@ extension Browser {
 struct StationPlayerScreen: View {
     let station: Station
     let client: Client
+    let replica: Replica
     let endpoint: ServerEndpoint
     let profileId: Int64
     let capabilities: SystemCapabilities
@@ -42,7 +46,7 @@ struct StationPlayerScreen: View {
             let model = PlayerModel(
                 client: client, endpoint: endpoint, profileId: profileId, item: nil, output: output,
                 capabilities: capabilities)
-            let tuner = StationTuner(client: client, station: station)
+            let tuner = StationTuner(client: client, replica: replica, profileId: profileId, station: station)
             // The stream ending is the program ending: ask for what is on next.
             output.onEnd = { [weak model, weak tuner] in
                 guard let model, let tuner else { return }

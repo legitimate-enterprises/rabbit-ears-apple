@@ -378,6 +378,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /profiles/{profileId}/watch-state/{itemId}`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/delete(deleteWatchState)`.
     func deleteWatchState(_ input: Operations.DeleteWatchState.Input) async throws -> Operations.DeleteWatchState.Output
+    /// Count one finished play the server did not see.
+    ///
+    /// For a play the server did not stream, such as of a downloaded file, sent once per play when it ends. playCount goes up by one, and lastPlayedAt becomes the latest play, in whatever order plays and putWatchState arrive. Over a state that changed no later than at, the item is watched and resumes from the start of the edition played; a state that changed later stays. Playback the server streams counts a play only when it marks the item watched, so a client sends no putWatchState with watched true for a play it records.
+    ///
+    /// - Remark: HTTP `POST /profiles/{profileId}/watch-state/{itemId}/plays`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/plays/post(recordPlay)`.
+    func recordPlay(_ input: Operations.RecordPlay.Input) async throws -> Operations.RecordPlay.Output
     /// The profile's progress through each show it may see, by title.
     ///
     /// Counts and the next episode cover only the seasons and episodes the profile may see. Episodes play in season order, specials (season 0 or none) last, then by episode number. An adult with hideKidsContent is not listed kids' content (Item.kidsContent, YouTubeChannel.forKids).
@@ -408,7 +415,7 @@ public protocol APIProtocol: Sendable {
     func setKidsContents(_ input: Operations.SetKidsContents.Input) async throws -> Operations.SetKidsContents.Output
     /// Add many to a playlist, appended in order.
     ///
-    /// Each entry is checked as `addPlaylistEntry` checks it, and its position is ignored; a title of several editions without an editionId takes its default edition. A station's own playlist is written through its owner's profile, as `addPlaylistEntry` writes it. Nothing is added unless every entry may be.
+    /// Each entry is checked as `addPlaylistEntry` checks it, and its position and rank are ignored: the entries take the ranks of generateNKeysBetween after the last entry's; a title of several editions without an editionId takes its default edition. A station's own playlist is written through its owner's profile, as `addPlaylistEntry` writes it. Nothing is added unless every entry may be.
     ///
     /// - Remark: HTTP `POST /profiles/{profileId}/playlists/{playlistId}/entries/batch`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/batch/post(addPlaylistEntries)`.
@@ -1879,6 +1886,120 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /events`.
     /// - Remark: Generated from `#/paths//events/get(listEvents)`.
     func listEvents(_ input: Operations.ListEvents.Input) async throws -> Operations.ListEvents.Output
+    /// What changed in this device's replica since a version.
+    ///
+    /// A native client keeps a replica: a local SQLite database of what its
+    /// household may see, in a sync schema the server defines. It fills it
+    /// from getSyncSnapshot, then keeps it current from this operation, on
+    /// every start, return to the foreground, reconnection and ring of
+    /// waitSyncVersion.
+    ///
+    /// Every change the server makes moves a version, one global counter.
+    /// A pass asks with `since`, the version the replica holds, and without
+    /// `cursor`. An answer with mode `diff` and a `cursor` has more to read:
+    /// the client asks again with the same `since` and `schema` and that
+    /// cursor, until an answer comes without one. Each row appears at most
+    /// once per pass, in its state at the time it was read; it replaces the
+    /// replica's row of the same key in that table. Each tombstone deletes
+    /// the replica's row of that key, if it holds one. The replica has no
+    /// foreign keys, so rows and tombstones apply in the order given or any
+    /// other.
+    ///
+    /// `version` is the watermark: a client that applied every page of a
+    /// pass holds everything up to `version`, and asks from it next time.
+    /// A page with a `cursor` reports `since` as its `version`, so a client
+    /// that stops mid-pass keeps its `since` and loses nothing by starting
+    /// the pass again.
+    ///
+    /// Mode `snapshot` carries no rows: the client replaces its replica with
+    /// getSyncSnapshot, then catches up from that snapshot's version. It is
+    /// the answer, on any page, when `since` is absent; when `since` is older
+    /// than the deletions the server keeps (90 days) or newer than the
+    /// server's version, as after a restore; when a change after
+    /// `since` altered which rows the household's replica holds, such as a
+    /// membership, adult link, share, profile offer, a station made,
+    /// deleted or changing visibility, owner or playlist, or a device moving
+    /// household, or when the server was upgraded; and, on a
+    /// first page, when more rows changed since `since` than half the
+    /// replica holds.
+    ///
+    /// Mode `unsupported` carries no rows: `schema` is outside
+    /// `ranges.schemaMin` to `ranges.schemaMax`. A client below schemaMin
+    /// updates before it syncs again; one above schemaMax waits for the
+    /// server to be upgraded.
+    ///
+    ///
+    /// - Remark: HTTP `GET /sync/changes`.
+    /// - Remark: Generated from `#/paths//sync/changes/get(getSyncChanges)`.
+    func getSyncChanges(_ input: Operations.GetSyncChanges.Input) async throws -> Operations.GetSyncChanges.Output
+    /// This device's whole replica as a SQLite database.
+    ///
+    /// The replica of the device's household in sync schema `schema`, as
+    /// one SQLite database: the schema's tables holding every row the
+    /// household may see, its views, among them those that apply each
+    /// profile's kid filter such as profile_item and profile_station, and
+    /// its indexes. Its
+    /// one-row table replica_meta holds `schema`, `version`, the version
+    /// the snapshot was taken at, and `household_id`. The client replaces
+    /// its replica with the file whole, then asks getSyncChanges with
+    /// `since` set to replica_meta's `version`. A `schema` outside
+    /// SyncRanges' schemaMin to schemaMax answers 400.
+    ///
+    ///
+    /// - Remark: HTTP `GET /sync/snapshot`.
+    /// - Remark: Generated from `#/paths//sync/snapshot/get(getSyncSnapshot)`.
+    func getSyncSnapshot(_ input: Operations.GetSyncSnapshot.Input) async throws -> Operations.GetSyncSnapshot.Output
+    /// Wait until this device's replica has changes to read.
+    ///
+    /// A long poll, held as listEvents is, at most 25 seconds. It answers `changed` true as soon as getSyncChanges since `after` would answer a row, a tombstone or mode `snapshot`, else false when the time is up; it carries no data. A client asks with the version its replica holds while it is in the foreground, runs getSyncChanges on true, and asks again at once on false. A write elsewhere that the household cannot see does not ring, except a deletion from a table keyed by a single id, which reaches every household as a tombstone.
+    ///
+    /// - Remark: HTTP `GET /sync/version`.
+    /// - Remark: Generated from `#/paths//sync/version/get(waitSyncVersion)`.
+    func waitSyncVersion(_ input: Operations.WaitSyncVersion.Input) async throws -> Operations.WaitSyncVersion.Output
+    /// Replay writes a client queued, in order.
+    ///
+    /// A client writes to its replica at once and queues each write as an
+    /// action naming an operation marked `x-replayable`, to send when it is
+    /// online. The server runs the actions in `seq` order, each as the
+    /// request it names would run, with the same validation, permissions
+    /// and rules, as `actingProfileId`, which must be a profile of the
+    /// device's household that is not revoked, with that profile's
+    /// permissions at the time of the replay. A profile's PIN is not asked,
+    /// and a device locked at Who's watching replays too and stays locked.
+    ///
+    /// Each action the server answers gets one result: `accepted` when the
+    /// operation succeeded, `rejected` with the operation's Error `code`
+    /// when it answered 4xx. An operation not marked `x-replayable`, or a
+    /// `path` and `method` that are not `operationId`'s, is rejected with
+    /// `not_replayable`; an `actingProfileId` outside the household, or
+    /// revoked, with `not_found`. When an operation fails on the server, a 5xx, the
+    /// batch stops there: that action and every later one are absent from
+    /// `results`, and the client sends them again later. The client
+    /// removes from its queue only the actions answered.
+    ///
+    /// The server remembers each answered action's `id` for 90 days per
+    /// device: an action sent again answers its stored result without
+    /// running again. A batch whose `apiVersion` is outside SyncRanges'
+    /// apiMin to apiMax rejects every action with `unsupported_version`,
+    /// runs and remembers none.
+    ///
+    /// After each answered action, accepted or rejected, the server marks
+    /// every row in its `touched` as changed, or a deletion when the row
+    /// no longer exists, so the next getSyncChanges brings the replica's
+    /// copy of each to what the server holds; a row that exists but the
+    /// household may not see is left alone. A client keeps no rollback of
+    /// its own.
+    ///
+    /// A batch that fails validation, names in `touched` a table that is
+    /// not one of the sync schema's, a key of the wrong length or a key
+    /// part of the wrong type (an integer for an integer column, a string
+    /// for a text one), or whose `seq` does not strictly increase, answers
+    /// 400 and runs nothing.
+    ///
+    ///
+    /// - Remark: HTTP `POST /sync/actions`.
+    /// - Remark: Generated from `#/paths//sync/actions/post(replaySyncActions)`.
+    func replaySyncActions(_ input: Operations.ReplaySyncActions.Input) async throws -> Operations.ReplaySyncActions.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -2649,11 +2770,30 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/delete(deleteWatchState)`.
     public func deleteWatchState(
         path: Operations.DeleteWatchState.Input.Path,
+        query: Operations.DeleteWatchState.Input.Query = .init(),
         headers: Operations.DeleteWatchState.Input.Headers = .init()
     ) async throws -> Operations.DeleteWatchState.Output {
         try await deleteWatchState(Operations.DeleteWatchState.Input(
             path: path,
+            query: query,
             headers: headers
+        ))
+    }
+    /// Count one finished play the server did not see.
+    ///
+    /// For a play the server did not stream, such as of a downloaded file, sent once per play when it ends. playCount goes up by one, and lastPlayedAt becomes the latest play, in whatever order plays and putWatchState arrive. Over a state that changed no later than at, the item is watched and resumes from the start of the edition played; a state that changed later stays. Playback the server streams counts a play only when it marks the item watched, so a client sends no putWatchState with watched true for a play it records.
+    ///
+    /// - Remark: HTTP `POST /profiles/{profileId}/watch-state/{itemId}/plays`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/plays/post(recordPlay)`.
+    public func recordPlay(
+        path: Operations.RecordPlay.Input.Path,
+        headers: Operations.RecordPlay.Input.Headers = .init(),
+        body: Operations.RecordPlay.Input.Body
+    ) async throws -> Operations.RecordPlay.Output {
+        try await recordPlay(Operations.RecordPlay.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// The profile's progress through each show it may see, by title.
@@ -2724,7 +2864,7 @@ extension APIProtocol {
     }
     /// Add many to a playlist, appended in order.
     ///
-    /// Each entry is checked as `addPlaylistEntry` checks it, and its position is ignored; a title of several editions without an editionId takes its default edition. A station's own playlist is written through its owner's profile, as `addPlaylistEntry` writes it. Nothing is added unless every entry may be.
+    /// Each entry is checked as `addPlaylistEntry` checks it, and its position and rank are ignored: the entries take the ranks of generateNKeysBetween after the last entry's; a title of several editions without an editionId takes its default edition. A station's own playlist is written through its owner's profile, as `addPlaylistEntry` writes it. Nothing is added unless every entry may be.
     ///
     /// - Remark: HTTP `POST /profiles/{profileId}/playlists/{playlistId}/entries/batch`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/batch/post(addPlaylistEntries)`.
@@ -5949,6 +6089,152 @@ extension APIProtocol {
         try await listEvents(Operations.ListEvents.Input(
             query: query,
             headers: headers
+        ))
+    }
+    /// What changed in this device's replica since a version.
+    ///
+    /// A native client keeps a replica: a local SQLite database of what its
+    /// household may see, in a sync schema the server defines. It fills it
+    /// from getSyncSnapshot, then keeps it current from this operation, on
+    /// every start, return to the foreground, reconnection and ring of
+    /// waitSyncVersion.
+    ///
+    /// Every change the server makes moves a version, one global counter.
+    /// A pass asks with `since`, the version the replica holds, and without
+    /// `cursor`. An answer with mode `diff` and a `cursor` has more to read:
+    /// the client asks again with the same `since` and `schema` and that
+    /// cursor, until an answer comes without one. Each row appears at most
+    /// once per pass, in its state at the time it was read; it replaces the
+    /// replica's row of the same key in that table. Each tombstone deletes
+    /// the replica's row of that key, if it holds one. The replica has no
+    /// foreign keys, so rows and tombstones apply in the order given or any
+    /// other.
+    ///
+    /// `version` is the watermark: a client that applied every page of a
+    /// pass holds everything up to `version`, and asks from it next time.
+    /// A page with a `cursor` reports `since` as its `version`, so a client
+    /// that stops mid-pass keeps its `since` and loses nothing by starting
+    /// the pass again.
+    ///
+    /// Mode `snapshot` carries no rows: the client replaces its replica with
+    /// getSyncSnapshot, then catches up from that snapshot's version. It is
+    /// the answer, on any page, when `since` is absent; when `since` is older
+    /// than the deletions the server keeps (90 days) or newer than the
+    /// server's version, as after a restore; when a change after
+    /// `since` altered which rows the household's replica holds, such as a
+    /// membership, adult link, share, profile offer, a station made,
+    /// deleted or changing visibility, owner or playlist, or a device moving
+    /// household, or when the server was upgraded; and, on a
+    /// first page, when more rows changed since `since` than half the
+    /// replica holds.
+    ///
+    /// Mode `unsupported` carries no rows: `schema` is outside
+    /// `ranges.schemaMin` to `ranges.schemaMax`. A client below schemaMin
+    /// updates before it syncs again; one above schemaMax waits for the
+    /// server to be upgraded.
+    ///
+    ///
+    /// - Remark: HTTP `GET /sync/changes`.
+    /// - Remark: Generated from `#/paths//sync/changes/get(getSyncChanges)`.
+    public func getSyncChanges(
+        query: Operations.GetSyncChanges.Input.Query,
+        headers: Operations.GetSyncChanges.Input.Headers = .init()
+    ) async throws -> Operations.GetSyncChanges.Output {
+        try await getSyncChanges(Operations.GetSyncChanges.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// This device's whole replica as a SQLite database.
+    ///
+    /// The replica of the device's household in sync schema `schema`, as
+    /// one SQLite database: the schema's tables holding every row the
+    /// household may see, its views, among them those that apply each
+    /// profile's kid filter such as profile_item and profile_station, and
+    /// its indexes. Its
+    /// one-row table replica_meta holds `schema`, `version`, the version
+    /// the snapshot was taken at, and `household_id`. The client replaces
+    /// its replica with the file whole, then asks getSyncChanges with
+    /// `since` set to replica_meta's `version`. A `schema` outside
+    /// SyncRanges' schemaMin to schemaMax answers 400.
+    ///
+    ///
+    /// - Remark: HTTP `GET /sync/snapshot`.
+    /// - Remark: Generated from `#/paths//sync/snapshot/get(getSyncSnapshot)`.
+    public func getSyncSnapshot(
+        query: Operations.GetSyncSnapshot.Input.Query,
+        headers: Operations.GetSyncSnapshot.Input.Headers = .init()
+    ) async throws -> Operations.GetSyncSnapshot.Output {
+        try await getSyncSnapshot(Operations.GetSyncSnapshot.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Wait until this device's replica has changes to read.
+    ///
+    /// A long poll, held as listEvents is, at most 25 seconds. It answers `changed` true as soon as getSyncChanges since `after` would answer a row, a tombstone or mode `snapshot`, else false when the time is up; it carries no data. A client asks with the version its replica holds while it is in the foreground, runs getSyncChanges on true, and asks again at once on false. A write elsewhere that the household cannot see does not ring, except a deletion from a table keyed by a single id, which reaches every household as a tombstone.
+    ///
+    /// - Remark: HTTP `GET /sync/version`.
+    /// - Remark: Generated from `#/paths//sync/version/get(waitSyncVersion)`.
+    public func waitSyncVersion(
+        query: Operations.WaitSyncVersion.Input.Query,
+        headers: Operations.WaitSyncVersion.Input.Headers = .init()
+    ) async throws -> Operations.WaitSyncVersion.Output {
+        try await waitSyncVersion(Operations.WaitSyncVersion.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Replay writes a client queued, in order.
+    ///
+    /// A client writes to its replica at once and queues each write as an
+    /// action naming an operation marked `x-replayable`, to send when it is
+    /// online. The server runs the actions in `seq` order, each as the
+    /// request it names would run, with the same validation, permissions
+    /// and rules, as `actingProfileId`, which must be a profile of the
+    /// device's household that is not revoked, with that profile's
+    /// permissions at the time of the replay. A profile's PIN is not asked,
+    /// and a device locked at Who's watching replays too and stays locked.
+    ///
+    /// Each action the server answers gets one result: `accepted` when the
+    /// operation succeeded, `rejected` with the operation's Error `code`
+    /// when it answered 4xx. An operation not marked `x-replayable`, or a
+    /// `path` and `method` that are not `operationId`'s, is rejected with
+    /// `not_replayable`; an `actingProfileId` outside the household, or
+    /// revoked, with `not_found`. When an operation fails on the server, a 5xx, the
+    /// batch stops there: that action and every later one are absent from
+    /// `results`, and the client sends them again later. The client
+    /// removes from its queue only the actions answered.
+    ///
+    /// The server remembers each answered action's `id` for 90 days per
+    /// device: an action sent again answers its stored result without
+    /// running again. A batch whose `apiVersion` is outside SyncRanges'
+    /// apiMin to apiMax rejects every action with `unsupported_version`,
+    /// runs and remembers none.
+    ///
+    /// After each answered action, accepted or rejected, the server marks
+    /// every row in its `touched` as changed, or a deletion when the row
+    /// no longer exists, so the next getSyncChanges brings the replica's
+    /// copy of each to what the server holds; a row that exists but the
+    /// household may not see is left alone. A client keeps no rollback of
+    /// its own.
+    ///
+    /// A batch that fails validation, names in `touched` a table that is
+    /// not one of the sync schema's, a key of the wrong length or a key
+    /// part of the wrong type (an integer for an integer column, a string
+    /// for a text one), or whose `seq` does not strictly increase, answers
+    /// 400 and runs nothing.
+    ///
+    ///
+    /// - Remark: HTTP `POST /sync/actions`.
+    /// - Remark: Generated from `#/paths//sync/actions/post(replaySyncActions)`.
+    public func replaySyncActions(
+        headers: Operations.ReplaySyncActions.Input.Headers = .init(),
+        body: Operations.ReplaySyncActions.Input.Body
+    ) async throws -> Operations.ReplaySyncActions.Output {
+        try await replaySyncActions(Operations.ReplaySyncActions.Input(
+            headers: headers,
+            body: body
         ))
     }
 }

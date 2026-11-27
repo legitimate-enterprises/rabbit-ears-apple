@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import RabbitEarsAPI
 
 /// A primary-navigation section backed by a library kind. Home is not one: it always shows.
@@ -13,23 +14,14 @@ extension LibrarySection {
 }
 
 extension AppModel {
-    /// The last answer for a server, so a launch does not show entries and then take them away.
-    static func rememberedLibrarySections(_ server: URL) -> Set<LibrarySection> {
-        let kinds = UserDefaults.standard.stringArray(forKey: "librarySections \(server.absoluteString)")
-        return LibrarySection.visible(for: kinds.map { $0.compactMap(Components.Schemas.LibraryKind.init(rawValue:)) })
-    }
-
-    /// Asks the server which kinds of library it has; a failed answer keeps what is known.
+    /// Reads which kinds of library the replica holds; every section before its first snapshot.
     public func loadLibrarySections() async {
-        guard let client, let server = endpoint?.baseURL else { return }
-        guard
-            let kinds = try? await allPages({ offset in
-                let page = try await client.listLibraries(query: .init(limit: 200, offset: offset)).ok.body.json
-                return (page.items.map(\.kind), page.nextOffset)
-            })
-        else { return }
-        guard endpoint?.baseURL == server else { return }
-        librarySections = LibrarySection.visible(for: kinds)
-        UserDefaults.standard.set(kinds.map(\.rawValue), forKey: "librarySections \(server.absoluteString)")
+        guard let sync else { return }
+        let kinds = try? await sync.replica.read { db in
+            try String.fetchAll(db, sql: "SELECT DISTINCT kind FROM library")
+        }
+        guard self.sync === sync else { return }
+        librarySections = LibrarySection.visible(
+            for: kinds.map { $0.compactMap(Components.Schemas.LibraryKind.init(rawValue:)) })
     }
 }

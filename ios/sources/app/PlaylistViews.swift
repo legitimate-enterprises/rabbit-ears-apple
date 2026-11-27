@@ -85,7 +85,7 @@ struct PlaylistsList: View {
             item: $sharing, onDismiss: { Task { await services.playlists.load() } },
             content: { PlaylistShareSheet(playlists: services.playlists, playlist: $0) }
         )
-        .imageSheet($imaging, client: services.playlists.client) { await services.playlists.load() }
+        .imageSheet($imaging, playlists: services.playlists) { await services.playlists.load() }
         .onAppear { count = playlists.count.formatted() }
         .onChange(of: playlists.count) { count = playlists.count.formatted() }
         .alert("New playlist", isPresented: $naming) {
@@ -209,7 +209,7 @@ struct PlaylistView: View {
                 if let playlist { PlaylistShareSheet(playlists: services.playlists, playlist: playlist) }
             }
         )
-        .imageSheet($imaging, client: services.playlists.client) { await services.playlists.load() }
+        .imageSheet($imaging, playlists: services.playlists) { await services.playlists.load() }
         .environment(\.editMode, $editing)
         .confirmationDialog("Delete this playlist?", isPresented: $deleting, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {

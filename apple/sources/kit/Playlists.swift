@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import Observation
 import RabbitEarsAPI
 
@@ -18,14 +19,26 @@ public final class PlaylistsModel {
     /// Set when an add needs the adult to pick an edition; clear it to drop the add.
     public var editionQuestion: EditionQuestion?
     public let client: Client
+    public let replica: Replica
+    public let queue: ActionQueue
+    public let engine: SyncEngine
     public let profileId: Int64
     /// An adult makes and adds to playlists; a kid only has those shared with them.
     public let adult: Bool
 
-    public init(client: Client, profileId: Int64, adult: Bool = true) {
+    public init(
+        client: Client, replica: Replica, queue: ActionQueue, engine: SyncEngine, profileId: Int64, adult: Bool = true
+    ) {
         self.client = client
+        self.replica = replica
+        self.queue = queue
+        self.engine = engine
         self.profileId = profileId
         self.adult = adult
+    }
+
+    public func shares(of playlist: Int64) -> PlaylistSharesModel {
+        PlaylistSharesModel(client: client, queue: queue, profileId: profileId, playlistId: playlist)
     }
 
     /// Whether the profile gets a Playlists view of kind: an adult always, a
@@ -37,19 +50,18 @@ public final class PlaylistsModel {
         adult ? playlists(kind).filter(\.isEditable) : []
     }
 
+    /// Before the replica's first snapshot nothing is loaded.
     public func load() async {
         await write {
-            playlists = try await allPages { offset in
-                let page = try await self.client.listPlaylists(
-                    path: .init(profileId: self.profileId), query: .init(limit: 200, offset: offset)
-                ).ok.body.json
-                return (page.items, page.nextOffset)
-            }
+            do {
+                playlists = try await replica.read { [profileId] in try PlaylistRows.playlists($0, profile: profileId) }
+            } catch Replica.Failure.empty {}
         }
     }
 
     public func playlists(_ kind: PlaylistKind) -> [Playlist] { playlists.filter { $0.kind == kind } }
 
+    // shortcut: online-only until offline ids are decided
     @discardableResult
     public func create(name: String, kind: PlaylistKind) async -> Playlist? {
         guard let name = Self.name(name) else { return nil }
@@ -58,7 +70,7 @@ public final class PlaylistsModel {
             let playlist = try await client.createPlaylist(
                 path: .init(profileId: profileId), body: .json(.init(name: name, kind: kind))
             ).created.body.json
-            playlists.append(playlist)
+            try await caughtUp()
             created = playlist
         }
         return created
@@ -67,26 +79,17 @@ public final class PlaylistsModel {
     public func rename(_ playlist: Playlist, to name: String) async {
         guard let name = Self.name(name) else { return }
         await write {
-            replace(
-                try await client.replacePlaylist(
-                    path: .init(profileId: profileId, playlistId: playlist.id),
-                    body: .json(.init(name: name, kind: playlist.kind))
-                ).ok.body.json)
+            try await queue.renamePlaylist(as: profileId, playlist.id, name: name, kind: playlist.kind)
+            try await reload()
         }
     }
 
-    /// False when the server refused, as it does while a station plays the playlist.
+    /// False when it was refused, as while one of the owner's stations plays the playlist.
     @discardableResult
     public func delete(_ playlist: Playlist) async -> Bool {
         await write {
-            do {
-                _ = try await client.deletePlaylist(path: .init(profileId: profileId, playlistId: playlist.id))
-                    .noContent
-            } catch  where APIError.from(error)?.status == 409 {
-                throw AppError.server(
-                    "A station plays this playlist. Delete the station or give it another playlist first.")
-            }
-            playlists.removeAll { $0.id == playlist.id }
+            try await queue.deletePlaylist(as: profileId, playlist.id)
+            try await reload()
         }
     }
 
@@ -94,29 +97,29 @@ public final class PlaylistsModel {
     public func entries(of playlistId: Int64) async -> [PlaylistEntry]? {
         var entries: [PlaylistEntry]?
         await write {
-            entries = try await allPages { offset in
-                let page = try await self.client.listPlaylistEntries(
-                    path: .init(profileId: self.profileId, playlistId: playlistId),
-                    query: .init(limit: 200, offset: offset)
-                ).ok.body.json
-                return (page.items, page.nextOffset)
+            entries = try await readPlaylist(playlistId) { db, profile in
+                try PlaylistRows.entries(db, profile: profile, playlist: playlistId)
             }
         }
         return entries
     }
 
-    /// What playing the playlist plays, every page; nil when it could not
-    /// be read. The server expands containers, so this is the only source
-    /// of what plays.
+    /// What "Pick a title's artwork" offers from the playlist's entries; empty when none or unread.
+    public func artChoices(of playlistId: Int64) async -> [ArtChoice] {
+        let entries = try? await readPlaylist(playlistId) { db, profile in
+            try PlaylistRows.entries(db, profile: profile, playlist: playlistId)
+        }
+        return CustomImage.choices(entries ?? [])
+    }
+
+    /// What playing the playlist plays; nil when it could not be read.
+    /// Containers are expanded as the server expands them, so this is the
+    /// only source of what plays.
     public func playOrder(of playlistId: Int64) async -> [PlayOrderRow]? {
         var rows: [PlayOrderRow]?
         await write {
-            rows = try await allPages { offset in
-                let page = try await self.client.listPlaylistPlayOrder(
-                    path: .init(profileId: self.profileId, playlistId: playlistId),
-                    query: .init(limit: 200, offset: offset)
-                ).ok.body.json
-                return (page.items, page.nextOffset)
+            rows = try await readPlaylist(playlistId) { db, profile in
+                try PlaylistRows.playOrder(db, profile: profile, playlist: playlistId)
             }
         }
         return rows
@@ -134,7 +137,7 @@ public final class PlaylistsModel {
             do {
                 try await insert(.init(itemId: itemId, position: position, editionId: editionId), into: playlistId)
             } catch  where editionId == nil && APIError.from(error)?.fields.contains("editionId") == true {
-                let editions = try await client.getItem(path: .init(itemId: itemId)).ok.body.json.editions ?? []
+                let editions = try await replica.read { try Editions.of(itemId, $0) }
                 guard !editions.isEmpty else { throw error }
                 question = EditionQuestion(
                     itemId: itemId, playlistId: playlistId, position: position, editions: editions)
@@ -157,6 +160,7 @@ public final class PlaylistsModel {
         await write { try await insert(.init(collectionId: collectionId), into: playlistId) }
     }
 
+    // shortcut: online-only until offline ids are decided
     /// Appends a selection in one request, to a playlist or a station's own;
     /// a title of several editions takes its default one.
     @discardableResult
@@ -166,45 +170,56 @@ public final class PlaylistsModel {
                 path: .init(profileId: profileId, playlistId: playlistId),
                 body: .json(.init(entries: itemIds.map { .init(itemId: $0) }))
             ).noContent
-            try await refresh(playlistId)
+            try await caughtUp()
         }
     }
 
+    // shortcut: online-only until offline ids are decided
     private func insert(_ input: Components.Schemas.PlaylistEntryInput, into playlistId: Int64) async throws {
         _ = try await client.addPlaylistEntry(
             path: .init(profileId: profileId, playlistId: playlistId), body: .json(input)
         ).created.body.json
-        try await refresh(playlistId)
+        try await caughtUp()
     }
 
     public func remove(_ entry: PlaylistEntry) async {
         await write {
-            _ = try await client.removePlaylistEntry(
-                path: .init(profileId: profileId, playlistId: entry.playlistId, entryId: entry.id)
-            ).noContent
-            try await refresh(entry.playlistId)
+            try await queue.removeEntry(as: profileId, entry)
+            try await reload()
         }
     }
 
     /// Moves an entry to `position` counted from 0 at the top.
     public func move(_ entry: PlaylistEntry, to position: Int) async {
         await write {
-            _ = try await client.replacePlaylistEntry(
-                path: .init(profileId: profileId, playlistId: entry.playlistId, entryId: entry.id),
-                body: .json(.init(itemId: entry.itemId, collectionId: entry.collectionId, position: max(0, position)))
-            ).ok.body.json
-            try await refresh(entry.playlistId)
+            let rank = try await replica.read {
+                try PlaylistRows.rank($0, playlist: entry.playlistId, except: entry.id, at: position)
+            }
+            try await queue.rankEntry(as: profileId, entry, rank: rank)
+            try await reload()
         }
     }
 
-    /// Entry counts, length and artwork change with every entry write.
-    private func refresh(_ id: Int64) async throws {
-        replace(try await client.getPlaylist(path: .init(profileId: profileId, playlistId: id)).ok.body.json)
+    /// After a write the server made, its rows are pulled before the list is read again.
+    private func caughtUp() async throws {
+        try? await engine.catchUp()
+        try await reload()
     }
 
-    private func replace(_ playlist: Playlist) {
-        guard let at = playlists.firstIndex(where: { $0.id == playlist.id }) else { return }
-        playlists[at] = playlist
+    private func reload() async throws {
+        playlists = try await replica.read { [profileId] in try PlaylistRows.playlists($0, profile: profileId) }
+    }
+
+    /// Reads what `body` reads of a playlist the profile owns or that reaches it; one it cannot see is not found.
+    private func readPlaylist<T: Sendable>(
+        _ id: Int64, _ body: @escaping @Sendable (Database, Int64) throws -> T
+    ) async throws -> T {
+        try await replica.read { [profileId] db in
+            guard try PlaylistRows.playlist(db, profile: profileId, id: id) != nil else {
+                throw AppError.server("not found")
+            }
+            return try body(db, profileId)
+        }
     }
 
     private static func name(_ name: String) -> String? {

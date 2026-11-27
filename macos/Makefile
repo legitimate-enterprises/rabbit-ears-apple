@@ -9,7 +9,7 @@ DEV_APP_NAME    := Rabbit Ears (dev)
 DEV_APP_PATTERN := Rabbit Ears \(dev\)\.app/Contents/MacOS
 
 .DEFAULT_GOAL := help
-.PHONY: help deps generate build run test test-unit test-ui style lint format release release-clean clean
+.PHONY: help deps generate build run test test-unit test-integration test-ui style lint format release release-clean clean
 
 help: ## Print this target list
 	@grep -hE '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -18,6 +18,7 @@ help: ## Print this target list
 deps: ## Install tooling and generate the Xcode project
 	brew list --formula xcodegen >/dev/null 2>&1 || brew install xcodegen
 	brew list --formula swiftlint >/dev/null 2>&1 || brew install swiftlint
+	../apple/scripts/grdb-source.sh
 	$(MAKE) --no-print-directory generate
 
 generate: ## Regenerate the Xcode project from project.yaml
@@ -35,10 +36,17 @@ run: ## Build and launch the dev-identity app
 	open "$$($(XCODEBUILD) -configuration Release -showBuildSettings 2>/dev/null \
 		| sed -n 's/^ *BUILT_PRODUCTS_DIR = //p' | head -1)/$(DEV_APP_NAME).app"
 
-test: test-unit ## Every tier
+test: test-unit test-integration ## Every tier
 
 test-unit: ## Unit suite (no GUI session needed)
 	scripts/run-xctest.sh RabbitEarsTests
+
+# A demo server with the server's fixtures scanned, built from
+# RABBIT_EARS_SERVER_SRC or the release openapi.yaml states.
+test-integration: ## The sync end-to-end test against a real server
+	$(MAKE) --no-print-directory -C ../apple server-deps
+	python3 ../scripts/with-demo-server.py --fixtures -- \
+		scripts/run-xctest.sh RabbitEarsTests RabbitEarsTests.SyncEndToEndTests
 
 # Plays a fixture through the real app. Set TEST_RUNNER_RABBIT_EARS_UI_SERVER,
 # _EMAIL and _PASSWORD to an adult on a server with fixtures scanned; without

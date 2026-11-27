@@ -22,9 +22,13 @@ struct ImageActions: View {
 }
 
 extension View {
-    /// The Set image sheet for `request`; done reloads what shows the image.
-    func imageSheet(_ request: Binding<ImageRequest?>, client: Client, done: @escaping () async -> Void) -> some View {
-        sheet(item: request) { ImageSheet(model: CustomImageModel(client: client), request: $0, done: done) }
+    /// The Set image sheet for `request`, picking from `playlists`; done reloads what shows the image.
+    func imageSheet(
+        _ request: Binding<ImageRequest?>, playlists: PlaylistsModel, done: @escaping () async -> Void
+    ) -> some View {
+        sheet(item: request) {
+            ImageSheet(model: CustomImageModel(client: playlists.client), playlists: playlists, request: $0, done: done)
+        }
     }
 }
 
@@ -32,6 +36,7 @@ extension View {
 /// link the server fetches.
 struct ImageSheet: View {
     @State var model: CustomImageModel
+    let playlists: PlaylistsModel
     let request: ImageRequest
     let done: () async -> Void
     @Environment(\.dismiss) private var dismiss
@@ -77,7 +82,7 @@ struct ImageSheet: View {
             if scoped { url.stopAccessingSecurityScopedResource() }
             run { await model.set(.file(data ?? Data()), on: request.target) }
         }
-        .task { choices = await model.choices(profileId: request.profileId, playlistId: request.playlistId) }
+        .task { choices = await playlists.artChoices(of: request.playlistId) }
     }
 
     @ViewBuilder private var picks: some View {

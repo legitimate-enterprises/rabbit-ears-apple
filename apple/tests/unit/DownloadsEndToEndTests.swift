@@ -82,7 +82,8 @@ final class DownloadsEndToEndTests: XCTestCase {
         let store = DownloadStore(directory: directory, downloader: URLSessionDownloader(), facts: { .decoder })
         let endpoint = ServerEndpoint(baseURL: server)
         let client = endpoint.client(token: token, offline: store)
-        store.connect(client: client, endpoint: endpoint, token: token)
+        let plays = PlayLog()
+        store.connect(client: client, endpoint: endpoint, token: token, plays: plays.plays)
         let me = try await client.getMe().ok.body.json
         _ = try await client.unlockProfile(path: .init(profileId: me.account.id), body: .json(.init())).noContent
 
@@ -116,6 +117,10 @@ final class DownloadsEndToEndTests: XCTestCase {
         for _ in 0..<100 where output.positionMs < 1000 { try await Task.sleep(for: .milliseconds(100)) }
         XCTAssertGreaterThanOrEqual(output.positionMs, 1000, "the kept file plays")
         await player.stop()
-        XCTAssertGreaterThan(store.unsynced(me.account.id)[movieId]?.positionMs ?? 0, 0)
+        let saved = plays.calls.compactMap { call -> Int64? in
+            guard case .progress(_, movieId, _, let position, _, _) = call else { return nil }
+            return position
+        }
+        XCTAssertGreaterThan(saved.last ?? 0, 0)
     }
 }

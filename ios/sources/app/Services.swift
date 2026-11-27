@@ -31,7 +31,7 @@ final class AppContext {
         let downloads = DownloadStore(downloader: downloader, facts: { capabilities.facts() })
         let model = AppModel(
             store: KeychainCredentialStore(), deviceName: UIDevice.current.name, platform: .ios, downloads: downloads,
-            cache: ResponseCache())
+            replicaDirectory: Replica.defaultDirectory)
         self.model = model
         center = SystemNowPlayingCenter(artwork: { await model.artwork?.data($0, .poster) })
     }
@@ -44,13 +44,15 @@ final class AppContext {
 
     /// The profile's services, made once and shared; another profile's music stops.
     func services(for profileId: Int64) async -> Services? {
-        guard let client = model.client, let endpoint = model.endpoint, let artwork = model.artwork else { return nil }
+        guard let client = model.client, let sync = model.sync, let endpoint = model.endpoint,
+            let artwork = model.artwork
+        else { return nil }
         let signIn = ObjectIdentifier(artwork)
         if let services, services.profileId == profileId, servicesSignIn == signIn { return services }
         let previous = services
         let made = Services(
-            client: client, endpoint: endpoint, profileId: profileId, adult: model.activeProfile?.kind != .kid,
-            center: center, capabilities: capabilities)
+            client: client, sync: sync, endpoint: endpoint, profileId: profileId,
+            adult: model.activeProfile?.kind != .kid, center: center, capabilities: capabilities)
         services = made
         servicesSignIn = signIn
         await previous?.stop()
@@ -74,15 +76,19 @@ final class Services {
     let profileId: Int64
 
     init(
-        client: Client, endpoint: ServerEndpoint, profileId: Int64, adult: Bool, center: any NowPlayingCenter,
-        capabilities: SystemCapabilities
+        client: Client, sync: SyncSession, endpoint: ServerEndpoint, profileId: Int64, adult: Bool,
+        center: any NowPlayingCenter, capabilities: SystemCapabilities
     ) {
         self.profileId = profileId
-        music = MusicModel(client: client, profileId: profileId)
-        youtube = YouTubeModel(client: client, profileId: profileId)
-        playlists = PlaylistsModel(client: client, profileId: profileId, adult: adult)
-        collections = CollectionsModel(client: client)
-        stations = StationsModel(client: client, profileId: profileId)
+        music = MusicModel(client: client, replica: sync.replica, profileId: profileId)
+        youtube = YouTubeModel(client: client, replica: sync.replica, queue: sync.queue, profileId: profileId)
+        playlists = PlaylistsModel(
+            client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profileId,
+            adult: adult)
+        collections = CollectionsModel(
+            client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profileId)
+        stations = StationsModel(
+            client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profileId)
         player = MusicPlayer(
             client: client, endpoint: endpoint, profileId: profileId, output: AVAudioOutput(),
             capabilities: capabilities)

@@ -5,48 +5,53 @@ import XCTest
 
 @testable import RabbitEarsKit
 
-/// A launch opens on the Me and the answers kept from the last one, and the
-/// server's answers update them in place once they come.
+/// A launch opens on the Me kept from the last one and the replica, and
+/// the server's answers update them in place once they come.
 @MainActor
 final class KeptLaunchTests: XCTestCase {
-    let directory = FileManager.default.temporaryDirectory.appending(path: "Kept launch \(UUID().uuidString)")
-    var store: MemoryCredentialStore!
-    var transport: RoutingTransport!
+    var app: SyncedApp!
+    /// What was sent before the relaunch.
+    var mark = 0
 
     override func setUp() async throws {
-        store = MemoryCredentialStore()
-        transport = RoutingTransport([
-            "POST /auth/sign-in": (.created, Fixtures.signedIn),
-            "GET /me": (.ok, Fixtures.me),
-            "POST /me/lock": (.noContent, ""),
-            "POST /profiles/1/unlock": (.noContent, ""),
-            "POST /profiles/2/unlock": (.noContent, ""),
-            "GET /items": (.ok, Fixtures.page([Fixtures.item(20, "movie", "Dune")])),
-            "GET /profiles/1/watch-state": (.ok, Fixtures.page([])),
-        ])
+        app = try SyncedApp { db in
+            try db.account(1, "Avery")
+            try db.item(20, "movie", "Dune")
+        }
+        app.routes.routes["POST /profiles/1/unlock"] = (.noContent, "")
+        app.routes.routes["POST /profiles/2/unlock"] = (.noContent, "")
     }
 
     override func tearDown() async throws {
-        try? FileManager.default.removeItem(at: directory)
+        app.routes.hold = nil
+        app.remove()
     }
 
     private func model(remembering: Bool = true) -> AppModel {
         AppModel(
-            store: store, deviceName: "Test Mac", rememberProfileByDefault: remembering, transport: transport,
-            cache: ResponseCache(directory: directory))
+            store: app.store, deviceName: "Test Mac", rememberProfileByDefault: remembering, transport: app.transport,
+            replicaDirectory: app.fixture.directory)
     }
 
-    /// Signs in, browses as Avery once so the library is kept, and returns
-    /// the model the next launch makes, over a server that holds every
-    /// answer until `gate` opens.
+    /// Signs in, browses as Avery once with the first snapshot taken, and
+    /// returns the model the next launch makes, over a server that holds
+    /// every answer until `gate` opens.
     private func relaunch(remembering: Bool = true, gate: Gate) async throws -> AppModel {
         let first = model(remembering: remembering)
         try await first.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
         try await first.choose(try XCTUnwrap(first.profiles.first { $0.id == 1 }))
-        await CatalogModel(client: try XCTUnwrap(first.client), profileId: 1).load()
-        transport = RoutingTransport(transport.routes)
-        transport.hold = { _ in try await gate.wait() }
+        // The next launch opens what this one adopted, so it must be in first.
+        try await XCTUnwrap(first.sync).engine.catchUp()
+        mark = app.routes.sent.count
+        app.routes.hold = { _ in try await gate.wait() }
         return model(remembering: remembering)
+    }
+
+    private var posts: [String] { app.routes.sent.dropFirst(mark).filter { $0.method == .post }.map(\.path) }
+
+    private func catalog(_ model: AppModel) throws -> CatalogModel {
+        CatalogModel(
+            client: try XCTUnwrap(model.client), replica: try XCTUnwrap(model.sync?.replica), profileId: 1)
     }
 
     private func soon(_ done: () -> Bool) async throws {
@@ -61,7 +66,7 @@ final class KeptLaunchTests: XCTestCase {
         try await soon { next.phase == .browsing }
         XCTAssertEqual(next.phase, .browsing, "before the server answered Me")
         XCTAssertEqual(next.activeProfile?.id, 1)
-        let catalog = CatalogModel(client: try XCTUnwrap(next.client), profileId: 1)
+        let catalog = try catalog(next)
         let started = ContinuousClock.now
         await catalog.load()
         XCTAssertLessThan(started.duration(to: .now), .seconds(1))
@@ -69,7 +74,7 @@ final class KeptLaunchTests: XCTestCase {
         gate.open()
         await launch.value
         XCTAssertEqual(next.phase, .browsing)
-        XCTAssertEqual(transport.paths(.post), [], "the server still had Avery active")
+        XCTAssertEqual(posts, [], "the server still had Avery active")
     }
 
     func testALaunchShowsWhoIsWatchingBeforeTheServerAnswersAndUnlocksOnlyAfterTheLock() async throws {
@@ -87,17 +92,17 @@ final class KeptLaunchTests: XCTestCase {
         await launch.value
         XCTAssertEqual(next.phase, .browsing)
         XCTAssertFalse(next.locked)
-        XCTAssertEqual(transport.paths(.post), ["/me/lock", "/profiles/1/unlock"])
+        XCTAssertEqual(posts, ["/me/lock", "/profiles/1/unlock"])
     }
 
     func testWithTheServerUnreachableALaunchKeepsBrowsingTheKeptLibrary() async throws {
         let gate = Gate()
         gate.open()
         let next = try await relaunch(gate: gate)
-        transport.failure = URLError(.cannotConnectToHost)
+        app.routes.failure = URLError(.cannotConnectToHost)
         await next.restore()
         XCTAssertEqual(next.phase, .browsing)
-        let catalog = CatalogModel(client: try XCTUnwrap(next.client), profileId: 1)
+        let catalog = try catalog(next)
         await catalog.load()
         XCTAssertEqual(catalog.catalog.item(20)?.parsedTitle, "Dune")
     }
@@ -106,7 +111,7 @@ final class KeptLaunchTests: XCTestCase {
         let gate = Gate()
         gate.open()
         let next = try await relaunch(gate: gate)
-        transport.routes["GET /me"] = (.ok, Fixtures.me.replacingOccurrences(of: #""Avery""#, with: #""Ava""#))
+        app.routes.routes["GET /me"] = (.ok, Fixtures.me.replacingOccurrences(of: #""Avery""#, with: #""Ava""#))
         await next.restore()
         XCTAssertEqual(next.phase, .browsing)
         XCTAssertEqual(next.activeProfile?.name, "Ava")
@@ -116,36 +121,37 @@ final class KeptLaunchTests: XCTestCase {
         let gate = Gate()
         gate.open()
         let next = try await relaunch(gate: gate)
-        transport.routes["GET /me"] = (.ok, String(Fixtures.me.dropLast()) + #","locked":true}"#)
+        app.routes.routes["GET /me"] = (.ok, String(Fixtures.me.dropLast()) + #","locked":true}"#)
         await next.restore()
         XCTAssertEqual(next.phase, .browsing)
         XCTAssertEqual(next.activeProfile?.id, 1)
         XCTAssertFalse(next.locked)
-        XCTAssertEqual(transport.paths(.post), ["/profiles/1/unlock"])
+        XCTAssertEqual(posts, ["/profiles/1/unlock"])
     }
 
     func testARevokedTokenFoundAfterTheKeptLaunchSignsOut() async throws {
         let gate = Gate()
         gate.open()
         let next = try await relaunch(gate: gate)
-        transport.routes["GET /me"] = (.unauthorized, Fixtures.error("unauthorized"))
+        app.routes.routes["GET /me"] = (.unauthorized, Fixtures.error("unauthorized"))
         await next.restore()
         XCTAssertEqual(next.phase, .signedOut)
-        XCTAssertNil(store.token)
+        XCTAssertNil(app.store.token)
         XCTAssertNil(next.me)
-        XCTAssertNil(ResponseCache(directory: directory).me(for: try XCTUnwrap(store.server)))
+        await app.until { !app.fixture.exists(app.fixture.directory) }
+        XCTAssertFalse(app.fixture.exists(app.fixture.directory), "nor the kept Me")
     }
 
     func testWhetherTheServerAnswersIsAskedPastWhatIsKept() async throws {
         let gate = Gate()
         gate.open()
         let next = try await relaunch(gate: gate)
-        transport.routes["GET /health"] = (.ok, #"{"status":"ok","version":"0.17.0","setupRequired":false}"#)
+        app.routes.routes["GET /health"] = (.ok, #"{"status":"ok","version":"0.17.0","setupRequired":false}"#)
         await next.restore()
         let up = await next.serverAnswers()
         XCTAssertTrue(up)
-        transport.failure = URLError(.cannotConnectToHost)
-        let catalog = CatalogModel(client: try XCTUnwrap(next.client), profileId: 1)
+        app.routes.failure = URLError(.cannotConnectToHost)
+        let catalog = try catalog(next)
         await catalog.load()
         XCTAssertNotNil(catalog.catalog.item(20), "the kept library still reads")
         let down = await next.serverAnswers()
@@ -160,8 +166,8 @@ final class KeptLaunchTests: XCTestCase {
         try await next.choose(try XCTUnwrap(next.profiles.first { $0.id == 1 }))
         let slow = Gate()
         defer { slow.open() }
-        transport.hold = { _ in try await slow.wait() }
-        let catalog = CatalogModel(client: try XCTUnwrap(next.client), profileId: 1)
+        app.routes.hold = { _ in try await slow.wait() }
+        let catalog = try catalog(next)
         let started = ContinuousClock.now
         await catalog.load()
         XCTAssertLessThan(started.duration(to: .now), .seconds(1), "answered from what is kept")

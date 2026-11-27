@@ -99,22 +99,17 @@ extension ServerEndpoint {
 
     /// A generated API client for this server, signed in as the device when
     /// `token` is given. Error responses throw `APIError`, a device_locked
-    /// one after `locked` has run. With `cache`, reads go through it. With
-    /// `offline`, what is downloaded plays from the device and answers what
-    /// the cache cannot while the server cannot be reached. Tests pass their
-    /// own transport.
+    /// one after `locked` has run. With `offline`, what is downloaded plays
+    /// from the device and answers while the server cannot be reached. Tests
+    /// pass their own transport.
     public func client(
         token: String?, transport: (any ClientTransport)? = nil, generation: ArtworkGeneration? = nil,
-        offline: DownloadStore? = nil, cache: ResponseCache? = nil,
-        locked: (@MainActor @Sendable () -> Void)? = nil
+        offline: DownloadStore? = nil, locked: (@MainActor @Sendable () -> Void)? = nil
     ) -> Client {
-        let transport = transport ?? Client.sharedTransport
-        let rest: [any ClientMiddleware] =
+        let middlewares: [any ClientMiddleware] =
             (offline.map { [OfflineMiddleware(store: $0)] } ?? []) + [ErrorMiddleware(locked: locked)]
             + (generation.map { [$0] } ?? [])
-        let behind = Chain(middlewares: rest + (token.map { [BearerAuth(token: $0)] } ?? []), transport: transport)
         return Client.connect(
-            to: baseURL, token: token, transport: transport,
-            middlewares: [CacheMiddleware(cache: cache, downloads: offline, behind: behind)] + rest)
+            to: baseURL, token: token, transport: transport ?? Client.sharedTransport, middlewares: middlewares)
     }
 }

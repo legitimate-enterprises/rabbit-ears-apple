@@ -6,10 +6,11 @@ import RabbitEarsAPI
 @MainActor
 public final class CarPlayLibrary {
     private let music: MusicModel
-    private var client: Client { music.client }
+    private let stations: StationsModel
 
-    public init(music: MusicModel) {
+    public init(music: MusicModel, stations: StationsModel) {
         self.music = music
+        self.stations = stations
     }
 
     /// Recently played (albums and playlists) and Recently added; each row plays.
@@ -31,21 +32,14 @@ public final class CarPlayLibrary {
     }
 
     public func playlists(_ limits: CarPlayLimits) async throws -> CarPlayList {
-        let playlists = try await call {
-            try await allPages { offset in
-                let page = try await self.client.listPlaylists(
-                    path: .init(profileId: self.music.profileId), query: .init(kind: .music, limit: 200, offset: offset)
-                ).ok.body.json
-                return (page.items, page.nextOffset)
-            }
-        }
+        let playlists = try await music.read { db, me in try PlaylistRows.playlists(db, profile: me) }
         let rows = playlists.filter { $0.kind == .music }.map {
             Self.playlistRow($0, detail: Format.count($0.itemCount, "song"))
         }
-        let stations = try await musicStations().filter { $0.onAir.status == .onAir }.map(Self.stationRow)
-        if !stations.isEmpty {
+        let onAir = StationsModel.onNow(await stations.list(.music) ?? []).map(Self.stationRow)
+        if !onAir.isEmpty {
             return CarPlayList(
-                sections: [("Stations", stations), ("Playlists", rows)].filter { !$0.1.isEmpty }
+                sections: [("Stations", onAir), ("Playlists", rows)].filter { !$0.1.isEmpty }
                     .map { CarPlaySection(header: $0.0, index: nil, rows: $0.1) }
             ).capped(limits)
         }
@@ -208,29 +202,15 @@ public final class CarPlayLibrary {
         }
     }
 
-    private func musicStations() async throws -> [Station] {
-        try await call {
-            try await allPages { offset in
-                let page = try await self.client.listStations(query: .init(kind: .music, limit: 200, offset: offset))
-                    .ok.body.json
-                return (page.items, page.nextOffset)
-            }
-        }
-    }
-
+    /// One the profile neither owns nor is reached by is not found.
     private func playlistQueue(_ id: Int64) async throws -> (Playlist, CarPlayQueue) {
-        let path = Operations.GetPlaylist.Input.Path(profileId: music.profileId, playlistId: id)
-        return try await call {
-            async let playlist = client.getPlaylist(path: path).ok.body.json
-            let rows = try await allPages { offset in
-                let page = try await self.client.listPlaylistPlayOrder(
-                    path: .init(profileId: path.profileId, playlistId: id), query: .init(limit: 200, offset: offset)
-                ).ok.body.json
-                return (page.items, page.nextOffset)
-            }
-            let found = try await playlist
-            return (found, CarPlayQueue(songs: rows.songs, source: found.name, playlistId: id))
+        let (playlist, rows) = try await music.read { db, me in
+            (
+                try found([PlaylistRows.playlist(db, profile: me, id: id)].compactMap { $0 }),
+                try PlaylistRows.playOrder(db, profile: me, playlist: id)
+            )
         }
+        return (playlist, CarPlayQueue(songs: rows.songs, source: playlist.name, playlistId: id))
     }
 
     private func call<T>(_ body: () async throws -> T) async throws -> T {

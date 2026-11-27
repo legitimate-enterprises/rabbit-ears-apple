@@ -44,8 +44,8 @@ extension AppModel {
     public var allowListKids: [Account] { profiles.filter { $0.kind == .kid && $0.filterMode == .allowList } }
 
     public func loadAllowLists() async {
-        guard let client else { return }
-        await allowLists.load(kids: activeProfile?.kind == .adult ? allowListKids : [], client: client)
+        guard let replica = sync?.replica else { return }
+        await allowLists.load(kids: activeProfile?.kind == .adult ? allowListKids : [], replica: replica)
     }
 
     func invite(_ invite: Components.Schemas.HouseholdInvite) -> Invite {

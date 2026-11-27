@@ -10195,6 +10195,21 @@ public enum Operations {
                 }
             }
             public var path: Operations.DeleteWatchState.Input.Path
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/DELETE/query`.
+            public struct Query: Sendable, Hashable {
+                /// When it was forgotten, as a device that was offline knows it; a time ahead of the server's is taken as now. A state that changed later stays, and the answer is still 204.
+                ///
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/DELETE/query/at`.
+                public var at: Foundation.Date?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - at: When it was forgotten, as a device that was offline knows it; a time ahead of the server's is taken as now. A state that changed later stays, and the answer is still 204.
+                public init(at: Foundation.Date? = nil) {
+                    self.at = at
+                }
+            }
+            public var query: Operations.DeleteWatchState.Input.Query
             /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/DELETE/header`.
             public struct Headers: Sendable, Hashable {
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteWatchState.AcceptableContentType>]
@@ -10211,12 +10226,15 @@ public enum Operations {
             ///
             /// - Parameters:
             ///   - path:
+            ///   - query:
             ///   - headers:
             public init(
                 path: Operations.DeleteWatchState.Input.Path,
+                query: Operations.DeleteWatchState.Input.Query = .init(),
                 headers: Operations.DeleteWatchState.Input.Headers = .init()
             ) {
                 self.path = path
+                self.query = query
                 self.headers = headers
             }
         }
@@ -10256,6 +10274,29 @@ public enum Operations {
                     }
                 }
             }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/delete(deleteWatchState)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Missing, unknown or revoked device token, or bad credentials.
             ///
             /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/delete(deleteWatchState)/responses/401`.
@@ -10282,6 +10323,221 @@ public enum Operations {
             /// No such resource visible to this device.
             ///
             /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/delete(deleteWatchState)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Count one finished play the server did not see.
+    ///
+    /// For a play the server did not stream, such as of a downloaded file, sent once per play when it ends. playCount goes up by one, and lastPlayedAt becomes the latest play, in whatever order plays and putWatchState arrive. Over a state that changed no later than at, the item is watched and resumes from the start of the edition played; a state that changed later stays. Playback the server streams counts a play only when it marks the item watched, so a client sends no putWatchState with watched true for a play it records.
+    ///
+    /// - Remark: HTTP `POST /profiles/{profileId}/watch-state/{itemId}/plays`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/plays/post(recordPlay)`.
+    public enum RecordPlay {
+        public static let id: Swift.String = "recordPlay"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/plays/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/plays/POST/path/profileId`.
+                public var profileId: Components.Parameters.ProfileId
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/plays/POST/path/itemId`.
+                public var itemId: Components.Parameters.ItemId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - profileId:
+                ///   - itemId:
+                public init(
+                    profileId: Components.Parameters.ProfileId,
+                    itemId: Components.Parameters.ItemId
+                ) {
+                    self.profileId = profileId
+                    self.itemId = itemId
+                }
+            }
+            public var path: Operations.RecordPlay.Input.Path
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/plays/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RecordPlay.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RecordPlay.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.RecordPlay.Input.Headers
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/plays/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/plays/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.PlayInput)
+            }
+            public var body: Operations.RecordPlay.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.RecordPlay.Input.Path,
+                headers: Operations.RecordPlay.Input.Headers = .init(),
+                body: Operations.RecordPlay.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/plays/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/plays/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.WatchState)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.WatchState {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.RecordPlay.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.RecordPlay.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The state with the play counted.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/plays/post(recordPlay)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.RecordPlay.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.RecordPlay.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/plays/post(recordPlay)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/plays/post(recordPlay)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// No such resource visible to this device.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/plays/post(recordPlay)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Components.Responses.NotFound)
@@ -11285,7 +11541,7 @@ public enum Operations {
     }
     /// Add many to a playlist, appended in order.
     ///
-    /// Each entry is checked as `addPlaylistEntry` checks it, and its position is ignored; a title of several editions without an editionId takes its default edition. A station's own playlist is written through its owner's profile, as `addPlaylistEntry` writes it. Nothing is added unless every entry may be.
+    /// Each entry is checked as `addPlaylistEntry` checks it, and its position and rank are ignored: the entries take the ranks of generateNKeysBetween after the last entry's; a title of several editions without an editionId takes its default edition. A station's own playlist is written through its owner's profile, as `addPlaylistEntry` writes it. Nothing is added unless every entry may be.
     ///
     /// - Remark: HTTP `POST /profiles/{profileId}/playlists/{playlistId}/entries/batch`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/batch/post(addPlaylistEntries)`.
@@ -55979,6 +56235,824 @@ public enum Operations {
             /// Missing, unknown or revoked device token, or bad credentials.
             ///
             /// - Remark: Generated from `#/paths//events/get(listEvents)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// What changed in this device's replica since a version.
+    ///
+    /// A native client keeps a replica: a local SQLite database of what its
+    /// household may see, in a sync schema the server defines. It fills it
+    /// from getSyncSnapshot, then keeps it current from this operation, on
+    /// every start, return to the foreground, reconnection and ring of
+    /// waitSyncVersion.
+    ///
+    /// Every change the server makes moves a version, one global counter.
+    /// A pass asks with `since`, the version the replica holds, and without
+    /// `cursor`. An answer with mode `diff` and a `cursor` has more to read:
+    /// the client asks again with the same `since` and `schema` and that
+    /// cursor, until an answer comes without one. Each row appears at most
+    /// once per pass, in its state at the time it was read; it replaces the
+    /// replica's row of the same key in that table. Each tombstone deletes
+    /// the replica's row of that key, if it holds one. The replica has no
+    /// foreign keys, so rows and tombstones apply in the order given or any
+    /// other.
+    ///
+    /// `version` is the watermark: a client that applied every page of a
+    /// pass holds everything up to `version`, and asks from it next time.
+    /// A page with a `cursor` reports `since` as its `version`, so a client
+    /// that stops mid-pass keeps its `since` and loses nothing by starting
+    /// the pass again.
+    ///
+    /// Mode `snapshot` carries no rows: the client replaces its replica with
+    /// getSyncSnapshot, then catches up from that snapshot's version. It is
+    /// the answer, on any page, when `since` is absent; when `since` is older
+    /// than the deletions the server keeps (90 days) or newer than the
+    /// server's version, as after a restore; when a change after
+    /// `since` altered which rows the household's replica holds, such as a
+    /// membership, adult link, share, profile offer, a station made,
+    /// deleted or changing visibility, owner or playlist, or a device moving
+    /// household, or when the server was upgraded; and, on a
+    /// first page, when more rows changed since `since` than half the
+    /// replica holds.
+    ///
+    /// Mode `unsupported` carries no rows: `schema` is outside
+    /// `ranges.schemaMin` to `ranges.schemaMax`. A client below schemaMin
+    /// updates before it syncs again; one above schemaMax waits for the
+    /// server to be upgraded.
+    ///
+    ///
+    /// - Remark: HTTP `GET /sync/changes`.
+    /// - Remark: Generated from `#/paths//sync/changes/get(getSyncChanges)`.
+    public enum GetSyncChanges {
+        public static let id: Swift.String = "getSyncChanges"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/sync/changes/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The sync schema the client's replica uses.
+                ///
+                /// - Remark: Generated from `#/paths/sync/changes/GET/query/schema`.
+                public var schema: Swift.Int
+                /// The `version` the replica holds; absent for none.
+                ///
+                /// - Remark: Generated from `#/paths/sync/changes/GET/query/since`.
+                public var since: Swift.Int64?
+                /// The `cursor` of the previous page of this pass; opaque.
+                ///
+                /// - Remark: Generated from `#/paths/sync/changes/GET/query/cursor`.
+                public var cursor: Swift.String?
+                /// At most this many rows and tombstones on the page.
+                ///
+                /// - Remark: Generated from `#/paths/sync/changes/GET/query/limit`.
+                public var limit: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - schema: The sync schema the client's replica uses.
+                ///   - since: The `version` the replica holds; absent for none.
+                ///   - cursor: The `cursor` of the previous page of this pass; opaque.
+                ///   - limit: At most this many rows and tombstones on the page.
+                public init(
+                    schema: Swift.Int,
+                    since: Swift.Int64? = nil,
+                    cursor: Swift.String? = nil,
+                    limit: Swift.Int? = nil
+                ) {
+                    self.schema = schema
+                    self.since = since
+                    self.cursor = cursor
+                    self.limit = limit
+                }
+            }
+            public var query: Operations.GetSyncChanges.Input.Query
+            /// - Remark: Generated from `#/paths/sync/changes/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetSyncChanges.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetSyncChanges.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetSyncChanges.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.GetSyncChanges.Input.Query,
+                headers: Operations.GetSyncChanges.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/sync/changes/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/sync/changes/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.SyncChanges)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SyncChanges {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetSyncChanges.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetSyncChanges.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// A page of changes, or the mode the client must take instead.
+            ///
+            /// - Remark: Generated from `#/paths//sync/changes/get(getSyncChanges)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetSyncChanges.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetSyncChanges.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//sync/changes/get(getSyncChanges)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//sync/changes/get(getSyncChanges)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// This device's whole replica as a SQLite database.
+    ///
+    /// The replica of the device's household in sync schema `schema`, as
+    /// one SQLite database: the schema's tables holding every row the
+    /// household may see, its views, among them those that apply each
+    /// profile's kid filter such as profile_item and profile_station, and
+    /// its indexes. Its
+    /// one-row table replica_meta holds `schema`, `version`, the version
+    /// the snapshot was taken at, and `household_id`. The client replaces
+    /// its replica with the file whole, then asks getSyncChanges with
+    /// `since` set to replica_meta's `version`. A `schema` outside
+    /// SyncRanges' schemaMin to schemaMax answers 400.
+    ///
+    ///
+    /// - Remark: HTTP `GET /sync/snapshot`.
+    /// - Remark: Generated from `#/paths//sync/snapshot/get(getSyncSnapshot)`.
+    public enum GetSyncSnapshot {
+        public static let id: Swift.String = "getSyncSnapshot"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/sync/snapshot/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The sync schema the client's replica uses.
+                ///
+                /// - Remark: Generated from `#/paths/sync/snapshot/GET/query/schema`.
+                public var schema: Swift.Int
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - schema: The sync schema the client's replica uses.
+                public init(schema: Swift.Int) {
+                    self.schema = schema
+                }
+            }
+            public var query: Operations.GetSyncSnapshot.Input.Query
+            /// - Remark: Generated from `#/paths/sync/snapshot/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetSyncSnapshot.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetSyncSnapshot.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetSyncSnapshot.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.GetSyncSnapshot.Input.Query,
+                headers: Operations.GetSyncSnapshot.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/sync/snapshot/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/sync/snapshot/GET/responses/200/content/application\/vnd.sqlite3`.
+                    case applicationVnd_sqlite3(OpenAPIRuntime.HTTPBody)
+                    /// The associated value of the enum case if `self` is `.applicationVnd_sqlite3`.
+                    ///
+                    /// - Throws: An error if `self` is not `.applicationVnd_sqlite3`.
+                    /// - SeeAlso: `.applicationVnd_sqlite3`.
+                    public var applicationVnd_sqlite3: OpenAPIRuntime.HTTPBody {
+                        get throws {
+                            switch self {
+                            case let .applicationVnd_sqlite3(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetSyncSnapshot.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetSyncSnapshot.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The replica.
+            ///
+            /// - Remark: Generated from `#/paths//sync/snapshot/get(getSyncSnapshot)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetSyncSnapshot.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetSyncSnapshot.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//sync/snapshot/get(getSyncSnapshot)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//sync/snapshot/get(getSyncSnapshot)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case applicationVnd_sqlite3
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/vnd.sqlite3":
+                    self = .applicationVnd_sqlite3
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .applicationVnd_sqlite3:
+                    return "application/vnd.sqlite3"
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .applicationVnd_sqlite3,
+                    .json
+                ]
+            }
+        }
+    }
+    /// Wait until this device's replica has changes to read.
+    ///
+    /// A long poll, held as listEvents is, at most 25 seconds. It answers `changed` true as soon as getSyncChanges since `after` would answer a row, a tombstone or mode `snapshot`, else false when the time is up; it carries no data. A client asks with the version its replica holds while it is in the foreground, runs getSyncChanges on true, and asks again at once on false. A write elsewhere that the household cannot see does not ring, except a deletion from a table keyed by a single id, which reaches every household as a tombstone.
+    ///
+    /// - Remark: HTTP `GET /sync/version`.
+    /// - Remark: Generated from `#/paths//sync/version/get(waitSyncVersion)`.
+    public enum WaitSyncVersion {
+        public static let id: Swift.String = "waitSyncVersion"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/sync/version/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The `version` the replica holds.
+                ///
+                /// - Remark: Generated from `#/paths/sync/version/GET/query/after`.
+                public var after: Swift.Int64
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - after: The `version` the replica holds.
+                public init(after: Swift.Int64) {
+                    self.after = after
+                }
+            }
+            public var query: Operations.WaitSyncVersion.Input.Query
+            /// - Remark: Generated from `#/paths/sync/version/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.WaitSyncVersion.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.WaitSyncVersion.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.WaitSyncVersion.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.WaitSyncVersion.Input.Query,
+                headers: Operations.WaitSyncVersion.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/sync/version/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/sync/version/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.SyncBell)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SyncBell {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.WaitSyncVersion.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.WaitSyncVersion.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Whether there are changes to read.
+            ///
+            /// - Remark: Generated from `#/paths//sync/version/get(waitSyncVersion)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.WaitSyncVersion.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.WaitSyncVersion.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//sync/version/get(waitSyncVersion)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//sync/version/get(waitSyncVersion)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Replay writes a client queued, in order.
+    ///
+    /// A client writes to its replica at once and queues each write as an
+    /// action naming an operation marked `x-replayable`, to send when it is
+    /// online. The server runs the actions in `seq` order, each as the
+    /// request it names would run, with the same validation, permissions
+    /// and rules, as `actingProfileId`, which must be a profile of the
+    /// device's household that is not revoked, with that profile's
+    /// permissions at the time of the replay. A profile's PIN is not asked,
+    /// and a device locked at Who's watching replays too and stays locked.
+    ///
+    /// Each action the server answers gets one result: `accepted` when the
+    /// operation succeeded, `rejected` with the operation's Error `code`
+    /// when it answered 4xx. An operation not marked `x-replayable`, or a
+    /// `path` and `method` that are not `operationId`'s, is rejected with
+    /// `not_replayable`; an `actingProfileId` outside the household, or
+    /// revoked, with `not_found`. When an operation fails on the server, a 5xx, the
+    /// batch stops there: that action and every later one are absent from
+    /// `results`, and the client sends them again later. The client
+    /// removes from its queue only the actions answered.
+    ///
+    /// The server remembers each answered action's `id` for 90 days per
+    /// device: an action sent again answers its stored result without
+    /// running again. A batch whose `apiVersion` is outside SyncRanges'
+    /// apiMin to apiMax rejects every action with `unsupported_version`,
+    /// runs and remembers none.
+    ///
+    /// After each answered action, accepted or rejected, the server marks
+    /// every row in its `touched` as changed, or a deletion when the row
+    /// no longer exists, so the next getSyncChanges brings the replica's
+    /// copy of each to what the server holds; a row that exists but the
+    /// household may not see is left alone. A client keeps no rollback of
+    /// its own.
+    ///
+    /// A batch that fails validation, names in `touched` a table that is
+    /// not one of the sync schema's, a key of the wrong length or a key
+    /// part of the wrong type (an integer for an integer column, a string
+    /// for a text one), or whose `seq` does not strictly increase, answers
+    /// 400 and runs nothing.
+    ///
+    ///
+    /// - Remark: HTTP `POST /sync/actions`.
+    /// - Remark: Generated from `#/paths//sync/actions/post(replaySyncActions)`.
+    public enum ReplaySyncActions {
+        public static let id: Swift.String = "replaySyncActions"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/sync/actions/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ReplaySyncActions.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ReplaySyncActions.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ReplaySyncActions.Input.Headers
+            /// - Remark: Generated from `#/paths/sync/actions/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/sync/actions/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.SyncActionBatch)
+            }
+            public var body: Operations.ReplaySyncActions.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.ReplaySyncActions.Input.Headers = .init(),
+                body: Operations.ReplaySyncActions.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/sync/actions/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/sync/actions/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.SyncActionResults)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SyncActionResults {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ReplaySyncActions.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ReplaySyncActions.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// A result for each action answered, in the batch's order.
+            ///
+            /// - Remark: Generated from `#/paths//sync/actions/post(replaySyncActions)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ReplaySyncActions.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ReplaySyncActions.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//sync/actions/post(replaySyncActions)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//sync/actions/post(replaySyncActions)/responses/401`.
             ///
             /// HTTP response code: `401 unauthorized`.
             case unauthorized(Components.Responses.Unauthorized)

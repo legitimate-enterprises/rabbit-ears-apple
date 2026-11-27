@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import HTTPTypes
 import RabbitEarsAPI
 import XCTest
@@ -84,8 +85,52 @@ extension Fixtures {
     }
 }
 
+/// What a store's local plays sent through its seam to the action queue;
+/// with `replica`, each is also written there as the queued action's local
+/// change would be, so the catalog reads it.
+@MainActor
+final class PlayLog {
+    enum Call: Equatable {
+        case progress(profile: Int64, item: Int64, edition: Int64?, positionMs: Int64, watched: Bool, at: Date)
+        case finished(profile: Int64, item: Int64, edition: Int64?, at: Date)
+    }
+
+    var calls: [Call] = []
+    var replica: Replica?
+
+    var plays: LocalPlays {
+        LocalPlays(
+            progress: { [weak self] profile, item, edition, position, watched, at in
+                self?.calls.append(
+                    .progress(
+                        profile: profile, item: item, edition: edition, positionMs: position, watched: watched, at: at))
+                _ = try? await self?.replica?.write { db in
+                    try db.execute(
+                        sql: """
+                            INSERT INTO watch_state VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5, ?6)
+                            ON CONFLICT DO UPDATE SET position_ms = ?3, watched = ?4, last_played_at = ?5,
+                                updated_at = ?5, edition_id = ?6
+                            """,
+                        arguments: [profile, item, position, watched, Int64(at.timeIntervalSince1970 * 1000), edition])
+                }
+            },
+            finished: { [weak self] profile, item, edition, at in
+                self?.calls.append(.finished(profile: profile, item: item, edition: edition, at: at))
+                _ = try? await self?.replica?.write { db in
+                    try db.execute(
+                        sql: """
+                            INSERT INTO watch_state VALUES (?1, ?2, 0, 1, 1, ?3, ?3, ?4)
+                            ON CONFLICT DO UPDATE SET position_ms = 0, watched = 1, play_count = play_count + 1,
+                                last_played_at = ?3, updated_at = ?3, edition_id = ?4
+                            """, arguments: [profile, item, Int64(at.timeIntervalSince1970 * 1000), edition])
+                }
+            })
+    }
+}
+
 /// A store in a folder of its own, signed in to a server that resolves
-/// each target to the titles a test sets and answers every download ready.
+/// each target to the titles a test sets and answers every download ready,
+/// with a replica of profile 1 and a log of its local plays.
 @MainActor
 final class DownloadHarness {
     let transport = RoutingTransport()
@@ -96,6 +141,9 @@ final class DownloadHarness {
     let store: DownloadStore
     let client: Client
     let server = FakeDownloadServer()
+    let fixture = ReplicaFixture()
+    let replica: Replica
+    let plays = PlayLog()
     /// By target key, as `item/10`: the titles resolving it answers.
     var resolves: [String: [String]] {
         get { server.locked { $0.resolves } }
@@ -123,11 +171,22 @@ final class DownloadHarness {
             directory: directory, downloader: downloader, facts: { box.facts }, pollInterval: .milliseconds(1),
             now: { MainActor.assumeIsolated { box.now } })
         client = endpoint.client(token: "tok-1", transport: transport, offline: store)
-        store.connect(client: client, endpoint: endpoint, token: "tok-1")
+        // swiftlint:disable:next force_try
+        replica = try! fixture.v1 { db in try db.account(1, "Avery") }
+        store.connect(client: client, endpoint: endpoint, token: "tok-1", replica: replica, plays: plays.plays)
         transport.respond = { [server] in server.answer($0) }
     }
 
-    deinit { try? FileManager.default.removeItem(at: directory) }
+    deinit {
+        try? FileManager.default.removeItem(at: directory)
+        fixture.remove()
+    }
+
+    /// The Me the app keeps for the server, as it does after the server answers `json`.
+    func keep(me json: String) throws {
+        let me = Fixtures.decode(json, as: Components.Schemas.Me.self)
+        replica.keep(try DownloadStore.encoder.encode(me), as: AppModel.keptMe(endpoint))
+    }
 
     /// The server is gone: every call fails as with no network.
     func goOffline() { transport.failure = URLError(.notConnectedToInternet) }

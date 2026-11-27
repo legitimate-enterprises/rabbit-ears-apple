@@ -12,12 +12,15 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     CURRENT_PROJECT_VERSION: 1
-    MARKETING_VERSION: 24
+    MARKETING_VERSION: 25
 
 # Generated from openapi.yaml by `make generate` in apple/.
 packages:
   RabbitEarsAPI:
     path: ../apple/api
+  # GRDB on the server's SQLite, made under build/ by `make deps`.
+  GRDB:
+    path: ../build/grdb
 
 targets:
   RabbitEarsKit:
@@ -28,6 +31,8 @@ targets:
       - path: sources/kit
     dependencies:
       - package: RabbitEarsAPI
+      - package: GRDB
+        product: GRDB-dynamic
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
@@ -77,6 +82,9 @@ targets:
         embed: true
       - package: RabbitEarsAPI
         embed: true
+      - package: GRDB
+        product: GRDB-dynamic
+        embed: true
     # iPhone only, set on the target because XcodeGen's iOS preset sets both
     # families there.
     # The release names its App Store profile here and not on the command
@@ -109,6 +117,8 @@ targets:
     dependencies:
       - target: RabbitEarsKit
       - package: RabbitEarsAPI
+      - package: GRDB
+        product: GRDB-dynamic
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

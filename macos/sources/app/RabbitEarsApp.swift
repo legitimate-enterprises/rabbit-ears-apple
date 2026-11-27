@@ -16,7 +16,7 @@ struct RabbitEarsApp: App {
         let downloads = DownloadStore(downloader: URLSessionDownloader(), facts: { capabilities.facts() })
         let model = AppModel(
             store: store, deviceName: Host.current().localizedName ?? "Mac", downloads: downloads,
-            cache: ResponseCache())
+            replicaDirectory: Replica.defaultDirectory)
         _model = State(initialValue: model)
         // The system's command center is process-wide, so the app makes the one center.
         _nowPlaying = State(initialValue: SystemNowPlayingCenter { await model.artwork?.data($0, .poster) })

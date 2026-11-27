@@ -58,6 +58,7 @@ jobs:
     uses: ./.github/workflows/stack.yaml
     with:
       stack: macos
+      tests: '["test-unit", "test-integration"]'
 
   ios:
     needs: changed

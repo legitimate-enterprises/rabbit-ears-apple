@@ -14,7 +14,7 @@ settings:
     SWIFT_VERSION: "6.0"
     CODE_SIGN_IDENTITY: "-"
     CURRENT_PROJECT_VERSION: 1
-    MARKETING_VERSION: 23
+    MARKETING_VERSION: 24
     # `make run` passes DEV_IDENTITY=YES, which derives both suffixes: a
     # separate bundle ID (own defaults and keychain items) and a distinct
     # name in the Dock and Force Quit.
@@ -30,6 +30,9 @@ settings:
 packages:
   RabbitEarsAPI:
     path: ../apple/api
+  # GRDB on the server's SQLite, made under build/ by `make deps`.
+  GRDB:
+    path: ../build/grdb
 
 targets:
   RabbitEarsKit:
@@ -40,6 +43,8 @@ targets:
       - path: sources/kit
     dependencies:
       - package: RabbitEarsAPI
+      - package: GRDB
+        product: GRDB-dynamic
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
@@ -69,6 +74,9 @@ targets:
       - target: RabbitEarsKit
         embed: true
       - package: RabbitEarsAPI
+        embed: true
+      - package: GRDB
+        product: GRDB-dynamic
         embed: true
     settings:
       base:
@@ -101,6 +109,8 @@ targets:
     dependencies:
       - target: RabbitEarsKit
       - package: RabbitEarsAPI
+      - package: GRDB
+        product: GRDB-dynamic
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

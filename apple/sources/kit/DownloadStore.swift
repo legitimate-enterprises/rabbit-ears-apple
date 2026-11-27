@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import Observation
 import RabbitEarsAPI
 
@@ -12,13 +13,12 @@ struct DownloadLedger: Codable, Sendable {
     var requests: [DownloadRequest] = []
     var titles: [Int64: StoredTitle] = [:]
     var shelf = OfflineShelf()
-    /// By profile and item: changes not yet on the server.
-    var unsynced: [Int64: [Int64: LocalWatch]] = [:]
 }
 
 /// The device's downloads: each profile's requests, the one stored copy of
 /// each title they cover, reference counted across requests and profiles,
-/// and the metadata and artwork that let the app browse them offline.
+/// and the artwork they show with offline. What the titles are and how far
+/// each profile has watched them is the replica's.
 @MainActor
 @Observable
 public final class DownloadStore {
@@ -35,6 +35,10 @@ public final class DownloadStore {
     /// The first wait before a pump the server stopped goes again.
     let pollInterval: Duration
     var link: Link?
+    /// The signed-in server's replica, which says who is active here and what each profile has watched.
+    var replica: Replica?
+    var plays: LocalPlays?
+    public private(set) var libraries: [DownloadLibrary] = []
     var pumping = false
     /// A pump was asked for while one claimed, so another follows it.
     var pumpAgain = false
@@ -92,16 +96,25 @@ public final class DownloadStore {
     // MARK: Signing in and out
 
     /// Signed in on `endpoint`: a different server's downloads go first.
-    public func connect(client: Client, endpoint: ServerEndpoint, token: String) {
+    /// A local play's watch state goes to `plays`.
+    func connect(
+        client: Client, endpoint: ServerEndpoint, token: String, replica: Replica? = nil, plays: LocalPlays? = nil
+    ) {
         if let server = ledger.server, server != endpoint.baseURL { wipe() }
         ledger.server = endpoint.baseURL
         link = Link(client: client, endpoint: endpoint, token: token)
+        self.replica = replica
+        self.plays = plays
         save()
+        Task { await loadLibraries() }
     }
 
     /// Signed out or revoked: every download and what describes it goes.
     public func wipe() {
         link = nil
+        replica = nil
+        plays = nil
+        libraries = []
         sessions = [:]
         downloader.cancelAll()
         try? FileManager.default.removeItem(at: directory)
@@ -113,8 +126,6 @@ public final class DownloadStore {
     public func wipe(profile: Int64) {
         ledger.requests.removeAll { $0.profileId == profile }
         ledger.settings[profile] = nil
-        ledger.unsynced[profile] = nil
-        ledger.shelf.watch[profile] = nil
         collect()
     }
 
@@ -122,7 +133,6 @@ public final class DownloadStore {
 
     public var requests: [DownloadRequest] { ledger.requests }
     public var titles: [Int64: StoredTitle] { ledger.titles }
-    public var libraries: [Library] { ledger.shelf.libraries }
     /// Whether this server has anything kept here, so the app may open without it.
     public var hasDownloads: Bool { !ledger.requests.isEmpty }
 
@@ -154,6 +164,35 @@ public final class DownloadStore {
 
     public func file(of title: StoredTitle) -> URL? { title.file.map { media.appending(path: $0) } }
 
+    /// The server's libraries as the replica has them, by name as the server lists them.
+    public func loadLibraries() async {
+        guard let replica,
+            let read = try? await replica.read({ db in
+                try Row.fetchAll(db, sql: "SELECT id, name, kind FROM library ORDER BY name, id").compactMap { row in
+                    Components.Schemas.LibraryKind(rawValue: row["kind"]).map {
+                        DownloadLibrary(id: row["id"], name: row["name"], kind: $0)
+                    }
+                }
+            })
+        else { return }
+        libraries = read
+    }
+
+    /// The Me the app keeps for this server: who is active here, and the household's profiles.
+    var me: Components.Schemas.Me? {
+        guard let link, let kept = replica?.kept(AppModel.keptMe(link.endpoint)) else { return nil }
+        return try? Self.decoder.decode(Components.Schemas.Me.self, from: kept)
+    }
+
+    /// The profile's watch state of the item in the replica.
+    func watchState(_ itemId: Int64, profile: Int64) async -> WatchState? {
+        try? await replica?.read { db in
+            try Row.fetchOne(
+                db, sql: "SELECT * FROM watch_state WHERE account_id = ? AND item_id = ?", arguments: [profile, itemId]
+            ).map(ReplicaRows.watchState)
+        } ?? nil
+    }
+
     public var usedBytes: Int64 {
         ledger.titles.values.filter(\.state.holdsSpace).reduce(0) { $0 + $1.sizeBytes }
     }
@@ -179,8 +218,8 @@ public final class DownloadStore {
     public func setSettings(_ settings: DownloadSettings, for profile: Int64) {
         let before = self.settings(profile)
         ledger.settings[profile] = settings
-        if settings.keep != before.keep { applyKeepPolicy(profile) }
         save()
+        if settings.keep != before.keep { Task { await applyKeepPolicy(profile) } }
     }
 
     public var wifiOnly: Bool {
@@ -260,9 +299,6 @@ public final class DownloadStore {
         for title in covered where ledger.titles[title.itemId] == nil {
             ledger.titles[title.itemId] = StoredTitle(title, quality: quality)
         }
-        for title in resolved where title.kind != .song && ledger.unsynced[profile]?[title.itemId] == nil {
-            remember(watched: title.watched, positionMs: title.positionMs, itemId: title.itemId, profile: profile)
-        }
         collect()
     }
 
@@ -275,23 +311,29 @@ public final class DownloadStore {
         collect()
     }
 
-    /// Takes watched titles out of the profile's standing requests where their library removes them.
-    func applyKeepPolicy(_ profile: Int64) {
+    /// Takes titles the replica has watched out of the profile's standing requests where their library removes them.
+    func applyKeepPolicy(_ profile: Int64) async {
+        guard let replica,
+            let watched = try? await replica.read({ db in
+                try Int64.fetchSet(
+                    db, sql: "SELECT item_id FROM watch_state WHERE account_id = ? AND watched", arguments: [profile])
+            })
+        else { return }
         let settings = settings(profile)
-        let watch = ledger.shelf.watch[profile] ?? [:]
         let titles = ledger.titles
         for index in ledger.requests.indices
         where ledger.requests[index].profileId == profile && ledger.requests[index].target.standing {
             ledger.requests[index].titles.removeAll { id in
-                guard let title = titles[id], watch[id]?.watched == true else { return false }
+                guard let title = titles[id], watched.contains(id) else { return false }
                 return !settings.keeps(library: title.libraryId, kind: title.kind)
             }
         }
         collect()
     }
 
-    /// Deletes every stored title no request holds, with its files and
-    /// metadata, and any file in media/ no stored title holds; its transfer
+    /// Deletes every stored title no request holds, with its files, any
+    /// file in media/ no stored title holds, and the artwork nothing kept
+    /// shows with; its transfer
     /// stops and the server lets its claim go.
     func collect() {
         let held = Set(ledger.requests.flatMap(\.titles))
@@ -306,36 +348,14 @@ public final class DownloadStore {
         for name in files where ledger.titles[Int64(name.prefix(while: \.isNumber)) ?? -1] == nil {
             try? FileManager.default.removeItem(at: media.appending(path: name))
         }
-        let kept = ledger.shelf.prune(
-            titles: held, collections: Set(ledger.requests.filter { $0.target.scope == .collection }.map(\.target.id)),
-            playlists: Set(ledger.requests.filter { $0.target.scope == .playlist }.map(\.target.id)))
+        ledger.shelf.art.formIntersection(
+            ledger.titles.values.flatMap { $0.art ?? [] } + ledger.requests.flatMap { $0.art ?? [] })
         let names = (try? FileManager.default.contentsOfDirectory(atPath: art.path(percentEncoded: false))) ?? []
-        for name in names where !kept.contains(name) {
+        for name in names where !ledger.shelf.art.contains(name) {
             try? FileManager.default.removeItem(at: art.appending(path: name))
         }
         save()
     }
-
-    // MARK: Watch state
-
-    /// A change made on this device, kept with when it happened until the server has it.
-    public func record(watched: Bool, positionMs: Int64, editionId: Int64? = nil, itemId: Int64, profile: Int64) {
-        ledger.unsynced[profile, default: [:]][itemId] = LocalWatch(
-            watched: watched, positionMs: positionMs, editionId: editionId, at: now())
-        remember(watched: watched, positionMs: positionMs, editionId: editionId, itemId: itemId, profile: profile)
-        if watched { applyKeepPolicy(profile) } else { save() }
-    }
-
-    func remember(watched: Bool, positionMs: Int64, editionId: Int64? = nil, itemId: Int64, profile: Int64) {
-        let old = ledger.shelf.watch[profile]?[itemId]
-        guard watched || positionMs > 0 || old != nil else { return }
-        ledger.shelf.watch[profile, default: [:]][itemId] = WatchState(
-            itemId: itemId, positionMs: positionMs, editionId: editionId, watched: watched,
-            playCount: old?.playCount ?? 0, lastPlayedAt: positionMs > 0 || watched ? now() : old?.lastPlayedAt,
-            updatedAt: now())
-    }
-
-    public func unsynced(_ profile: Int64) -> [Int64: LocalWatch] { ledger.unsynced[profile] ?? [:] }
 
     // MARK: Storage
 

@@ -12,6 +12,7 @@ final class StationTunerTests: XCTestCase {
     var capabilities: FakeCapabilities!
     var player: PlayerModel!
     var tuner: StationTuner!
+    var replica: Replica!
     var slept: [Date] = []
     /// The first wait passes at once; later ones, or every one when false, hold until the test ends.
     var wakesAtOnce = true
@@ -24,10 +25,6 @@ final class StationTunerTests: XCTestCase {
 
     override func setUp() async throws {
         transport = RoutingTransport([
-            "GET /stations/5": (
-                .ok,
-                Fixtures.station(5, "The Big Screen", onAir: Fixtures.onAir("between_programs", next: Fixtures.salt))
-            ),
             "DELETE /playback/sessions/7": (.noContent, ""),
             "DELETE /playback/sessions/8": (.noContent, ""),
             "PUT /playback/sessions/7/position": (.noContent, ""),
@@ -39,7 +36,9 @@ final class StationTunerTests: XCTestCase {
         output = FakeOutput()
         capabilities = FakeCapabilities()
         let client = server.client(token: "t", transport: transport)
-        tuner = StationTuner(client: client, station: Fixtures.decode(Fixtures.bigScreen)) { [unowned self] date in
+        replica = try tunerReplica()
+        tuner = stationTuner(client: client, replica: replica, station: Fixtures.decode(Fixtures.bigScreen)) {
+            [unowned self] date in
             self.slept.append(date)
             if !self.wakesAtOnce || self.slept.count > 1 { try await Task.sleep(for: .seconds(3600)) }
         }
@@ -84,7 +83,8 @@ final class StationTunerTests: XCTestCase {
         XCTAssertTrue(tuner.offAir)
         XCTAssertNil(player.error)
         XCTAssertTrue(output.loaded.isEmpty)
-        XCTAssertEqual(tuner.station.onAir.status, .betweenPrograms, "the station is read for its next")
+        XCTAssertEqual(
+            tuner.station.onAir.status, .betweenPrograms, "the station is read from the replica for its next")
         let resumes = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-15T16:00:00Z"))
         XCTAssertEqual(tuner.wakeAt, resumes)
         await until { slept.count == 1 }
@@ -112,7 +112,8 @@ final class StationTunerTests: XCTestCase {
     func testAClockAheadOfTheServersDoesNotAskInATightLoop() async {
         answers = [tuned()]
         let real = StationTuner(
-            client: server.client(token: "t", transport: transport), station: Fixtures.decode(Fixtures.bigScreen))
+            client: server.client(token: "t", transport: transport), replica: replica, profileId: 1,
+            station: Fixtures.decode(Fixtures.bigScreen))
         await player.tune(real)
         try? await Task.sleep(for: .milliseconds(300))
         real.cancel()
@@ -315,9 +316,9 @@ final class MusicStationTests: XCTestCase {
             client: client, endpoint: server, profileId: 1, output: output, capabilities: FakeCapabilities(),
             activateSession: {})
         player.attach(center)
-        tuner = StationTuner(
-            client: client, station: Fixtures.decode(Fixtures.station(6, "Kitchen Radio", kind: "music"))
-        ) { _ in try await Task.sleep(for: .seconds(3600)) }
+        tuner = stationTuner(
+            client: client, replica: try tunerReplica(),
+            station: Fixtures.decode(Fixtures.station(6, "Kitchen Radio", kind: "music")))
         await player.play(Fixtures.songs(3), source: "In Rainbows")
     }
 

@@ -4,10 +4,12 @@ import SwiftUI
 
 extension AppModel {
     var musicModel: MusicModel? {
-        client.flatMap { client in activeProfile.map { MusicModel(client: client, profileId: $0.id) } }
+        guard let client, let sync, let activeProfile else { return nil }
+        return MusicModel(client: client, replica: sync.replica, profileId: activeProfile.id)
     }
     var youTubeModel: YouTubeModel? {
-        client.flatMap { client in activeProfile.map { YouTubeModel(client: client, profileId: $0.id) } }
+        guard let client, let sync, let activeProfile else { return nil }
+        return YouTubeModel(client: client, replica: sync.replica, queue: sync.queue, profileId: activeProfile.id)
     }
 }
 

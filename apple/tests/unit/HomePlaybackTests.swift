@@ -167,9 +167,9 @@ final class HomePlaybackTests: XCTestCase {
         let player = MusicPlayer(
             client: client, endpoint: server, profileId: 1, output: output, capabilities: FakeCapabilities(),
             activateSession: {})
-        let tuner = StationTuner(
-            client: client, station: Fixtures.decode(Fixtures.station(6, "Kitchen Radio", kind: "music"))
-        ) { _ in try await Task.sleep(for: .seconds(3600)) }
+        let tuner = stationTuner(
+            client: client, replica: try tunerReplica(),
+            station: Fixtures.decode(Fixtures.station(6, "Kitchen Radio", kind: "music")))
 
         await player.play(Fixtures.songs(1), source: "In Rainbows")
         await player.tune(tuner)

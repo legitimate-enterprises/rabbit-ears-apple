@@ -59,7 +59,7 @@ struct ChannelScreen: View {
                         get: { channel.forKids == true },
                         set: { on in
                             Task {
-                                do { _ = try await app.youtubeModel?.setForKids(on, channel: channel.id) } catch {
+                                do { try await app.youtubeModel?.setForKids(on, channel: channel.id) } catch {
                                     app.live.say(error.localizedDescription)
                                 }
                                 browser.revision += 1

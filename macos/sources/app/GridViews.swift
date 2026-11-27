@@ -119,10 +119,6 @@ struct GridView: View {
             .padding(EdgeInsets(top: 10, leading: 22, bottom: 24, trailing: 22))
         }
         .selectionBar(selection, selectKind, order: items.map(\.id))
-        // Hiding kids' content leaves them out of the catalog; the pill reads them apart.
-        .task(id: "\(shown.rawValue)/\(model.hidingKids)/\(ObjectIdentifier(model).hashValue)") {
-            if shown == .kids { await model.showKids(kind) }
-        }
         .onChange(of: view) { selection.end() }
         .navigationSubtitle(kind == .movie ? "\(total) movies" : "\(total) shows")
     }

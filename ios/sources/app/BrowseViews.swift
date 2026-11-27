@@ -144,10 +144,12 @@ struct MainView: View {
         // Hide kids' content changes what the server lists, so the catalog is read again.
         .task(id: "\(model.activeProfile?.id ?? 0)/\(model.activeProfile?.hideKidsContent == true)") {
             // CarPlay may have made this profile's services already; the context shares them.
-            guard let client = model.client, let profile = model.activeProfile,
+            guard let client = model.client, let sync = model.sync, let profile = model.activeProfile,
                 let nextServices = await AppContext.shared.services(for: profile.id)
             else { return }
-            let next = CatalogModel(client: client, profileId: profile.id, hidingKids: profile.hideKidsContent == true)
+            let next = CatalogModel(
+                client: client, replica: sync.replica, queue: sync.queue, profileId: profile.id,
+                hidingKids: profile.hideKidsContent == true)
             catalog = next
             services = nextServices
             async let load: Void = next.load()
@@ -215,7 +217,8 @@ struct MainView: View {
         .fullScreenCover(item: $browser.tuning) { station in
             if let client = model.client, let endpoint = model.endpoint, let profile = model.activeProfile {
                 StationPlayerScreen(
-                    station: station, client: client, endpoint: endpoint, profileId: profile.id,
+                    station: station, client: client, replica: model.sync?.replica, endpoint: endpoint,
+                    profileId: profile.id,
                     close: { browser.tuning = nil })
             }
         }

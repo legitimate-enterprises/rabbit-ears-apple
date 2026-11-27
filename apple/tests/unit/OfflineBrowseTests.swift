@@ -1,11 +1,13 @@
 import Foundation
+import GRDB
 import HTTPTypes
 import RabbitEarsAPI
 import XCTest
 
 @testable import RabbitEarsKit
 
-/// The models, run against what is downloaded with no server.
+/// What is downloaded, with no server: the replica answers the catalog
+/// and the device plays the files, shows their art and switches profiles.
 @MainActor
 final class OfflineBrowseTests: XCTestCase {
     var harness: DownloadHarness!
@@ -14,19 +16,13 @@ final class OfflineBrowseTests: XCTestCase {
     override func setUp() async throws {
         harness = DownloadHarness()
         let objects = [
-            "GET /items/10": Fixtures.item(10, "show", "Severance"),
-            "GET /items/11": Fixtures.item(11, "season", "Season 1", parent: 10, season: 1),
-            "GET /items/101": Fixtures.item(101, "episode", "Good News", parent: 11, season: 1, episode: 1),
-            "GET /items/103": Fixtures.item(103, "episode", "In Perpetuity", parent: 11, season: 1, episode: 3),
-            "GET /items/20": Fixtures.item(20, "movie", "Dune", runtime: 166),
-            "GET /music/songs/5": Fixtures.song(5, "Reckoner", album: 50, track: 7),
             "GET /music/albums/50": Fixtures.album(50, "In Rainbows"),
             "GET /music/artists/40": Fixtures.artist,
-            "GET /youtube/videos/70": Fixtures.video(70, "Dovetails"),
             "GET /youtube/channels/60": Fixtures.channel(60, "Workbench Weekly"),
             "GET /me": Fixtures.me,
         ]
         for (route, json) in objects { harness.objects[route] = json }
+        try await harness.replica.write { try $0.downloadedTitles() }
         harness.transport.routes["GET /items/20/artwork/poster"] = (.ok, "jpeg")
         harness.transport.headers[.eTag] = "\"a\""
         harness.transport.headers[.cacheControl] = "private, no-cache"
@@ -39,57 +35,53 @@ final class OfflineBrowseTests: XCTestCase {
         for target in [DownloadTarget.show(10), .title(20), .title(5), .title(70)] {
             try await harness.download(target)
         }
-        _ = try await harness.client.getMe()
+        try harness.keep(me: Fixtures.me)
+        try await harness.replica.write { try $0.watch(101, for: 1, position: 60_000) }
     }
 
-    func testTheCatalogHoldsOnlyWhatIsDownloadedWithItsProgress() async {
+    func testOfflineTheCatalogIsTheReplicasDownloadedOrNot() async throws {
+        let replica = try replica(
+            [
+                Fixtures.item(10, "show", "Severance"), Fixtures.item(11, "season", "Season 1", parent: 10, season: 1),
+                Fixtures.item(101, "episode", "Good News", parent: 11, season: 1, episode: 1),
+                Fixtures.item(103, "episode", "In Perpetuity", parent: 11, season: 1, episode: 3),
+                Fixtures.item(20, "movie", "Dune", runtime: 166), Fixtures.item(30, "movie", "Heat"),
+            ],
+            watch: [Fixtures.watch(101, position: 60_000), Fixtures.watch(20, watched: true)], profile: 1)
         harness.goOffline()
-        let model = CatalogModel(client: harness.client, profileId: 1)
+        let model = CatalogModel(client: harness.client, replica: replica, profileId: 1)
         await model.load()
         XCTAssertNil(model.error)
-        XCTAssertEqual(Set(model.catalog.items.keys), [10, 11, 101, 103, 20])
+        XCTAssertEqual(Set(model.catalog.items.keys), [10, 11, 101, 103, 20, 30])
         XCTAssertEqual(model.catalog.episodes(under: 10).map(\.id), [101, 103])
         XCTAssertTrue(model.catalog.isWatched(20))
         XCTAssertEqual(model.catalog.continueWatching.map(\.id), [101])
         XCTAssertEqual(store.titles[20]?.state, .onDevice)
+        XCTAssertNil(store.titles[30], "Heat shows though it is not on the device")
     }
 
-    func testOfflineNothingIsInSeasonSoHomeDropsItsSeasonalShelves() async throws {
-        harness.goOffline()
-        let answer = try await harness.client.listActiveOccasions(
-            path: .init(profileId: 1), query: .init(date: "2026-12-01")
-        )
-        .ok.body.json
-        XCTAssertTrue(answer.items.isEmpty)
-    }
-
-    func testAPlaylistStoredWithoutItsSharedFlagReadsUnbadged() async throws {
-        harness.objects["GET /profiles/1/playlists/3"] = Fixtures.playlist(3, "Mix")
-        harness.resolves["playlist/3"] = [Fixtures.downloadTitle(5, "song", library: 3)]
-        try await harness.download(.playlist(3))
-        // The playlist's own description is kept in a task of its own after the request.
-        for _ in 0..<400 where store.ledger.shelf.playlists[3] == nil {
-            try await Task.sleep(for: .milliseconds(5))
+    /// The replica's Radiohead, In Rainbows with Reckoner, and Workbench Weekly with Dovetails.
+    private func musicAndYouTube() throws -> Replica {
+        let fixture = ReplicaFixture()
+        addTeardownBlock { fixture.remove() }
+        return try fixture.v1 { db in
+            try db.account(1, "Avery")
+            try db.artist(40, "Radiohead")
+            try db.album(50, "In Rainbows", artist: 40)
+            try db.song(5, "Reckoner", album: 50, track: 7)
+            try db.channel(60, "Workbench Weekly")
+            try db.video(70, "Dovetails", channel: 60)
         }
-        let ledger = try String(contentsOf: store.ledgerFile, encoding: .utf8)
-        XCTAssertTrue(ledger.contains(#""Mix""#))
-        XCTAssertFalse(ledger.contains(#""shared""#))
-        let reopened = DownloadStore(
-            directory: harness.directory, downloader: FakeDownloader(), facts: { fatalError() })
-        XCTAssertEqual(reopened.ledger.shelf.playlists[3]?.playlist.isShared, false)
-
-        harness.goOffline()
-        let model = PlaylistsModel(client: harness.client, profileId: 1)
-        await model.load()
-        XCTAssertEqual(model.playlists.map(\.name), ["Mix"])
-        XCTAssertEqual(model.playlists.map(\.isShared), [false])
     }
 
     func testMusicYouTubeAndArtworkAnswerFromTheDevice() async throws {
+        let replica = try musicAndYouTube()
         harness.goOffline()
-        let album = try await MusicModel(client: harness.client, profileId: 1).album(50)
+        let album = try await MusicModel(client: harness.client, replica: replica, profileId: 1).album(50)
         XCTAssertEqual(album.songs.map(\.title), ["Reckoner"])
-        let channels = try await YouTubeModel(client: harness.client, profileId: 1).channels()
+        let queue = ActionQueue(replica: replica, client: harness.client)
+        let channels = try await YouTubeModel(client: harness.client, replica: replica, queue: queue, profileId: 1)
+            .channels()
         XCTAssertEqual(channels.map(\.title), ["Workbench Weekly"])
         let art = ArtworkStore(client: harness.client)
         let poster = await art.data(20, .poster)
@@ -99,8 +91,9 @@ final class OfflineBrowseTests: XCTestCase {
     }
 
     func testOfflineTheDownloadedAlbumsAndArtistsFileUnderTheirLetters() async throws {
+        let replica = try musicAndYouTube()
         harness.goOffline()
-        let music = MusicModel(client: harness.client, profileId: 1)
+        let music = MusicModel(client: harness.client, replica: replica, profileId: 1)
         let albums = try await music.letters(of: .albums)
         XCTAssertEqual(albums.map(\.letter), ["I"], "not an empty library")
         XCTAssertEqual(albums.map(\.count), [1])
@@ -128,9 +121,12 @@ final class OfflineBrowseTests: XCTestCase {
     func testRemovingEveryDownloadRemovesTheirArt() throws {
         let art = harness.directory.appending(path: "art").path(percentEncoded: false)
         XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: art).isEmpty)
-        for target in [DownloadTarget.show(10), .title(20), .title(5), .title(70)] {
+        for target in [DownloadTarget.show(10), .title(5), .title(70)] {
             store.remove(target, profile: 1)
         }
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(atPath: art), ["item-20-poster"], "Dune still shows with it")
+        store.remove(.title(20), profile: 1)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: art), [])
     }
 
@@ -152,21 +148,14 @@ final class OfflineBrowseTests: XCTestCase {
         XCTAssertEqual(again, Data("jpeg".utf8))
     }
 
-    func testAnotherProfileSeesNoneOfIt() async {
-        harness.goOffline()
-        let model = CatalogModel(client: harness.client, profileId: 2)
-        harness.store.ledger.shelf.me?.activeProfileId = 2
-        await model.load()
-        XCTAssertTrue(model.catalog.items.isEmpty)
-    }
-
-    func testTheAppOpensOfflineOnWhatIsDownloaded() async throws {
+    func testTheAppOpensOfflineOnItsKeptMeAndSwitchesOnlyToAProfileTheReplicaSaysHasNoPin() async throws {
         harness.goOffline()
         let credentials = MemoryCredentialStore()
         credentials.server = harness.endpoint.baseURL
         credentials.token = "tok-1"
         let app = AppModel(
-            store: credentials, deviceName: "Mac", transport: harness.transport, downloads: harness.store)
+            store: credentials, deviceName: "Mac", transport: harness.transport, downloads: harness.store,
+            replicaDirectory: harness.fixture.directory)
         await app.restore()
         XCTAssertEqual(app.phase, .choosingProfile)
         try await app.choose(try XCTUnwrap(app.profiles.first { $0.id == 1 }))
@@ -175,6 +164,48 @@ final class OfflineBrowseTests: XCTestCase {
             try await app.choose(try XCTUnwrap(app.profiles.first { $0.id == 2 }), pin: "1234")
             XCTFail("a PIN can't be checked offline")
         } catch {}
+        try await harness.replica.write { try $0.execute(sql: "UPDATE account SET has_pin = 1 WHERE id = 1") }
+        do {
+            try await app.unlock(try XCTUnwrap(app.profiles.first { $0.id == 1 }))
+            XCTFail("a PIN set since the Me was kept is the server's to check")
+        } catch {
+            XCTAssertEqual(error as? AppError, .unreachable)
+        }
+    }
+
+    func testOfflineTheDownloadsAnswerNoCatalogWatchStateOrUpNext() async {
+        harness.goOffline()
+        let calls: [(String, () async throws -> Void)] = [
+            ("listItems", { _ = try await self.harness.client.listItems(query: .init(kind: .movie)).ok }),
+            ("getItem", { _ = try await self.harness.client.getItem(path: .init(itemId: 20)).ok }),
+            ("listWatchStates", { _ = try await self.harness.client.listWatchStates(path: .init(profileId: 1)).ok }),
+            ("getUpNext", { _ = try await self.harness.client.getUpNext(path: .init(profileId: 1, itemId: 101)).ok }),
+            ("listMusicSongs", { _ = try await self.harness.client.listMusicSongs().ok }),
+            ("listPlaylists", { _ = try await self.harness.client.listPlaylists(path: .init(profileId: 1)).ok }),
+        ]
+        for (name, call) in calls {
+            do {
+                try await call()
+                XCTFail("\(name) answered from the downloads")
+            } catch {
+                XCTAssertTrue(OfflineMiddleware.unreachable(error), name)
+            }
+        }
+    }
+
+    /// Visibility is the replica's per profile: a kid sees what its ceiling lets it, and none of another's progress.
+    func testAnotherProfileSeesTheReplicaAsItsVisibilityLetsIt() async throws {
+        try await harness.replica.write { db in
+            try db.account(2, "Robin", kind: "kid", movies: "PG")
+            try db.execute(sql: "UPDATE item_metadata SET content_rating = 'PG-13' WHERE item_id = 20")
+            try db.item(41, "movie", "Paddington", rating: "PG")
+            try db.watch(41, for: 1, position: 90_000)
+        }
+        harness.goOffline()
+        let model = CatalogModel(client: harness.client, replica: harness.replica, profileId: 2)
+        await model.load()
+        XCTAssertEqual(Set(model.catalog.items.keys), [41], "Dune is above the kid's ceiling, downloaded or not")
+        XCTAssertNil(model.catalog.watch[41], "Avery's progress is Avery's")
     }
 
     func testWithNothingDownloadedTheServerIsUnreachableAsBefore() async {
@@ -184,7 +215,8 @@ final class OfflineBrowseTests: XCTestCase {
         credentials.server = harness.endpoint.baseURL
         credentials.token = "tok-1"
         let app = AppModel(
-            store: credentials, deviceName: "Mac", transport: harness.transport, downloads: harness.store)
+            store: credentials, deviceName: "Mac", transport: harness.transport, downloads: harness.store,
+            replicaDirectory: Fixtures.replicas)
         await app.restore()
         XCTAssertEqual(app.phase, .unreachable)
     }
@@ -206,21 +238,21 @@ final class OfflineBrowseTests: XCTestCase {
         }
     }
 
-    func testWithNothingDownloadedTheCatalogKeepsWhatItHadWhenTheServerGoes() async {
+    func testWithNothingDownloadedTheCatalogReadsTheSameWhenTheServerGoes() async throws {
         harness.store.wipe()
-        harness.transport.routes["GET /items"] = (.ok, Fixtures.page([Fixtures.item(20, "movie", "Dune")]))
-        harness.transport.routes["GET /profiles/1/watch-state"] = (.ok, Fixtures.page([]))
-        let model = CatalogModel(client: harness.client, profileId: 1)
+        let model = CatalogModel(
+            client: harness.client, replica: try replica([Fixtures.item(20, "movie", "Dune")], profile: 1),
+            profileId: 1)
         await model.load()
         XCTAssertNotNil(model.catalog.item(20))
 
         harness.goOffline()
         await model.load()
         XCTAssertNotNil(model.catalog.item(20))
-        XCTAssertNotNil(model.error)
+        XCTAssertNil(model.error, "the replica answers; nothing is wrong")
     }
 
-    func testThePlayerPlaysTheFileAndUpNextIsTheNextDownloadedEpisode() async throws {
+    func testThePlayerPlaysTheFileFromWhereTheReplicaSaysTheProfileLeftIt() async throws {
         harness.goOffline()
         let output = FakeOutput()
         let item = Fixtures.decode(Fixtures.item(101, "episode", "Good News", parent: 11), as: Item.self)
@@ -233,11 +265,6 @@ final class OfflineBrowseTests: XCTestCase {
         XCTAssertEqual(loaded.0, store.titles[101].flatMap(store.file(of:)))
         XCTAssertEqual(loaded.1, 60, "resumes where the profile left it")
         XCTAssertEqual(player.stream?.sidecars.first.map { URL(string: $0.url)?.isFileURL }, true)
-
-        let profile = Fixtures.decode(Fixtures.adult, as: Account.self)
-        let next = await UpNextModel.load(after: PlayRequest(item: item), client: harness.client, profile: profile)
-        XCTAssertEqual(next?.request.item.id, 103)
-        XCTAssertEqual(next?.title, "Severance · S1 E3 · In Perpetuity")
     }
 
     /// A kept file carries every text track, unlike a stream's one sidecar.
@@ -299,5 +326,21 @@ final class OfflineBrowseTests: XCTestCase {
         harness.goOffline()
         let offline = await play(edition: 8)
         XCTAssertEqual(offline?.isFileURL, true, "offline, the copy there plays")
+    }
+}
+
+extension Database {
+    /// What the downloads' art is read from.
+    fileprivate func downloadedTitles() throws {
+        try item(10, "show", "Severance")
+        try item(11, "season", "Season 1", parent: 10, season: 1)
+        try item(101, "episode", "Good News", parent: 11, season: 1, episode: 1)
+        try item(103, "episode", "In Perpetuity", parent: 11, season: 1, episode: 3)
+        try item(20, "movie", "Dune", runtime: 166)
+        try artist(40, "Radiohead")
+        try album(50, "In Rainbows", artist: 40)
+        try song(5, "Reckoner", album: 50, track: 7)
+        try channel(60, "Workbench Weekly")
+        try video(70, "Dovetails", channel: 60)
     }
 }

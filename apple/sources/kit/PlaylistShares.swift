@@ -66,11 +66,13 @@ public final class PlaylistSharesModel {
     public private(set) var candidates: [ShareCandidate] = []
     public private(set) var error: String?
     public let client: Client
+    public let queue: ActionQueue
     public let profileId: Int64
     public let playlistId: Int64
 
-    public init(client: Client, profileId: Int64, playlistId: Int64) {
+    public init(client: Client, queue: ActionQueue, profileId: Int64, playlistId: Int64) {
         self.client = client
+        self.queue = queue
         self.profileId = profileId
         self.playlistId = playlistId
     }
@@ -127,51 +129,39 @@ public final class PlaylistSharesModel {
     }
 
     /// Creates, replaces or deletes the household's share; nil is Not shared.
+    /// It is queued, so what shows is the change made here until the next load.
     public func set(_ household: ShareHousehold, to access: PlaylistShareAccess?) async {
-        let done = await write {
-            switch (self.access(household), access) {
-            case (nil, let access?):
-                _ = try await client.createPlaylistHouseholdShare(
-                    path: .init(profileId: profileId, playlistId: playlistId),
-                    body: .json(.init(householdId: household.id, access: access))
-                ).created.body.json
-            case (_?, let access?):
-                _ = try await client.replacePlaylistHouseholdShare(
-                    path: .init(profileId: profileId, playlistId: playlistId, householdId: household.id),
-                    body: .json(.init(access: access))
-                ).ok.body.json
-            case (_?, nil):
-                _ = try await client.deletePlaylistHouseholdShare(
-                    path: .init(profileId: profileId, playlistId: playlistId, householdId: household.id)
-                ).noContent
-            case (nil, nil): break
+        await write {
+            try await queue.share(
+                as: profileId, playlistId, withHousehold: household.id, from: self.access(household), to: access)
+            householdShares.removeAll { $0.householdId == household.id }
+            if let access {
+                householdShares.append(
+                    .init(
+                        playlistId: playlistId, householdId: household.id, name: household.name, access: access,
+                        createdAt: .now))
             }
         }
-        if done { await load() }
     }
 
     /// Creates, replaces or deletes the profile's share; nil is Not shared.
+    /// It is queued, so what shows is the change made here until the next load.
     public func set(_ profile: ShareProfile, to access: PlaylistShareAccess?) async {
-        let done = await write {
-            switch (self.access(profile), access) {
-            case (nil, let access?):
-                _ = try await client.createPlaylistShare(
-                    path: .init(profileId: profileId, playlistId: playlistId),
-                    body: .json(.init(profileId: profile.id, access: access))
-                ).created.body.json
-            case (_?, let access?):
-                _ = try await client.replacePlaylistShare(
-                    path: .init(profileId: profileId, playlistId: playlistId, shareProfileId: profile.id),
-                    body: .json(.init(access: access))
-                ).ok.body.json
-            case (_?, nil):
-                _ = try await client.deletePlaylistShare(
-                    path: .init(profileId: profileId, playlistId: playlistId, shareProfileId: profile.id)
-                ).noContent
-            case (nil, nil): break
+        await write {
+            let old = shares.first { $0.profileId == profile.id }
+            try await queue.share(as: profileId, playlistId, with: profile.id, from: old?.access, to: access)
+            shares.removeAll { $0.profileId == profile.id }
+            guard let access else { return }
+            if var old {
+                old.access = access
+                shares.append(old)
+            } else if let candidate = candidates.first(where: { $0.profileId == profile.id }) {
+                shares.append(
+                    .init(
+                        playlistId: playlistId, profileId: profile.id, name: candidate.name, kind: candidate.kind,
+                        access: access, createdAt: .now, color: candidate.color, householdId: candidate.householdId))
             }
         }
-        if done { await load() }
     }
 
     @discardableResult

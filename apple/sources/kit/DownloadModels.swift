@@ -3,7 +3,6 @@ import RabbitEarsAPI
 
 public typealias DownloadQuality = Components.Schemas.DownloadQuality
 public typealias DownloadTitle = Components.Schemas.DownloadTitle
-public typealias Library = Components.Schemas.Library
 public typealias ServerDownload = Components.Schemas.Download
 
 /// What a More menu's Download asks for. A movie, episode, song or video
@@ -148,6 +147,8 @@ public struct StoredTitle: Codable, Equatable, Sendable, Identifiable {
     var resumeData: Data?
     /// The server's claim on the file, kept until released so no pass, retry or relaunch claims twice.
     var claim: DownloadClaim?
+    /// The artwork files it shows with, its parents' included.
+    var art: [String]?
     public var id: Int64 { itemId }
 
     init(_ title: DownloadTitle, quality: DownloadQuality) {
@@ -179,6 +180,8 @@ public struct DownloadRequest: Codable, Equatable, Sendable, Identifiable {
     public var quality: DownloadQuality
     public var titles: [Int64]
     public let createdAt: Date
+    /// The artwork files a collection or playlist shows with.
+    var art: [String]?
     public var id: String { "\(profileId) \(target.key)" }
 }
 
@@ -200,17 +203,16 @@ public struct DownloadSettings: Codable, Equatable, Sendable {
         return keep[library] ?? (kind == .movie)
     }
 
-    public func keeps(_ library: Library) -> Bool {
+    public func keeps(_ library: DownloadLibrary) -> Bool {
         library.kind == .music || (keep[library.id] ?? (library.kind == .movies))
     }
 }
 
-/// A watch state change made on this device, waiting to reach the server.
-public struct LocalWatch: Codable, Equatable, Sendable {
-    public var watched: Bool
-    public var positionMs: Int64
-    public var editionId: Int64?
-    public var at: Date
+/// A library of the server, as Downloads' keep-watched settings name it.
+public struct DownloadLibrary: Equatable, Sendable {
+    public let id: Int64
+    public let name: String
+    public let kind: Components.Schemas.LibraryKind
 }
 
 /// What a big request is, for "This is a lot" before it is kept.

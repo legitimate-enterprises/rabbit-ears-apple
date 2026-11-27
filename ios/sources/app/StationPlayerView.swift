@@ -5,13 +5,15 @@ import SwiftUI
 
 extension Browser {
     /// Tunes in: a music station in the music player, shown on Now playing; any other in the station player.
-    func tune(_ station: Station, music: RabbitEarsKit.MusicPlayer, client: Client?) {
+    func tune(_ station: Station, music: RabbitEarsKit.MusicPlayer, app: AppModel) {
         guard station.kind == .music else {
             tuning = station
             return
         }
-        guard let client else { return }
-        Task { await music.tune(StationTuner(client: client, station: station)) }
+        guard let client = app.client, let replica = app.sync?.replica, let profile = app.activeProfile else { return }
+        Task {
+            await music.tune(StationTuner(client: client, replica: replica, profileId: profile.id, station: station))
+        }
         showingNowPlaying = true
     }
 }
@@ -21,6 +23,8 @@ extension Browser {
 struct StationPlayerScreen: View {
     let station: Station
     let client: Client
+    /// Nil once signed out, when nothing plays.
+    let replica: Replica?
     let endpoint: ServerEndpoint
     let profileId: Int64
     let close: () -> Void
@@ -38,6 +42,7 @@ struct StationPlayerScreen: View {
             }
         }
         .task {
+            guard let replica else { return }
             // Plays with the ringer off and keeps playing in picture in picture and over AirPlay.
             try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
             let output = AVPlayerOutput()
@@ -45,7 +50,7 @@ struct StationPlayerScreen: View {
             let model = PlayerModel(
                 client: client, endpoint: endpoint, profileId: profileId, item: nil, output: output,
                 capabilities: capabilities, device: "iPhone")
-            let tuner = StationTuner(client: client, station: station)
+            let tuner = StationTuner(client: client, replica: replica, profileId: profileId, station: station)
             self.output = output
             self.capabilities = capabilities
             self.model = model

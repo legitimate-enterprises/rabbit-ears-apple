@@ -5,46 +5,29 @@ import RabbitEarsAPI
 public typealias LiveEvent = Components.Schemas.Event
 public typealias PlaybackSession = Components.Schemas.PlaybackSession
 
-/// What the server says has changed while this device is signed in and in
-/// view. An event names a kind and ids; what changed is read again through
-/// the ordinary operations.
+/// What has changed while this device is signed in: the replica's commits,
+/// counted by group, and the server's player events while a player is open.
 @MainActor
 @Observable
 public final class LiveFeed {
-    /// Each counts the changes to what it names; a view showing it loads again when its count moves.
+    /// Each counts the replica's commits to what it names; a view showing it loads again when its count moves.
     public private(set) var watched = 0
     public private(set) var stations = 0
     public private(set) var playlists = 0
-    public private(set) var together = 0
-    /// Offers or memberships of the device's household.
+    /// Profiles, offers or memberships of the device's household.
     public private(set) var household = 0
+    /// Libraries and everything in them.
+    public private(set) var library = 0
     /// A line shown for a few seconds over whatever is up, as "Moved to Living Room".
     public private(set) var notice: String?
 
     /// The longest wait between two tries of a failing poll.
     static let longestWait = Duration.seconds(30)
-    /// The kinds followed besides the first five, which the server sends only to a client that names them.
-    static let kinds: [Components.Schemas.EventKind] = [.library, .household]
     @ObservationIgnored private var listeners: [UUID: AsyncStream<[LiveEvent]>.Continuation] = [:]
-    @ObservationIgnored private var followed = false
+    @ObservationIgnored private var watchers: [UUID: AsyncStream<Replica.Group>.Continuation] = [:]
     @ObservationIgnored private var noticeEnds: Task<Void, Never>?
 
-    /// Its answers changed by the server are told as an empty batch.
-    let cache: ResponseCache?
-
-    public init(cache: ResponseCache? = nil) {
-        self.cache = cache
-        cache?.onChange { [weak self] in Task { @MainActor in self?.tell([]) } }
-    }
-
-    /// Runs `reload` with every kept answer asked of the server first, and
-    /// returns once it has applied the new data. It runs on its own task, so
-    /// a pull that the system cancels, as a view redrawing under it, does not
-    /// cancel the requests half-way and leave the old data.
-    public func pull(_ reload: @escaping @MainActor () async -> Void) async {
-        cache?.expire()
-        await Task { await reload() }.value
-    }
+    public init() {}
 
     public func say(_ text: String) {
         notice = text
@@ -55,7 +38,28 @@ public final class LiveFeed {
         }
     }
 
-    /// Every batch from now on, for what acts on single events. An empty batch says to load everything again.
+    /// The replica committed a change to `group`.
+    func changed(_ group: Replica.Group) {
+        switch group {
+        case .library: library += 1
+        case .watched: watched += 1
+        case .playlists: playlists += 1
+        case .stations: stations += 1
+        case .household: household += 1
+        }
+        for watcher in watchers.values { watcher.yield(group) }
+    }
+
+    /// Every group the replica commits a change to from now on.
+    public func changes() -> AsyncStream<Replica.Group> {
+        let id = UUID()
+        let (stream, continuation) = AsyncStream.makeStream(of: Replica.Group.self)
+        watchers[id] = continuation
+        continuation.onTermination = { [weak self] _ in Task { @MainActor in self?.watchers[id] = nil } }
+        return stream
+    }
+
+    /// Every batch of player events from now on.
     public func events() -> AsyncStream<[LiveEvent]> {
         let id = UUID()
         let (stream, continuation) = AsyncStream.makeStream(of: [LiveEvent].self)
@@ -65,33 +69,24 @@ public final class LiveFeed {
     }
 
     func tell(_ batch: [LiveEvent]) {
-        let kinds = Set(batch.map(\.kind))
-        if batch.isEmpty || kinds.contains(.watchState) || kinds.contains(.playback) { watched += 1 }
-        if batch.isEmpty || kinds.contains(.station) { stations += 1 }
-        if batch.isEmpty || kinds.contains(.playlist) { playlists += 1 }
-        if batch.isEmpty || kinds.contains(.watchTogether) { together += 1 }
-        if batch.isEmpty || kinds.contains(.household) { household += 1 }
         for listener in listeners.values { listener.yield(batch) }
     }
 
-    /// Follows the stream until cancelled, as while signed in and in view.
-    /// A failed poll is tried again after a growing wait; a server without
-    /// the stream, or a device signed out or locked, is not asked again.
-    /// Following again, as on return from the background, first loads
-    /// everything once. True says the server no longer knows this device,
-    /// as when its account was deleted on another.
+    /// Follows the server's player events until cancelled, as while a
+    /// player is open; the catalog follows the replica instead. A failed
+    /// poll is tried again after a growing wait; a server without the
+    /// stream, or a device signed out or locked, is not asked again. True
+    /// says the server no longer knows this device.
     @discardableResult
     public func follow(
         _ client: Client, sleep: (Duration) async -> Void = { try? await Task.sleep(for: $0) }
     ) async -> Bool {
-        if followed { tell([]) }
-        followed = true
         var cursor: String?
         var wait = Duration.seconds(1)
         while !Task.isCancelled {
             do {
-                let page = try await client.listEvents(query: .init(after: cursor, kinds: Self.kinds)).ok.body.json
-                if page.resync { tell([]) } else if !page.events.isEmpty { tell(page.events) }
+                let page = try await client.listEvents(query: .init(after: cursor)).ok.body.json
+                if !page.events.isEmpty { tell(page.events) }
                 cursor = page.cursor
                 wait = .seconds(1)
             } catch {
@@ -106,28 +101,20 @@ public final class LiveFeed {
 }
 
 extension AppModel {
-    /// Follows the server's events while this device is in view, keeping
-    /// the catalog's watch state current. Runs until cancelled, or until the
-    /// server says it has no events for this device; one it no longer knows
-    /// is signed out here.
+    /// Keeps the replica in step with the server while this device is in
+    /// view, and the catalog with the replica. Every view following shares
+    /// the session's one sync loop, which ends with the last of them.
     public func followLive(_ catalog: CatalogModel?, inView: Bool) async {
-        guard inView, let client else { return }
-        // Listening before following hears the reload a follow again starts with.
-        let events = live.events()
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { if await self.live.follow(client) { await self.signOut() } }
-            group.addTask {
-                for await batch in events {
-                    await catalog?.heard(batch)
-                    // A scan may add or empty a kind of library; a household event may carry a changed profile.
-                    if batch.isEmpty || batch.contains(where: { $0.kind == .library }) {
-                        await self.loadLibrarySections()
-                    }
-                    if batch.isEmpty || batch.contains(where: { $0.kind == .household }) { await self.reload() }
-                }
-            }
-            await group.next()
-            group.cancelAll()
+        guard inView, let sync else { return }
+        let changes = live.changes()
+        sync.follow()
+        defer { sync.unfollow() }
+        // The first snapshot may have landed between the catalog's first read and listening.
+        if catalog?.loaded == false { await catalog?.load() }
+        for await group in changes {
+            await catalog?.heard(group)
+            // A profile changed, as its Hide setting or its name.
+            if group == .household { await reload() }
         }
     }
 }
@@ -210,8 +197,15 @@ public final class PlayerHandoff {
         self.itemId = itemId
     }
 
+    /// Follows the server's player events while the player is open.
     public func follow(_ live: LiveFeed) async {
-        for await batch in live.events() { await heard(batch) }
+        let events = live.events()
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { [client] in await live.follow(client) }
+            group.addTask { for await batch in events { await self.heard(batch) } }
+            await group.next()
+            group.cancelAll()
+        }
     }
 
     public func heard(_ batch: [LiveEvent]) async {

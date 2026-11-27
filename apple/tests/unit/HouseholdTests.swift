@@ -71,7 +71,9 @@ final class HouseholdModelTests: XCTestCase {
             ),
             "GET /household/offers": (.ok, #"{"incoming":[],"outgoing":[]}"#),
         ])
-        app = AppModel(store: MemoryCredentialStore(), deviceName: "Mac", transport: transport)
+        app = AppModel(
+            store: MemoryCredentialStore(), deviceName: "Mac", transport: transport, replicaDirectory: Fixtures.replicas
+        )
         try await app.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
         model = HouseholdModel(app: app)
     }
@@ -110,28 +112,6 @@ final class HouseholdModelTests: XCTestCase {
         try await model.saveKid(kid, form)
         XCTAssertEqual(transport.json(.put, "/profiles/2/pin")?["pin"] as? String, "2468")
         XCTAssertEqual(transport.paths(.get).filter { $0 == "/profiles" }.count, 3)
-    }
-
-    func testAllowListAddsAndRemovesTitles() async throws {
-        let kid = Fixtures.decode(Fixtures.kid, as: Account.self)
-        transport.routes["GET /profiles/2/allowed-items"] = (.ok, #"{"itemIds":[33,30]}"#)
-        transport.routes["GET /items/30"] = (.ok, Fixtures.item(30, "movie", "Toy Story"))
-        transport.routes["GET /items/33"] = (.notFound, Fixtures.error("not_found"))
-        transport.routes["GET /items"] = (
-            .ok,
-            Fixtures.page([Fixtures.item(31, "movie", "Matrix"), Fixtures.item(32, "episode", "Pilot", parent: 9)])
-        )
-        transport.routes["PUT /profiles/2/allowed-items/31"] = (.noContent, "")
-        transport.routes["DELETE /profiles/2/allowed-items/30"] = (.noContent, "")
-        let allowed = try await model.allowed(kid)
-        XCTAssertEqual(allowed.map(\.id), [30], "a title that fails to load drops only its own row")
-        let found = try await model.findTitles("mat")
-        XCTAssertEqual(found.map(\.id), [31], "only movies and shows can be allowed")
-        XCTAssertEqual(transport.queries(.get, "/items").last?.contains("q=mat"), true)
-        try await model.allow(kid, 31)
-        try await model.disallow(kid, 30)
-        XCTAssertEqual(transport.paths(.put), ["/profiles/2/allowed-items/31"])
-        XCTAssertEqual(transport.paths(.delete), ["/profiles/2/allowed-items/30"])
     }
 
     func testResendAndChangeToAdultHandBackTheCode() async throws {
@@ -175,12 +155,6 @@ final class HouseholdModelTests: XCTestCase {
         XCTAssertFalse(app.canManageHousehold)
         XCTAssertFalse(app.isOwner)
         XCTAssertEqual(model.actions(for: Fixtures.decode(Fixtures.kid, as: Account.self)), [])
-    }
-
-    func testAllowedForNamesTheKidsWhoseListHoldsIt() async throws {
-        transport.routes["GET /items/30/allowed-for"] = (.ok, #"{"profileIds":[2,4]}"#)
-        let allowed = try await model.allowedFor(30)
-        XCTAssertEqual(allowed, [2, 4])
     }
 
     func testAKidsColorIsSavedWithTheKid() async throws {

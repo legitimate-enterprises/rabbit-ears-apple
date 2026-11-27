@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import RabbitEarsAPI
 import XCTest
 
@@ -6,74 +7,77 @@ import XCTest
 
 @MainActor
 final class YouTubeBoardTests: XCTestCase {
-    var transport: RoutingTransport!
+    var fixture: ReplicaFixture!
+    var replica: Replica!
     var board: YouTubeBoard!
 
+    /// Workbench Weekly (60) with 101 videos, one more than a page, the
+    /// longer the higher the id; Clockwork Corner (61) with one, watched.
     override func setUp() async throws {
-        transport = RoutingTransport()
+        fixture = ReplicaFixture()
+        replica = try fixture.v1 { db in
+            try db.account(1, "Avery")
+            try db.channel(60, "Workbench Weekly")
+            try db.channel(61, "Clockwork Corner")
+            for id in Int64(100)...200 {
+                try db.video(id, "Video \(id)", channel: 60, durationMs: id * 1000, added: "2026-01-01T00:00:00Z")
+            }
+            try db.video(300, "Gears", channel: 61, published: "2026-11-12T00:00:00Z")
+            try db.watch(300, for: 1, watched: true)
+        }
+        let client = ServerEndpoint(userInput: "192.168.1.9")!.client(token: "t", transport: RoutingTransport())
         board = YouTubeBoard(
             youTube: YouTubeModel(
-                client: ServerEndpoint(userInput: "192.168.1.9")!.client(token: "t", transport: transport),
+                client: client, replica: replica, queue: ActionQueue(replica: replica, client: client),
                 profileId: 1))
     }
 
-    func testVideosAskForTheSortAndChannelAndPageOnDemand() async {
-        transport.routes["GET /youtube/videos"] = (
-            .ok, #"{"items":[\#(Fixtures.video(70, "The dishwasher video"))],"nextOffset":100}"#
-        )
+    override func tearDown() async throws { fixture.remove() }
+
+    func testVideosTakeTheSortAndChannelAndPageOnDemand() async {
         await board.load(.videos, sort: .length, channel: 60)
-        XCTAssertEqual(board.videos?.items.map(\.id), [70])
+        XCTAssertEqual(board.videos?.items.count, 100)
+        XCTAssertEqual(board.videos?.items.first?.id, 200, "longest first")
         XCTAssertEqual(board.videos?.done, false)
-        XCTAssertEqual(transport.queries(.get, "/youtube/videos"), ["channelId=60&sort=length&limit=100"])
+        await board.videos?.loadMore()
+        XCTAssertEqual(board.videos?.items.last?.id, 100)
+        XCTAssertEqual(board.videos?.done, true)
     }
 
     func testUnwatchedIsTheVideosListFilteredToUnwatched() async {
-        transport.routes["GET /youtube/videos"] = (.ok, Fixtures.page([]))
-        await board.load(.unwatched, sort: .newest, channel: nil)
-        XCTAssertEqual(transport.queries(.get, "/youtube/videos"), ["unwatched=true&sort=newest&limit=100"])
+        await board.load(.unwatched, sort: .newest, channel: 61)
+        XCTAssertEqual(board.videos?.items.map(\.id), [])
+        await board.load(.videos, sort: .newest, channel: 61)
+        XCTAssertEqual(board.videos?.items.map(\.id), [300])
     }
 
     func testChannelsGiveTheCountForEveryTab() async {
-        transport.routes["GET /youtube/channels"] = (
-            .ok, Fixtures.page([Fixtures.channel(60, "Workbench Weekly"), Fixtures.channel(61, "Clockwork Corner")])
-        )
         await board.loadChannels()
         XCTAssertEqual(board.caption, "2 channels")
-        XCTAssertEqual(board.channels.map(\.id), [60, 61])
+        XCTAssertEqual(board.channels.map(\.id), [61, 60])
     }
 
-    private func routeTwoPages(watched: Bool) {
-        transport.respond = { sent in
-            guard sent.path == "/youtube/videos" else { return nil }
-            if sent.query.contains("offset=100") {
-                return (.ok, Fixtures.page([Fixtures.video(71, "Second page", watched: watched)]))
-            }
-            let first = Fixtures.page([Fixtures.video(70, "First page", watched: watched)], total: 2)
-            return (.ok, first.replacingOccurrences(of: #""total":2}"#, with: #""total":2,"nextOffset":100}"#))
-        }
-    }
-
-    func testRefreshRereadsTheLoadedPagesInPlace() async {
-        routeTwoPages(watched: false)
-        await board.load(.videos, sort: .newest, channel: nil)
+    func testRefreshRereadsTheLoadedPagesInPlace() async throws {
+        await board.load(.videos, sort: .length, channel: 60)
         await board.videos?.loadMore()
-        XCTAssertEqual(board.videos?.items.map(\.id), [70, 71])
+        XCTAssertEqual(board.videos?.items.count, 101)
         let shown = board.videos
-        routeTwoPages(watched: true)
+        try await replica.write { db in
+            try db.watch(200, for: 1, watched: true)
+            try db.watch(100, for: 1, watched: true)
+        }
         await board.refresh(.videos)
         XCTAssertTrue(board.videos === shown)
-        XCTAssertEqual(board.videos?.items.map(\.id), [70, 71])
-        XCTAssertEqual(board.videos?.items.map(\.watched), [true, true])
+        XCTAssertEqual(board.videos?.items.count, 101)
+        XCTAssertEqual(board.videos?.items.first?.watched, true)
+        XCTAssertEqual(board.videos?.items.last?.watched, true)
     }
 
     func testChangingTheSortStartsOverFromTheFirstPage() async {
-        transport.routes["GET /youtube/videos"] = (.ok, Fixtures.page([Fixtures.video(70, "A")]))
-        await board.load(.videos, sort: .newest, channel: nil)
+        await board.load(.videos, sort: .length, channel: nil)
         let shown = board.videos
         await board.load(.videos, sort: .title, channel: nil)
         XCTAssertFalse(board.videos === shown)
-        XCTAssertEqual(
-            transport.queries(.get, "/youtube/videos"),
-            ["sort=newest&limit=100", "sort=title&limit=100"])
+        XCTAssertEqual(board.videos?.items.first?.title, "Gears")
     }
 }

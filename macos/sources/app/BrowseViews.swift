@@ -4,15 +4,14 @@ import SwiftUI
 
 extension AppModel {
     var isAdult: Bool { activeProfile?.kind == .adult }
-    var musicModel: MusicModel? { musicModel(client, activeProfile) }
-    var youtubeModel: YouTubeModel? { youtubeModel(client, activeProfile) }
-
-    private func musicModel(_ client: Client?, _ profile: Account?) -> MusicModel? {
-        client.flatMap { client in profile.map { MusicModel(client: client, profileId: $0.id) } }
+    var musicModel: MusicModel? {
+        guard let client, let sync, let activeProfile else { return nil }
+        return MusicModel(client: client, replica: sync.replica, profileId: activeProfile.id)
     }
 
-    private func youtubeModel(_ client: Client?, _ profile: Account?) -> YouTubeModel? {
-        client.flatMap { client in profile.map { YouTubeModel(client: client, profileId: $0.id) } }
+    var youtubeModel: YouTubeModel? {
+        guard let client, let sync, let activeProfile else { return nil }
+        return YouTubeModel(client: client, replica: sync.replica, queue: sync.queue, profileId: activeProfile.id)
     }
 }
 
@@ -123,11 +122,11 @@ struct MainView: View {
                 }
                 .id(HandoffGate<PlayerScreen>.identity(request))
             }
-            if let station = browser.tuning, let client = model.client, let endpoint = model.endpoint,
-                let profile = model.activeProfile
+            if let station = browser.tuning, let client = model.client, let replica = model.sync?.replica,
+                let endpoint = model.endpoint, let profile = model.activeProfile
             {
                 StationPlayerScreen(
-                    station: station, client: client, endpoint: endpoint, profileId: profile.id,
+                    station: station, client: client, replica: replica, endpoint: endpoint, profileId: profile.id,
                     capabilities: capabilities, close: { browser.tuning = nil }
                 )
                 .id(station.id)
@@ -157,10 +156,7 @@ struct MainView: View {
             item: $browser.sharing, onDismiss: { Task { await playlists?.load() } },
             content: { playlist in
                 if let playlists {
-                    PlaylistShareSheet(
-                        model: PlaylistSharesModel(
-                            client: playlists.client, profileId: playlists.profileId, playlistId: playlist.id),
-                        name: playlist.name)
+                    PlaylistShareSheet(model: playlists.shares(of: playlist.id), name: playlist.name)
                 }
             }
         )
@@ -261,14 +257,18 @@ struct MainView: View {
         playlists = nil
         collections = nil
         browser.tuning = nil
-        guard let client = model.client, let endpoint = model.endpoint, let profile = model.activeProfile else {
-            return
-        }
-        let next = CatalogModel(client: client, profileId: profile.id, hidingKids: profile.hideKidsContent == true)
+        guard let client = model.client, let sync = model.sync, let endpoint = model.endpoint,
+            let profile = model.activeProfile
+        else { return }
+        let next = CatalogModel(
+            client: client, replica: sync.replica, queue: sync.queue, profileId: profile.id,
+            hidingKids: profile.hideKidsContent == true)
         catalog = next
-        let sets = CollectionsModel(client: client)
+        let sets = CollectionsModel(
+            client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profile.id)
         collections = sets
-        let tuned = StationsModel(client: client, profileId: profile.id)
+        let tuned = StationsModel(
+            client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profile.id)
         stations = tuned
         Task { await sets.load() }
         let output = AVAudioOutput()
@@ -279,7 +279,9 @@ struct MainView: View {
         player.attach(nowPlaying)
         music = player
         entered(player)
-        let lists = PlaylistsModel(client: client, profileId: profile.id, adult: profile.kind == .adult)
+        let lists = PlaylistsModel(
+            client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profile.id,
+            adult: profile.kind == .adult)
         playlists = lists
         Task { await lists.load() }
         if profile.kind == .adult {

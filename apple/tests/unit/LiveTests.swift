@@ -56,26 +56,14 @@ final class LiveFeedTests: XCTestCase {
         await Task.yield()
         await follow([
             (.ok, Fixtures.events("c0")),
-            (.ok, Fixtures.events("c1", [#"{"kind":"watch_state","itemId":20}"#])),
+            (.ok, Fixtures.events("c1", [#"{"kind":"playback","change":"moved","sessionId":7}"#])),
             (.ok, Fixtures.events("c2")),
-            (.ok, Fixtures.events("c3", [#"{"kind":"station","stationId":4}"#, #"{"kind":"playlist"}"#])),
+            (.ok, Fixtures.events("c3", [#"{"kind":"watch_together","change":"opened"}"#, #"{"kind":"playlist"}"#])),
         ])
-        XCTAssertEqual(
-            transport.queries(.get, "/events"),
-            [
-                "kinds=library&kinds=household", "after=c0&kinds=library&kinds=household",
-                "after=c1&kinds=library&kinds=household", "after=c2&kinds=library&kinds=household",
-                "after=c3&kinds=library&kinds=household",
-            ])
-        XCTAssertEqual([feed.watched, feed.stations, feed.playlists, feed.together], [1, 1, 1, 0])
+        XCTAssertEqual(transport.queries(.get, "/events"), ["", "after=c0", "after=c1", "after=c2", "after=c3"])
         let batches = await heard.value
-        XCTAssertEqual(batches.map { $0.map(\.kind) }, [[.watchState], [.station, .playlist]])
-        XCTAssertEqual(batches.first?.first?.itemId, 20)
-    }
-
-    func testAResyncReloadsEverything() async {
-        await follow([(.ok, Fixtures.events("c0")), (.ok, Fixtures.events("c1", resync: true))])
-        XCTAssertEqual([feed.watched, feed.stations, feed.playlists, feed.together, feed.household], [1, 1, 1, 1, 1])
+        XCTAssertEqual(batches.map { $0.map(\.kind) }, [[.playback], [.watchTogether, .playlist]])
+        XCTAssertEqual(batches.first?.first?.sessionId, 7)
     }
 
     func testAFailedPollIsAskedAgainFromTheSameCursorAfterAGrowingWait() async {
@@ -86,9 +74,7 @@ final class LiveFeedTests: XCTestCase {
             down,
         ])
         XCTAssertEqual(waits, [.seconds(1), .seconds(2), .seconds(4), .seconds(1)])
-        XCTAssertEqual(
-            transport.queries(.get, "/events").filter { $0 == "after=c0&kinds=library&kinds=household" }.count, 4)
-        XCTAssertEqual(feed.playlists, 1)
+        XCTAssertEqual(transport.queries(.get, "/events").filter { $0 == "after=c0" }.count, 4)
     }
 
     func testALockedDeviceIsNotAskedAgain() async {
@@ -97,23 +83,25 @@ final class LiveFeedTests: XCTestCase {
         XCTAssertTrue(waits.isEmpty)
     }
 
-    func testFollowingAgainOnReturnReloadsEverythingOnce() async {
-        await follow([(.ok, Fixtures.events("c0"))])
-        XCTAssertEqual(feed.watched, 0)
-        await follow([(.ok, Fixtures.events("c5"))])
-        XCTAssertEqual([feed.watched, feed.stations, feed.playlists, feed.together], [1, 1, 1, 1])
+    func testEachCommitToTheReplicaMovesItsGroupsCount() async throws {
+        let app = try SyncedApp()
+        defer { app.remove() }
+        let sync = try await app.synced()
+        let live = app.model.live
+        await app.until { live.library > 0 && live.household > 0 }
+        let before = [live.library, live.watched, live.playlists, live.stations, live.household]
+        XCTAssertEqual(before.filter { $0 == 0 }, [], "a new replica changes every group")
+        try await sync.replica.write { try $0.watch(20, for: 1, position: 5) }
+        await app.until { live.watched > before[1] }
+        try await sync.replica.write {
+            try $0.execute(sql: "INSERT INTO playlist(id, account_id, name) VALUES (1, 1, 'Road')")
+        }
+        await app.until { live.playlists > before[2] }
+        try await sync.replica.write { try $0.account(9, "Sam") }
+        await app.until { live.household > before[4] }
         XCTAssertEqual(
-            transport.queries(.get, "/events"),
-            [
-                "kinds=library&kinds=household", "after=c0&kinds=library&kinds=household",
-                "kinds=library&kinds=household", "after=c5&kinds=library&kinds=household",
-            ])
-        XCTAssertEqual(feed.household, 1)
-    }
-
-    func testAHouseholdEventIsCountedApart() async {
-        await follow([(.ok, Fixtures.events("c0")), (.ok, Fixtures.events("c1", [#"{"kind":"household"}"#]))])
-        XCTAssertEqual([feed.watched, feed.stations, feed.playlists, feed.together, feed.household], [0, 0, 0, 0, 1])
+            [live.library, live.watched, live.playlists, live.stations, live.household],
+            [before[0], before[1] + 1, before[2] + 1, before[3], before[4] + 1])
     }
 }
 
@@ -257,52 +245,25 @@ final class HandoffTests: XCTestCase {
         XCTAssertEqual(model.current?.id, 5)
         XCTAssertEqual(model.partnerName, "Living Room")
     }
-
-    func testTheCatalogTakesTheWatchStateAnEventNamesAndForgetsOneTheServerDropped() async {
-        let state =
-            #"{"itemId":20,"positionMs":61000,"watched":false,"playCount":0,"updatedAt":"2026-11-14T20:00:00Z"}"#
-        transport.routes["GET /profiles/1/watch-state/20"] = (.ok, state)
-        let catalog = CatalogModel(client: client, profileId: 1)
-        transport.routes["GET /items"] = (.ok, Fixtures.page([Fixtures.item(20, "movie", "Dune")]))
-        transport.routes["GET /profiles/1/watch-state"] = (.ok, Fixtures.page([]))
-        await catalog.load()
-        XCTAssertFalse(catalog.catalog.isInProgress(20))
-        await catalog.heard([Fixtures.decode(#"{"kind":"watch_state","itemId":20}"#, as: LiveEvent.self)])
-        XCTAssertTrue(catalog.catalog.isInProgress(20))
-        transport.routes["GET /profiles/1/watch-state/20"] = nil
-        let ended = #"{"kind":"playback","change":"ended","itemId":20}"#
-        await catalog.heard([Fixtures.decode(ended, as: LiveEvent.self)])
-        XCTAssertFalse(catalog.catalog.isInProgress(20))
-    }
-
-    func testAFinishedScanReloadsTheCatalog() async {
-        transport.routes["GET /items"] = (.ok, Fixtures.page([Fixtures.item(20, "movie", "Dune")]))
-        transport.routes["GET /profiles/1/watch-state"] = (.ok, Fixtures.page([]))
-        let catalog = CatalogModel(client: client, profileId: 1)
-        await catalog.heard([Fixtures.decode(#"{"kind":"library","libraryId":2}"#, as: LiveEvent.self)])
-        XCTAssertNotNil(catalog.catalog.item(20))
-    }
 }
 
 @MainActor
 final class FollowLiveTests: XCTestCase {
-    func testFollowingAgainReloadsTheCatalog() async throws {
-        let transport = RoutingTransport([
-            "POST /auth/sign-in": (.created, Fixtures.signedIn), "GET /me": (.ok, Fixtures.me),
-        ])
-        let model = AppModel(store: MemoryCredentialStore(), deviceName: "Test Mac", transport: transport)
-        try await model.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
-        var polls = 0
-        transport.respond = { sent in
-            guard sent.path == "/events" else { return nil }
-            polls += 1
-            return [2, 10].contains(polls) ? (.notFound, Fixtures.error("not_found")) : (.ok, Fixtures.events("c"))
+    func testAFollowingCatalogReadsWhatTheReplicaCommitsAndASnapshotThatLandedFirst() async throws {
+        let app = try SyncedApp { db in
+            try db.account(1, "Avery")
+            try db.item(20, "movie", "Dune")
         }
-        let catalog = CatalogModel(client: try XCTUnwrap(model.client), profileId: 1)
-        func loads() -> Int { transport.paths(.get).filter { $0 == "/items" }.count }
-        await model.followLive(catalog, inView: true)
-        XCTAssertEqual(loads(), 0)
-        await model.followLive(catalog, inView: true)
-        XCTAssertGreaterThan(loads(), 0, "following again loads everything once")
+        defer { app.remove() }
+        let sync = try await app.synced()
+        let early = CatalogModel(client: try XCTUnwrap(app.model.client), replica: sync.replica, profileId: 1)
+        let following = Task { await app.model.followLive(early, inView: true) }
+        await app.until { early.catalog.item(20) != nil }
+        XCTAssertNotNil(early.catalog.item(20), "read on following, as no commit came after it")
+        try await sync.replica.write { try $0.watch(20, for: 1, position: 60_000) }
+        await app.until { early.catalog.isInProgress(20) }
+        XCTAssertTrue(early.catalog.isInProgress(20))
+        following.cancel()
+        await following.value
     }
 }

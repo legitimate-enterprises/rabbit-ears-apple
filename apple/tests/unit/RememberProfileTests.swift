@@ -23,7 +23,9 @@ final class RememberProfileTests: XCTestCase {
     }
 
     private func model(remembering: Bool = true) -> AppModel {
-        AppModel(store: store, deviceName: "Test Mac", rememberProfileByDefault: remembering, transport: transport)
+        AppModel(
+            store: store, deviceName: "Test Mac", rememberProfileByDefault: remembering, transport: transport,
+            replicaDirectory: Fixtures.replicas)
     }
 
     /// Signs in, picks a profile, and returns a fresh model on the same

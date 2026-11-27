@@ -19,7 +19,8 @@ final class AppModelTests: XCTestCase {
             "POST /profiles/1/unlock": (.noContent, ""),
             "POST /profiles/2/unlock": (.noContent, ""),
         ])
-        model = AppModel(store: store, deviceName: "Test Mac", transport: transport)
+        model = AppModel(
+            store: store, deviceName: "Test Mac", transport: transport, replicaDirectory: Fixtures.replicas)
     }
 
     func testSignInStoresTheTokenAndServerThenAsksWhoIsWatching() async throws {
@@ -293,26 +294,6 @@ final class AppModelTests: XCTestCase {
         XCTAssertNotNil(store.server)
     }
 
-    func testPreferencesSaveUppercaseAndTheActiveProfileWearsThem() async throws {
-        try await model.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
-        let avery = try XCTUnwrap(model.profiles.first)
-        try await model.choose(avery)
-        let saved = Fixtures.adult.replacingOccurrences(
-            of: #""filterMode""#, with: ##""color":"#2E6B5B","hideKidsContent":true,"filterMode""##)
-        transport.routes["PUT /profiles/1/preferences"] = (.ok, saved)
-        transport.routes["GET /me"] = (.ok, Fixtures.me.replacingOccurrences(of: Fixtures.adult, with: saved))
-        try await model.savePreferences(for: avery, color: "#2e6b5b", hideKidsContent: true)
-        let sent = transport.json(.put, "/profiles/1/preferences")
-        XCTAssertEqual(sent?["color"] as? String, "#2E6B5B")
-        XCTAssertEqual(sent?["hideKidsContent"] as? Bool, true)
-        XCTAssertEqual(model.activeProfile?.color, "#2E6B5B")
-        XCTAssertEqual(model.activeProfile?.hideKidsContent, true)
-        transport.routes["PUT /profiles/1/preferences"] = (.forbidden, Fixtures.error("forbidden", "Not yours."))
-        await assertThrows(.server("Not yours.")) {
-            try await self.model.savePreferences(for: avery, color: nil, hideKidsContent: false)
-        }
-    }
-
     func testOnlyKidsOnAnAllowListAreOfferedPerTitle() async throws {
         let listed = Fixtures.account(3, "Sam", kind: "kid").replacingOccurrences(
             of: #""ratings""#, with: #""allow_list""#)
@@ -356,19 +337,13 @@ final class KeychainCredentialStoreTests: XCTestCase {
 }
 
 extension AppModelTests {
-    func testSigningOutOrARevokedTokenLeavesNoKeptAnswerOrCachedResponse() async throws {
-        let directory = FileManager.default.temporaryDirectory.appending(path: "Responses \(UUID().uuidString)")
+    func testSigningOutOrARevokedTokenLeavesNoReplicaOrCachedResponse() async throws {
+        let directory = Fixtures.replicas
         defer { try? FileManager.default.removeItem(at: directory) }
-        let cache = ResponseCache(directory: directory)
-        model = AppModel(store: store, deviceName: "Test Mac", transport: transport, cache: cache)
-        transport.routes["GET /items"] = (.ok, Fixtures.page([Fixtures.item(20, "movie", "Dune")]))
+        model = AppModel(store: store, deviceName: "Test Mac", transport: transport, replicaDirectory: directory)
         let request = URLRequest(url: URL(string: "http://rabbit.local:8477/api/v1/items/20/artwork/poster")!)
-        func keep() async throws {
-            let client = ServerEndpoint.default.client(token: "t", transport: transport, cache: cache)
-            _ = try await client.getMe()
-            _ = try await client.listItems(query: .init()).ok
-            XCTAssertFalse(
-                try FileManager.default.contentsOfDirectory(atPath: directory.path(percentEncoded: false)).isEmpty)
+        func keep() throws {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: directory.path(percentEncoded: false)), "opened")
             let response = try XCTUnwrap(
                 HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil))
             // In memory only: a disk write lands at a time of its own, maybe after the clear.
@@ -377,23 +352,22 @@ extension AppModelTests {
                     response: response, data: Data("jpeg".utf8), userInfo: nil, storagePolicy: .allowedInMemoryOnly),
                 for: request)
         }
-        func assertForgotten(file: StaticString = #filePath, line: UInt = #line) {
-            XCTAssertFalse(
-                FileManager.default.fileExists(atPath: directory.path(percentEncoded: false)), file: file, line: line)
-            XCTAssertNil(URLCache.shared.cachedResponse(for: request), file: file, line: line)
+        func forgotten() -> Bool {
+            !FileManager.default.fileExists(atPath: directory.path(percentEncoded: false))
+                && URLCache.shared.cachedResponse(for: request) == nil
         }
 
         transport.routes["POST /auth/sign-out"] = (.noContent, "")
         try await model.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
-        try await keep()
+        try keep()
         await model.signOut()
-        assertForgotten()
+        XCTAssertTrue(forgotten())
 
         store.token = "old"
-        try await keep()
         transport.routes["GET /me"] = (.unauthorized, Fixtures.error("unauthorized"))
         await model.restore()
         XCTAssertEqual(model.phase, .signedOut)
-        assertForgotten()
+        for _ in 0..<300 where !forgotten() { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertTrue(forgotten())
     }
 }

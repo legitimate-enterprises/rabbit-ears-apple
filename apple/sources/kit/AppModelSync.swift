@@ -1,0 +1,175 @@
+import Foundation
+import OpenAPIRuntime
+import RabbitEarsAPI
+
+/// The replica of the signed-in server, the queue of this device's actions
+/// on it and the engine that keeps it in step, from sign-in to sign-out.
+@MainActor
+public final class SyncSession {
+    public let replica: Replica
+    public let queue: ActionQueue
+    public let engine: SyncEngine
+    private let live: LiveFeed
+    private var following: Task<Void, Never>?
+    private var followers = 0
+    private var pump: Task<Void, Never>?
+    private var toldUnsupported = false
+
+    /// The longest a sign-out waits for the queue to reach the server.
+    static let lastFlush = Duration.seconds(3)
+
+    private struct Unsent: Error {}
+
+    /// Opens what `directory` keeps, and catches up off the way in. Each
+    /// commit to the replica moves `live`'s count for it.
+    init(
+        directory: URL, endpoint: ServerEndpoint, token: String, transport: (any ClientTransport)?, live: LiveFeed,
+        signOut: @escaping @MainActor () async -> Void
+    ) {
+        let replica = Replica(directory: directory)
+        // One that does not open stays empty, and every read finds nothing until a snapshot.
+        try? replica.open()
+        let wakes = Wakes()
+        let queue = ActionQueue(
+            replica: replica, client: endpoint.client(token: token, transport: transport),
+            notice: { operation, _ in Task { @MainActor in live.say(Self.rejected(operation)) } },
+            afterFlush: { Task { @MainActor in wakes.engine?.wake() } })
+        engine = SyncEngine(
+            replica: replica, endpoint: endpoint, token: token, transport: transport,
+            flush: {
+                // No replica yet to send against: the snapshot comes first.
+                guard !replica.isEmpty else { return }
+                switch await queue.flush() {
+                case .done: return
+                // The engine signs out on it, as on a refused read.
+                case .refused(let error): throw error
+                case .offline, .unsupported: throw Unsent()
+                }
+            }, signOut: signOut)
+        wakes.engine = engine
+        self.replica = replica
+        self.queue = queue
+        self.live = live
+        pump = Task { for await group in replica.changes { live.changed(group) } }
+        if replica.lostActions { live.say("Some changes made offline were lost.") }
+        Task { [engine] in
+            try? await engine.catchUp()
+            self.check()
+        }
+    }
+
+    /// Starts the one sync loop for the first view following; `unfollow` ends it with the last.
+    func follow() {
+        followers += 1
+        guard following == nil else { return }
+        following = Task {
+            await engine.follow()
+            check()
+            // Refused or unsupported: the next view to follow tries again.
+            if !Task.isCancelled { following = nil }
+        }
+    }
+
+    func unfollow() {
+        followers -= 1
+        guard followers == 0 else { return }
+        following?.cancel()
+        following = nil
+    }
+
+    /// Stops syncing, gives the queue `lastFlush` to reach the server, and
+    /// deletes the replica and whatever is still unsent.
+    func end() async {
+        following?.cancel()
+        following = nil
+        pump?.cancel()
+        if !replica.isEmpty {
+            let (done, finished) = AsyncStream.makeStream(of: Void.self)
+            let flushing = Task { [queue] in
+                _ = await queue.flush()
+                finished.finish()
+            }
+            let limit = Task {
+                try? await Task.sleep(for: Self.lastFlush)
+                finished.finish()
+            }
+            for await _ in done {}
+            flushing.cancel()
+            limit.cancel()
+        }
+        try? replica.wipe()
+    }
+
+    private func check() {
+        guard engine.unsupported, !toldUnsupported else { return }
+        toldUnsupported = true
+        live.say("Update Rabbit Ears to keep this device in sync.")
+    }
+
+    /// The line a user reads when the server refused one of their changes.
+    static func rejected(_ operation: String) -> String {
+        let named: [(String, String)] = [
+            ("Share", "a playlist share"), ("Playlist", "a playlist"), ("Collection", "a collection"),
+            ("Station", "a station"), ("WatchState", "watch progress"), ("Kids", "a kids' content setting"),
+            ("recordPlay", "a play"), ("Preferences", "profile settings"), ("llowItem", "an allow list"),
+        ]
+        return "Couldn't save \(named.first { operation.contains($0.0) }?.1 ?? "a change")."
+    }
+}
+
+extension AppModel {
+    /// The client of a session, and its sync opened. A `fresh` sign-in, as
+    /// to another server or household, starts from no replica.
+    func connect(_ endpoint: ServerEndpoint, token: String, fresh: Bool) async -> Client {
+        end()
+        await ending?.value
+        if fresh { try? Replica(directory: replicaDirectory).wipe() }
+        sync = SyncSession(
+            directory: replicaDirectory, endpoint: endpoint, token: token, transport: transport, live: live
+        ) { [weak self] in await self?.signOut() }
+        let changes = live.changes()
+        sections = Task { [weak self] in
+            for await group in changes where group == .library {
+                await self?.loadLibrarySections()
+                await self?.downloads?.loadLibraries()
+            }
+        }
+        let client = endpoint.client(
+            token: token, transport: transport, generation: generation, offline: downloads
+        ) { [weak self] in self?.lockedOut() }
+        let plays = sync.map { session in
+            let queue = session.queue
+            // A position is saved at the queue's own instant, which is the report's.
+            return LocalPlays(
+                progress: { profile, item, edition, positionMs, watched, _ in
+                    try? await queue.putWatchState(
+                        watched, positionMs: positionMs, edition: edition, item: item, as: profile)
+                },
+                finished: { profile, item, edition, at in
+                    try? await queue.recordPlay(item: item, edition: edition, as: profile, at: at)
+                })
+        }
+        downloads?.connect(client: client, endpoint: endpoint, token: token, replica: sync?.replica, plays: plays)
+        return client
+    }
+
+    /// Ends the open session, if any, in the background.
+    func end() {
+        guard let sync else { return }
+        self.sync = nil
+        sections?.cancel()
+        let before = ending
+        ending = Task {
+            await before?.value
+            await sync.end()
+        }
+    }
+
+    static func keptMe(_ endpoint: ServerEndpoint) -> String { "me \(endpoint.baseURL.absoluteString)" }
+}
+
+/// The engine the queue wakes after a flush, set once both exist.
+@MainActor
+private final class Wakes {
+    weak var engine: SyncEngine?
+}

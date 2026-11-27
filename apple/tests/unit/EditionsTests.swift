@@ -74,25 +74,71 @@ final class EditionsTests: XCTestCase {
         XCTAssertNil(Editions.started(.none, item: 21, in: catalog, together: false))
     }
 
+    /// Dune (20) has two untagged cuts with files, one tagged, and one with
+    /// none; Kit (3), a kid to PG, may not see it.
+    private func dune(missingFirstCut: Bool = false) throws -> Replica {
+        let fixture = ReplicaFixture()
+        addTeardownBlock { fixture.remove() }
+        return try fixture.v1 { db in
+            try db.account(1, "Avery")
+            try db.account(3, "Kit", kind: "kid", movies: "PG")
+            try db.item(20, "movie", "Dune", rating: "PG-13")
+            try db.edition(5, of: 20, runtimeMs: 8_280_000)
+            try db.file(50, in: 5, width: 1920, height: 1080, missing: missingFirstCut)
+            try db.edition(6, of: 20, tag: "Extended")
+            try db.file(61, in: 6, width: 1280, height: 720, size: 9000, durationMs: 13_680_000, missing: true)
+            try db.file(60, in: 6, width: 3840, height: 2160, hdr: "dolby_vision", size: 10, durationMs: 13_000_000)
+            try db.edition(7, of: 20, runtimeMs: 7_000_000)
+            try db.file(70, in: 7)
+            try db.edition(8, of: 20, tag: "Workprint")
+        }
+    }
+
+    @MainActor
+    func testEditionsAreNamedTheDefaultFirstThenByNameEachCopyTallestFirst() async throws {
+        let replica = try dune()
+        let editions = await CatalogModel(
+            client: ServerEndpoint.default.client(token: "t"), replica: replica, profileId: 1
+        )
+        .editions(20)
+        XCTAssertEqual(editions.map(\.id), [5, 7, 6], "Workprint has no file")
+        XCTAssertEqual(editions.map(\.name), ["138-minute cut", "117-minute cut", "Extended"])
+        XCTAssertEqual(editions.map(\.isDefault), [true, false, false])
+        XCTAssertEqual(editions.map(\.runtimeMs), [8_280_000, 7_000_000, 13_680_000], "else its largest file's")
+        let extended = editions[2].copies
+        XCTAssertEqual(extended.map(\.mediaFileId), [60, 61])
+        XCTAssertEqual(extended.map(\.quality), ["4K", "720p"])
+        XCTAssertEqual(extended.map(\.hdrFormat), [.dolbyVision, nil])
+        XCTAssertEqual(extended.map(\.unavailable), [nil, true])
+        XCTAssertEqual(editions[1].copies.map(\.quality), [nil], "no video")
+        XCTAssertEqual(Editions.label(editions[0]), "138-minute cut · 2h 18m · 1080p")
+
+        let kid = await CatalogModel(client: ServerEndpoint.default.client(token: "t"), replica: replica, profileId: 3)
+            .editions(20)
+        XCTAssertEqual(kid, [])
+    }
+
+    @MainActor
+    func testTheDefaultIsTheFirstUntaggedCutWithAFileOnDisk() async throws {
+        let editions = await CatalogModel(
+            client: ServerEndpoint.default.client(token: "t"), replica: try dune(missingFirstCut: true), profileId: 1
+        ).editions(20)
+        XCTAssertEqual(editions.map(\.id), [7, 5, 6])
+        XCTAssertEqual(editions.first?.isDefault, true)
+    }
+
     @MainActor
     func testDetailsReadTheEditionsPreselectAndDescribeTheChosenCopy() async throws {
         func file(_ id: Int64) -> String {
             #"{"id":\#(id),"itemId":20,"path":"/media/f\#(id).mkv","sizeBytes":1,"modifiedAt":"2026-01-01T00:00:00Z","#
                 + #""chapters":[],"tracks":[]}"#
         }
-        let item = String(Fixtures.item(20, "movie", "Ferrous Tide").dropLast())
-        let transport = RoutingTransport([
-            "GET /items": (.ok, Fixtures.page([Fixtures.item(20, "movie", "Ferrous Tide")])),
-            "GET /profiles/1/watch-state": (.ok, Fixtures.page([Fixtures.watch(20, position: 600_000, edition: 6)])),
-            "GET /items/20": (
-                .ok,
-                item + #","editions":[\#(Fixtures.edition(5, "Standard", isDefault: true)),"#
-                    + #"\#(Fixtures.edition(6, "Extended"))]}"#
-            ),
-            "GET /media-files": (.ok, Fixtures.page([file(50), file(60)])),
-        ])
+        let transport = RoutingTransport(["GET /media-files": (.ok, Fixtures.page([file(50), file(60)]))])
+        let replica = try dune()
+        try await replica.write { try $0.watch(20, for: 1, position: 600_000, edition: 6) }
         let model = CatalogModel(
-            client: ServerEndpoint(userInput: "192.168.1.9")!.client(token: "t", transport: transport), profileId: 1)
+            client: ServerEndpoint(userInput: "192.168.1.9")!.client(token: "t", transport: transport),
+            replica: replica, profileId: 1)
         await model.load()
         let choice = EditionChoice()
         XCTAssertEqual(choice.sent(together: false), .none, "unread: the start resumes the position's edition")

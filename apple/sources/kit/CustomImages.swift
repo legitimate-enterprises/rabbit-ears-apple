@@ -32,21 +32,18 @@ public struct ArtChoice: Hashable, Sendable, Identifiable {
 /// An owner's Set image request: where it goes, and the playlist whose titles it may pick from.
 public struct ImageRequest: Identifiable, Sendable {
     public let target: ImageTarget
-    public let profileId: Int64
     public let playlistId: Int64
     public let hasImage: Bool
     public var id: ImageTarget { target }
 
     public init(playlist: Playlist, profileId: Int64) {
         target = .playlist(profileId: profileId, playlistId: playlist.id)
-        self.profileId = profileId
         playlistId = playlist.id
         hasImage = playlist.imageUrl != nil
     }
 
-    public init(station: Station, profileId: Int64) {
+    public init(station: Station) {
         target = .station(station.id)
-        self.profileId = profileId
         playlistId = station.playlistId
         hasImage = station.imageUrl != nil
     }
@@ -110,17 +107,6 @@ public final class CustomImageModel {
     let client: Client
 
     public init(client: Client) { self.client = client }
-
-    /// What "Pick a title's artwork" offers from the playlist's entries; empty when none or unread.
-    public func choices(profileId: Int64, playlistId: Int64) async -> [ArtChoice] {
-        let entries = try? await allPages { offset in
-            let page = try await self.client.listPlaylistEntries(
-                path: .init(profileId: profileId, playlistId: playlistId), query: .init(limit: 200, offset: offset)
-            ).ok.body.json
-            return (page.items, page.nextOffset)
-        }
-        return CustomImage.choices(entries ?? [])
-    }
 
     /// True once the server keeps it.
     public func set(_ source: ImageSource, on target: ImageTarget) async -> Bool {

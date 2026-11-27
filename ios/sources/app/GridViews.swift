@@ -52,10 +52,6 @@ struct GridView: View {
             .padding(EdgeInsets(top: 0, leading: 20, bottom: 20, trailing: 20))
         }
         .environment(reloader)
-        // Hiding kids' content leaves them out of the catalog; the pill reads them apart.
-        .task(id: "\(shown.rawValue)/\(model.hidingKids)/\(ObjectIdentifier(model).hashValue)") {
-            if shown == .kids { await model.showKids(kind) }
-        }
         .pulling { await reload() }
         .selecting(selection, view == .titles ? (kind == .movie ? .movie : .show) : nil)
         .onAppear {

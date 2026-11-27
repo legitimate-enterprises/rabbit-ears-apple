@@ -1,4 +1,5 @@
 import AppKit
+import GRDB
 import RabbitEarsAPI
 import SwiftUI
 import XCTest
@@ -13,15 +14,23 @@ final class MiniPlayerTests: XCTestCase {
             "POST /auth/sign-in": (.created, Fixtures.signedIn),
             "GET /me": (.ok, Fixtures.me),
             "POST /profiles/1/unlock": (.noContent, ""),
-            "GET /music/albums/50": (.ok, Fixtures.album(50, "In Rainbows")),
-            "GET /music/albums": (.ok, Fixtures.page([])),
-            "GET /music/songs": (.ok, Fixtures.page([Fixtures.song(1, "15 Step", track: 1)])),
             "POST /playback/sessions": (.created, Fixtures.audioStream(1)),
         ])
-        let model = AppModel(store: MemoryCredentialStore(), deviceName: "Test Mac", transport: transport)
+        let model = AppModel(
+            store: MemoryCredentialStore(), deviceName: "Test Mac", transport: transport,
+            replicaDirectory: Fixtures.replicas)
         // A loopback server, so the player's stream fails at once rather than reaching the network.
         try await model.signIn(server: "127.0.0.1", email: "a@example.test", password: "x")
         try await model.choose(model.profiles[0])
+        let fixture = ReplicaFixture()
+        defer { fixture.remove() }
+        try XCTUnwrap(model.sync).replica.adopt(
+            fixture.v1File { db in
+                try db.account(1, "Avery")
+                try db.artist(40, "Radiohead")
+                try db.album(50, "In Rainbows", artist: 40, year: 2007)
+                try db.song(1, "15 Step", album: 50, track: 1)
+            })
         let browser = Browser()
         var player: MusicPlayer?
         let controller = NSHostingController(

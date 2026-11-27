@@ -13,7 +13,8 @@ final class PlatformTests: XCTestCase {
             "POST /join/ABCD-EFGH": (.created, Fixtures.signedIn),
         ])
         let model = AppModel(
-            store: MemoryCredentialStore(), deviceName: "iPhone", platform: .ios, transport: transport)
+            store: MemoryCredentialStore(), deviceName: "iPhone", platform: .ios, transport: transport,
+            replicaDirectory: Fixtures.replicas)
         try await model.signIn(server: "rabbit.local", email: "a@example.test", password: "secret")
         let signIn = try XCTUnwrap(transport.body(.post, "/auth/sign-in"))
         XCTAssertEqual(Fixtures.decode(signIn, as: Components.Schemas.SignInRequest.self).platform, .ios)

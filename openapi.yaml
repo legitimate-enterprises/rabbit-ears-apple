@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rabbit Ears API
-  version: 0.19.2
+  version: 0.21.0
   description: |
     REST API of the Rabbit Ears media server. This document's version is the
     server's. A breaking change takes a new path; additive changes bump the
@@ -15,7 +15,8 @@ info:
     their adult's device token. Operations whose security lists the `admin`
     scope require the device's adult to be an admin. A device locked at
     Who's watching answers 403 `device_locked` to every operation not marked
-    `x-while-locked`.
+    `x-while-locked`. An operation marked `x-replayable` may also run later,
+    queued by a client while offline, through replaySyncActions.
 
     Every error response carries the Error schema. Lists are paged with
     `limit` and `offset`; a page carries `nextOffset` only when more follow.
@@ -51,6 +52,7 @@ tags:
   - name: together
   - name: stations
   - name: events
+  - name: sync
   - name: downloads
   - name: admin
 
@@ -997,6 +999,7 @@ paths:
         household. An active kid sets their own autoplay only. Another
         adult's profile, a kid's hideKidsContent, and anything else while
         a kid is active answer 403.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -1084,6 +1087,7 @@ paths:
     put:
       operationId: allowItem
       tags: [profiles]
+      x-replayable: true
       responses:
         "204": { description: Allowed; idempotent. }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -1092,6 +1096,7 @@ paths:
     delete:
       operationId: disallowItem
       tags: [profiles]
+      x-replayable: true
       responses:
         "204": { description: Removed. }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -1144,6 +1149,7 @@ paths:
       operationId: putWatchState
       tags: [profiles]
       summary: Mark watched or unwatched, or set a resume position.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -1161,8 +1167,52 @@ paths:
     delete:
       operationId: deleteWatchState
       tags: [profiles]
+      x-replayable: true
+      parameters:
+        - name: at
+          in: query
+          description: >-
+            When it was forgotten, as a device that was offline knows it; a
+            time ahead of the server's is taken as now. A state that changed
+            later stays, and the answer is still 204.
+          schema: { type: string, format: date-time }
       responses:
         "204": { description: Forgotten. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /profiles/{profileId}/watch-state/{itemId}/plays:
+    parameters:
+      - $ref: "#/components/parameters/ProfileId"
+      - $ref: "#/components/parameters/ItemId"
+    post:
+      operationId: recordPlay
+      tags: [profiles]
+      summary: Count one finished play the server did not see.
+      description: >-
+        For a play the server did not stream, such as of a downloaded file,
+        sent once per play when it ends. playCount goes up by one, and
+        lastPlayedAt becomes the latest play, in whatever order plays and
+        putWatchState arrive. Over a state that changed no later than at,
+        the item is watched and resumes from the start of the edition
+        played; a state that changed later stays. Playback the server
+        streams counts a play only when it marks the item watched, so a
+        client sends no putWatchState with watched true for a play it
+        records.
+      x-replayable: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlayInput" }
+      responses:
+        "200":
+          description: The state with the play counted.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WatchState" }
+        "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/NotFound" }
 
@@ -1243,6 +1293,7 @@ paths:
         it the profile may see, a channel every video of it. Another kind
         answers 400 with the field itemIds; an item the profile may not see
         is not found. Nothing is marked unless every item may be.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -1265,6 +1316,7 @@ paths:
         `setYouTubeChannelForKids` does. Any adult; while a kid is active
         this answers 403. Any other kind of item is not found, and nothing
         is set unless every item may be.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -1287,10 +1339,12 @@ paths:
       summary: Add many to a playlist, appended in order.
       description: >-
         Each entry is checked as `addPlaylistEntry` checks it, and its
-        position is ignored; a title of several editions without an
+        position and rank are ignored: the entries take the ranks of
+        generateNKeysBetween after the last entry's; a title of several editions without an
         editionId takes its default edition. A station's own playlist is
         written through its owner's profile, as `addPlaylistEntry` writes
         it. Nothing is added unless every entry may be.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -1820,6 +1874,7 @@ paths:
       tags: [items]
       summary: Marks a movie or show as kids' content or not, whatever its rating.
       description: Any adult; while a kid is active this answers 403. Any other kind of item is not found.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -1841,6 +1896,7 @@ paths:
       tags: [items]
       summary: Clears the override, so the rating decides again.
       description: Any adult; while a kid is active this answers 403. Any other kind of item is not found.
+      x-replayable: true
       responses:
         "204": { description: Cleared; idempotent. }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -3988,6 +4044,7 @@ paths:
       tags: [youtube]
       summary: Marks a channel as for kids or not.
       description: Any adult; while a kid is active this answers 403.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -4081,6 +4138,7 @@ paths:
         Marks each video as `putWatchState` does. A channel the profile
         may not see is not found; while a kid is active, another
         profile answers 403.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -4133,6 +4191,7 @@ paths:
       operationId: createPlaylist
       tags: [playlists]
       summary: Makes an empty playlist. A kid's profile, or any while a kid is active, answers 403.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -4172,6 +4231,7 @@ paths:
       operationId: replacePlaylist
       tags: [playlists]
       summary: Renames a playlist. Changing the kind of one that has entries answers 409; anyone but its owner answers 403.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -4193,6 +4253,7 @@ paths:
       operationId: deletePlaylist
       tags: [playlists]
       summary: Deletes a playlist with its entries and shares, and the stations of those it was shared with that play it. One the owner's own station plays answers 409; delete the station, or give it another playlist, first. Anyone but its owner answers 403.
+      x-replayable: true
       responses:
         "204": { description: Deleted with its entries. }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -4241,6 +4302,7 @@ paths:
         editionId. An editionId of another item, or on a show, season,
         album, artist or collection, answers 400. The entry keeps its
         edition when the title gains another.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -4319,6 +4381,7 @@ paths:
       tags: [playlists]
       summary: Reorder. Moves the entry to position, shifting the others; absent position moves it to the end. Access as addPlaylistEntry.
       description: The body names the entry's own item or collection; any other answers 400.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -4339,6 +4402,7 @@ paths:
       operationId: removePlaylistEntry
       tags: [playlists]
       summary: Access as addPlaylistEntry.
+      x-replayable: true
       responses:
         "204": { description: Removed; later entries move up. }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -4379,6 +4443,7 @@ paths:
         already shared with answers 409, as does a station's own
         playlist. A share with someone the owner no longer sees stays,
         and its access may still be changed or the share removed.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -4420,6 +4485,7 @@ paths:
       operationId: replacePlaylistShare
       tags: [playlists]
       summary: Changes a share's access. Owner only; write for a kid answers 400.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -4440,6 +4506,7 @@ paths:
       operationId: deletePlaylistShare
       tags: [playlists]
       summary: Stops sharing with that profile. Owner only. Their stations that play the playlist are deleted with the share, unless a household share still reaches them.
+      x-replayable: true
       responses:
         "204": { description: No longer shared. }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -4481,6 +4548,7 @@ paths:
         profile reached by several shares gets the strongest. Any other
         household answers 400; one it is already shared with answers
         409, as does a station's own playlist.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -4522,6 +4590,7 @@ paths:
       operationId: replacePlaylistHouseholdShare
       tags: [playlists]
       summary: Changes a household share's access. Owner only; its kids still only read.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -4542,6 +4611,7 @@ paths:
       operationId: deletePlaylistHouseholdShare
       tags: [playlists]
       summary: Stops sharing with that household. Owner only. The stations that play the playlist of those it no longer reaches any other way are deleted with the share.
+      x-replayable: true
       responses:
         "204": { description: No longer shared. }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -4746,6 +4816,7 @@ paths:
       operationId: createCollection
       tags: [collections]
       summary: Makes an empty custom collection in the device's household. Answers 403 while a kid is active.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -4782,6 +4853,7 @@ paths:
       operationId: replaceCollection
       tags: [collections]
       summary: Renames a custom collection. A TMDB collection answers 403, as does any while a kid is active.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -4802,6 +4874,7 @@ paths:
       operationId: deleteCollection
       tags: [collections]
       summary: Deletes a custom collection. A TMDB collection answers 403, as does any while a kid is active.
+      x-replayable: true
       responses:
         "204": { description: "Deleted, with every playlist entry that held it; later entries move up on the playlist's next write." }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -4846,6 +4919,7 @@ paths:
         Anything but a movie answers 400; an item the profile may not see
         answers 404; a TMDB collection, or any while a kid is active,
         answers 403.
+      x-replayable: true
       responses:
         "204": { description: Added; idempotent. }
         "400": { $ref: "#/components/responses/BadRequest" }
@@ -4857,6 +4931,7 @@ paths:
       operationId: removeCollectionMovie
       tags: [collections]
       summary: Removes a movie from a custom collection; a movie not in it answers 404. Writes are refused as addCollectionMovie.
+      x-replayable: true
       responses:
         "204": { description: Removed. }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -4879,6 +4954,7 @@ paths:
         holding it and a movie's related collections follow that order. A
         movie added later goes last. A movie not in the collection answers
         404.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -4903,6 +4979,7 @@ paths:
       operationId: resetCollectionOrder
       tags: [collections]
       summary: Returns the collection to release order, clearing every position. Writes are refused as addCollectionMovie.
+      x-replayable: true
       responses:
         "200":
           description: The collection, no longer hand-ordered; idempotent.
@@ -5188,6 +5265,7 @@ paths:
         them answers 400 on playlistId. While a kid is active this answers 403. The
         schedule is written through the end of the next day and the rating
         calculated before the answer, so onAir is already filled.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -5234,6 +5312,7 @@ paths:
         visibility absent keeps the station's. On a server station a
         visibility answers 403: only an admin changes it, through
         setStationServerWide.
+      x-replayable: true
       requestBody:
         required: true
         content:
@@ -5253,6 +5332,7 @@ paths:
       operationId: deleteStation
       tags: [stations]
       summary: Deletes a station with its schedule, and the playlist it owns. Only its owner, active, deletes; any other profile that sees it gets 403.
+      x-replayable: true
       responses:
         "204": { description: Deleted. A session tuned in plays on to the end of its program. }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -5297,6 +5377,7 @@ paths:
       tags: [stations]
       summary: Reschedule now. What is on plays to its end; the schedule is rebuilt from there with the station as it is now, and the rating recalculated.
       description: Only the owner, active; any other profile that sees it gets 403.
+      x-replayable: true
       responses:
         "200":
           description: The station with its new onAir.
@@ -5875,6 +5956,197 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/EventPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /sync/changes:
+    get:
+      operationId: getSyncChanges
+      tags: [sync]
+      summary: What changed in this device's replica since a version.
+      description: |
+        A native client keeps a replica: a local SQLite database of what its
+        household may see, in a sync schema the server defines. It fills it
+        from getSyncSnapshot, then keeps it current from this operation, on
+        every start, return to the foreground, reconnection and ring of
+        waitSyncVersion.
+
+        Every change the server makes moves a version, one global counter.
+        A pass asks with `since`, the version the replica holds, and without
+        `cursor`. An answer with mode `diff` and a `cursor` has more to read:
+        the client asks again with the same `since` and `schema` and that
+        cursor, until an answer comes without one. Each row appears at most
+        once per pass, in its state at the time it was read; it replaces the
+        replica's row of the same key in that table. Each tombstone deletes
+        the replica's row of that key, if it holds one. The replica has no
+        foreign keys, so rows and tombstones apply in the order given or any
+        other.
+
+        `version` is the watermark: a client that applied every page of a
+        pass holds everything up to `version`, and asks from it next time.
+        A page with a `cursor` reports `since` as its `version`, so a client
+        that stops mid-pass keeps its `since` and loses nothing by starting
+        the pass again.
+
+        Mode `snapshot` carries no rows: the client replaces its replica with
+        getSyncSnapshot, then catches up from that snapshot's version. It is
+        the answer, on any page, when `since` is absent; when `since` is older
+        than the deletions the server keeps (90 days) or newer than the
+        server's version, as after a restore; when a change after
+        `since` altered which rows the household's replica holds, such as a
+        membership, adult link, share, profile offer, a station made,
+        deleted or changing visibility, owner or playlist, or a device moving
+        household, or when the server was upgraded; and, on a
+        first page, when more rows changed since `since` than half the
+        replica holds.
+
+        Mode `unsupported` carries no rows: `schema` is outside
+        `ranges.schemaMin` to `ranges.schemaMax`. A client below schemaMin
+        updates before it syncs again; one above schemaMax waits for the
+        server to be upgraded.
+      parameters:
+        - name: schema
+          in: query
+          required: true
+          description: The sync schema the client's replica uses.
+          schema: { type: integer, minimum: 1 }
+        - name: since
+          in: query
+          description: The `version` the replica holds; absent for none.
+          schema: { type: integer, format: int64, minimum: 0 }
+        - name: cursor
+          in: query
+          description: The `cursor` of the previous page of this pass; opaque.
+          schema: { type: string, maxLength: 128 }
+        - name: limit
+          in: query
+          description: At most this many rows and tombstones on the page.
+          schema: { type: integer, minimum: 1, maximum: 5000, default: 1000 }
+      responses:
+        "200":
+          description: A page of changes, or the mode the client must take instead.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SyncChanges" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /sync/snapshot:
+    get:
+      operationId: getSyncSnapshot
+      tags: [sync]
+      summary: This device's whole replica as a SQLite database.
+      description: |
+        The replica of the device's household in sync schema `schema`, as
+        one SQLite database: the schema's tables holding every row the
+        household may see, its views, among them those that apply each
+        profile's kid filter such as profile_item and profile_station, and
+        its indexes. Its
+        one-row table replica_meta holds `schema`, `version`, the version
+        the snapshot was taken at, and `household_id`. The client replaces
+        its replica with the file whole, then asks getSyncChanges with
+        `since` set to replica_meta's `version`. A `schema` outside
+        SyncRanges' schemaMin to schemaMax answers 400.
+      parameters:
+        - name: schema
+          in: query
+          required: true
+          description: The sync schema the client's replica uses.
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: The replica.
+          content:
+            application/vnd.sqlite3:
+              schema: { type: string, format: binary }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /sync/version:
+    get:
+      operationId: waitSyncVersion
+      tags: [sync]
+      summary: Wait until this device's replica has changes to read.
+      description: >-
+        A long poll, held as listEvents is, at most 25 seconds. It answers
+        `changed` true as soon as getSyncChanges since `after` would answer
+        a row, a tombstone or mode `snapshot`, else false when the time is
+        up; it carries no data. A client asks with the version its replica
+        holds while it is in the foreground, runs getSyncChanges on true,
+        and asks again at once on false. A write elsewhere that the
+        household cannot see does not ring, except a deletion from a table
+        keyed by a single id, which reaches every household as a tombstone.
+      parameters:
+        - name: after
+          in: query
+          required: true
+          description: The `version` the replica holds.
+          schema: { type: integer, format: int64, minimum: 0 }
+      responses:
+        "200":
+          description: Whether there are changes to read.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SyncBell" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /sync/actions:
+    post:
+      operationId: replaySyncActions
+      tags: [sync]
+      summary: Replay writes a client queued, in order.
+      description: |
+        A client writes to its replica at once and queues each write as an
+        action naming an operation marked `x-replayable`, to send when it is
+        online. The server runs the actions in `seq` order, each as the
+        request it names would run, with the same validation, permissions
+        and rules, as `actingProfileId`, which must be a profile of the
+        device's household that is not revoked, with that profile's
+        permissions at the time of the replay. A profile's PIN is not asked,
+        and a device locked at Who's watching replays too and stays locked.
+
+        Each action the server answers gets one result: `accepted` when the
+        operation succeeded, `rejected` with the operation's Error `code`
+        when it answered 4xx. An operation not marked `x-replayable`, or a
+        `path` and `method` that are not `operationId`'s, is rejected with
+        `not_replayable`; an `actingProfileId` outside the household, or
+        revoked, with `not_found`. When an operation fails on the server, a 5xx, the
+        batch stops there: that action and every later one are absent from
+        `results`, and the client sends them again later. The client
+        removes from its queue only the actions answered.
+
+        The server remembers each answered action's `id` for 90 days per
+        device: an action sent again answers its stored result without
+        running again. A batch whose `apiVersion` is outside SyncRanges'
+        apiMin to apiMax rejects every action with `unsupported_version`,
+        runs and remembers none.
+
+        After each answered action, accepted or rejected, the server marks
+        every row in its `touched` as changed, or a deletion when the row
+        no longer exists, so the next getSyncChanges brings the replica's
+        copy of each to what the server holds; a row that exists but the
+        household may not see is left alone. A client keeps no rollback of
+        its own.
+
+        A batch that fails validation, names in `touched` a table that is
+        not one of the sync schema's, a key of the wrong length or a key
+        part of the wrong type (an integer for an integer column, a string
+        for a text one), or whose `seq` does not strictly increase, answers
+        400 and runs nothing.
+      x-while-locked: true
+      x-upload: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SyncActionBatch" }
+      responses:
+        "200":
+          description: A result for each action answered, in the batch's order.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SyncActionResults" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
@@ -7596,6 +7868,18 @@ components:
             and is lastPlayedAt; otherwise the stored state stays and is the
             answer.
 
+    PlayInput:
+      type: object
+      required: [at]
+      properties:
+        at:
+          type: string
+          format: date-time
+          description: When the play ended; a time ahead of the server's is taken as now.
+        editionId:
+          $ref: "#/components/schemas/Id"
+          description: The edition, of this item, that played; absent is the default edition.
+
     WatchStatePage:
       type: object
       required: [items]
@@ -8564,6 +8848,10 @@ components:
       required: [watched]
       properties:
         watched: { type: boolean }
+        at:
+          type: string
+          format: date-time
+          description: As WatchStateInput.at, for each video.
 
     # Playlists.
     PlaylistKind:
@@ -8761,6 +9049,7 @@ components:
         id: { $ref: "#/components/schemas/Id" }
         playlistId: { $ref: "#/components/schemas/Id" }
         position: { type: integer, minimum: 0, description: Order from 0 at the top. }
+        rank: { type: string, description: "What orders the playlist's entries, compared bytewise, ties by id: a key of rocicorp/fractional-indexing with its default alphabet. Always sent; optional so a copy a client stored before the field existed still reads." }
         itemId: { $ref: "#/components/schemas/Id", description: Absent for a collection. }
         collectionId: { $ref: "#/components/schemas/Id", description: Present for a collection only. }
         kind: { $ref: "#/components/schemas/PlaylistEntryKind" }
@@ -8785,7 +9074,22 @@ components:
       properties:
         itemId: { $ref: "#/components/schemas/Id" }
         collectionId: { $ref: "#/components/schemas/Id" }
-        position: { type: integer, minimum: 0, description: "Where it goes, from 0; past the end or absent puts it last." }
+        position:
+          type: integer
+          minimum: 0
+          description: >-
+            Where it goes, from 0; past the end or absent puts it last. It
+            takes a rank between its new neighbours', so a late replay can
+            land elsewhere; between two of equal rank it goes after both.
+        rank:
+          type: string
+          pattern: "^[A-Za-z][0-9A-Za-z]*$"
+          maxLength: 255
+          description: >-
+            Where it goes, as PlaylistEntry.rank orders it: a key that
+            generateKeyBetween of rocicorp/fractional-indexing makes with its
+            default alphabet from the neighbours' ranks. Taken as given; not
+            with position. A string that is not such a key answers 400.
         editionId:
           $ref: "#/components/schemas/Id"
           description: An edition of itemId; required when that movie, episode or song has more than one.
@@ -9373,6 +9677,156 @@ components:
         events:
           type: array
           items: { $ref: "#/components/schemas/Event" }
+
+    SyncRanges:
+      type: object
+      description: What this server syncs with.
+      required: [apiMin, apiMax, schemaMin, schemaMax]
+      properties:
+        apiMin: { type: string, description: "The oldest API version, as info.version, whose action batches the server replays." }
+        apiMax: { type: string, description: "The newest such version, the server's own." }
+        schemaMin: { type: integer, minimum: 1, description: The oldest sync schema the server serves. }
+        schemaMax: { type: integer, minimum: 1, description: The newest sync schema the server serves. }
+
+    SyncScalar:
+      description: >-
+        A column value as SQLite holds it: a JSON integer, number, string or
+        null, never a boolean, array or object; true and false are 1 and 0.
+        A key part is never null.
+      x-go-type: any
+
+    SyncTable:
+      type: object
+      description: Rows of one table of the sync schema, each a value per column.
+      required: [name, columns, rows]
+      properties:
+        name: { type: string }
+        columns:
+          type: array
+          items: { type: string }
+        rows:
+          type: array
+          items:
+            type: array
+            x-go-type: "[]any"
+            items: { $ref: "#/components/schemas/SyncScalar" }
+
+    SyncTombstones:
+      type: object
+      description: Rows deleted from one table of the sync schema, each by its primary key, its columns in the table's key order.
+      required: [table, keys]
+      properties:
+        table: { type: string }
+        keys:
+          type: array
+          items:
+            type: array
+            x-go-type: "[]any"
+            minItems: 1
+            maxItems: 3
+            items: { $ref: "#/components/schemas/SyncScalar" }
+
+    SyncChanges:
+      type: object
+      description: One page of a pass of getSyncChanges, or the mode to take instead.
+      required: [mode, ranges]
+      properties:
+        mode: { type: string, enum: [diff, snapshot, unsupported] }
+        ranges: { $ref: "#/components/schemas/SyncRanges" }
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+          description: With diff, the watermark; see getSyncChanges. Absent otherwise.
+        cursor:
+          type: string
+          description: With diff, present while the pass has more pages; pass it back as `cursor`.
+        tables:
+          type: array
+          description: With diff, the rows that changed, by table.
+          items: { $ref: "#/components/schemas/SyncTable" }
+        tombstones:
+          type: array
+          description: With diff, the rows deleted, by table.
+          items: { $ref: "#/components/schemas/SyncTombstones" }
+
+    SyncBell:
+      type: object
+      required: [changed, ranges]
+      properties:
+        changed: { type: boolean, description: True when getSyncChanges since `after` has something to answer. }
+        ranges: { $ref: "#/components/schemas/SyncRanges" }
+
+    SyncActionBatch:
+      type: object
+      required: [apiVersion, actions]
+      properties:
+        apiVersion: { type: string, maxLength: 64, description: "The API version, as info.version, of the spec the client was built from." }
+        actions:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: "#/components/schemas/SyncAction" }
+
+    SyncTouched:
+      type: object
+      description: A row of the sync schema an action may change, by its primary key, its columns in the table's key order.
+      required: [table, key]
+      properties:
+        table: { type: string, maxLength: 64 }
+        key:
+          type: array
+          x-go-type: "[]any"
+          minItems: 1
+          maxItems: 3
+          items: { $ref: "#/components/schemas/SyncScalar" }
+
+    SyncAction:
+      type: object
+      description: One queued write, the request it replays and the replica rows it wrote.
+      required: [id, seq, operationId, method, path, actingProfileId, at, touched]
+      properties:
+        id: { type: string, format: uuid, description: "Chosen by the client, once per action." }
+        seq: { type: integer, format: int64, minimum: 0, description: Its place in the client's queue. }
+        operationId: { type: string, maxLength: 64 }
+        method: { type: string, enum: [PUT, POST, DELETE] }
+        path: { type: string, pattern: "^/", maxLength: 2048, description: "Relative to /api/v1, path parameters filled in and query included." }
+        body: { description: "The request body; absent for none." }
+        actingProfileId: { $ref: "#/components/schemas/Id" }
+        at:
+          type: string
+          format: date-time
+          description: >-
+            When the action was taken on the device. An operation that orders
+            writes by time reads its own instant, the `at` of its body or
+            query, which the client sets to the same.
+        touched:
+          type: array
+          maxItems: 5000
+          description: The replica rows the client wrote for the action, including those it deleted.
+          items: { $ref: "#/components/schemas/SyncTouched" }
+
+    SyncActionResult:
+      type: object
+      required: [id, result]
+      properties:
+        id: { type: string, format: uuid }
+        result: { type: string, enum: [accepted, rejected] }
+        code:
+          type: string
+          description: >-
+            With rejected, an Error code the operation answered, or
+            not_replayable or unsupported_version, as replaySyncActions
+            describes. Not an enum, so a later server may add codes.
+        message: { type: string, description: "With rejected, the Error message." }
+
+    SyncActionResults:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/SyncActionResult" }
 
     PlaybackSession:
       type: object

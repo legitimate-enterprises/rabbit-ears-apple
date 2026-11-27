@@ -136,7 +136,7 @@ final class DownloadStoreTests: XCTestCase {
         XCTAssertTrue(harness.exists(20))
     }
 
-    func testAProfileTheHouseholdNoLongerListsLosesItsDownloadsWhenTheOwnersAnswerSaysSo() async throws {
+    func testAProfileTheHouseholdNoLongerListsLosesItsDownloadsWhenTheOwnersMeSaysSo() async throws {
         for id in [20, 21, 22] { harness.resolves["item/\(id)"] = [Fixtures.downloadTitle(Int64(id), "movie")] }
         try await harness.download(.title(20), profile: 1)
         try await harness.download(.title(22), profile: 2)
@@ -144,14 +144,14 @@ final class DownloadStoreTests: XCTestCase {
         try await harness.download(.title(21), profile: 3)
 
         // Pending adults are listed to the owner alone, so another profile's answer leaves 3 be.
-        harness.objects["GET /me"] = Fixtures.me.replacingOccurrences(
-            of: #""activeProfileId":1"#, with: #""activeProfileId":2"#)
-        _ = try await harness.client.getMe()
+        try harness.keep(
+            me: Fixtures.me.replacingOccurrences(of: #""activeProfileId":1"#, with: #""activeProfileId":2"#))
+        await store.sync(profile: 2)
         XCTAssertEqual(store.requests(for: 3).count, 2)
         let file = try XCTUnwrap(store.titles[21].flatMap(store.file(of:)))
 
-        harness.objects["GET /me"] = Fixtures.me
-        _ = try await harness.client.getMe()
+        try harness.keep(me: Fixtures.me)
+        await store.sync(profile: 1)
         XCTAssertTrue(store.requests(for: 3).isEmpty)
         XCTAssertNil(store.titles[21])
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path(percentEncoded: false)))
@@ -183,7 +183,8 @@ final class DownloadStoreTests: XCTestCase {
         try await harness.download(.title(101))
         XCTAssertEqual(store.request(.title(101), profile: 1)?.titles, [101], "a title asked for itself stays")
 
-        store.record(watched: true, positionMs: 0, itemId: 102, profile: 1)
+        try await harness.replica.write { try $0.watch(102, for: 1, watched: true) }
+        await store.applyKeepPolicy(1)
         XCTAssertEqual(store.request(.show(10), profile: 1)?.titles, [])
         XCTAssertNil(store.titles[102])
         XCTAssertFalse(harness.exists(102))
@@ -304,7 +305,8 @@ final class DownloadStoreTests: XCTestCase {
         harness.transport.routes["GET /me"] = (.ok, Fixtures.me)
         harness.transport.routes["POST /me/lock"] = (.noContent, "")
         let app = AppModel(
-            store: credentials, deviceName: "Mac", transport: harness.transport, downloads: harness.store)
+            store: credentials, deviceName: "Mac", transport: harness.transport, downloads: harness.store,
+            replicaDirectory: Fixtures.replicas)
         await app.restore()
         XCTAssertTrue(store.hasDownloads)
         await app.signOut()
@@ -333,7 +335,8 @@ extension DownloadStoreTests {
         credentials.token = "tok-1"
         harness.transport.routes["GET /me"] = (.unauthorized, "<html>401 Authorization Required</html>")
         let app = AppModel(
-            store: credentials, deviceName: "Mac", transport: harness.transport, downloads: harness.store)
+            store: credentials, deviceName: "Mac", transport: harness.transport, downloads: harness.store,
+            replicaDirectory: Fixtures.replicas)
         await app.restore()
         XCTAssertEqual(app.phase, .unreachable)
         XCTAssertEqual(credentials.token, "tok-1")

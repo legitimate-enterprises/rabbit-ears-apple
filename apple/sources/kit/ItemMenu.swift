@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import Observation
 import RabbitEarsAPI
 
@@ -45,14 +46,16 @@ public final class AllowLists {
         if allowed { holders[itemId, default: []].insert(kid) } else { holders[itemId]?.remove(kid) }
     }
 
-    /// Replaces everything known with each kid's own list; a list that fails to load holds nothing.
-    public func load(kids: [Account], client: Client) async {
-        var next: [Item.ID: Set<Account.ID>] = [:]
-        for kid in kids {
-            guard let ids = try? await client.listAllowedItems(path: .init(profileId: kid.id)).ok.body.json.itemIds
-            else { continue }
-            for id in ids { next[id, default: []].insert(kid.id) }
+    /// Replaces everything known with each kid's own list; a replica that cannot be read holds nothing.
+    public func load(kids: [Account], replica: Replica) async {
+        let ids = kids.map(\.id)
+        let pairs = try? await replica.read { db in
+            try SQLRequest<Row>(literal: "SELECT account_id, item_id FROM account_allow WHERE account_id IN \(ids)")
+                .fetchAll(db)
+                .map { (kid: $0["account_id"] as Int64, item: $0["item_id"] as Int64) }
         }
+        var next: [Item.ID: Set<Account.ID>] = [:]
+        for pair in pairs ?? [] { next[pair.item, default: []].insert(pair.kid) }
         holders = next
     }
 }

@@ -6,23 +6,16 @@ import XCTest
 
 @MainActor
 final class StationPlayerTests: XCTestCase {
-    func testTheStreamEndingAsksTheStationWhatIsOnNext() async {
-        let transport = RoutingTransport([
-            "GET /stations/5": (
-                .ok,
-                Fixtures.station(5, "The Big Screen", onAir: Fixtures.onAir("between_programs", next: Fixtures.salt))
-            ),
-            "DELETE /playback/sessions/7": (.noContent, ""),
-        ])
+    func testTheStreamEndingAsksTheStationWhatIsOnNext() async throws {
+        let transport = RoutingTransport(["DELETE /playback/sessions/7": (.noContent, "")])
         let onAir = Fixtures.onAir("on_air", now: Fixtures.lantern, position: 4_328_000, next: Fixtures.salt)
         transport.routes["POST /stations/5/playback"] = (
             .created, #"{"stream":\#(Fixtures.stream(session: 7, position: 4_328_000)),"onAir":\#(onAir)}"#
         )
         let server = ServerEndpoint(userInput: "192.168.1.9")!
         let client = server.client(token: "t", transport: transport)
-        let tuner = StationTuner(client: client, station: Fixtures.decode(Fixtures.bigScreen)) { _ in
-            try await Task.sleep(for: .seconds(3600))
-        }
+        let tuner = stationTuner(
+            client: client, replica: try tunerReplica(), station: Fixtures.decode(Fixtures.bigScreen))
         defer { tuner.cancel() }
         let player = PlayerModel(
             client: client, endpoint: server, profileId: 1, item: nil, output: FakeOutput(),

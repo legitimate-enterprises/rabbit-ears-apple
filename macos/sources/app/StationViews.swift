@@ -76,7 +76,7 @@ struct StationTile: View {
     var body: some View {
         Button {
             if onNow {
-                browser.tune(station, music: music, client: app.client)
+                browser.tune(station, music: music, app: app)
             } else {
                 browser.open(.station(station.id))
             }
@@ -271,7 +271,7 @@ struct StationScreen: View {
                 .font(.system(size: 13)).foregroundStyle(Theme.secondary)
                 HStack(spacing: 10) {
                     Button {
-                        browser.tune(station, music: music, client: app.client)
+                        browser.tune(station, music: music, app: app)
                     } label: {
                         Label("Tune in", systemImage: "play.fill")
                     }
@@ -280,7 +280,7 @@ struct StationScreen: View {
                         Button("Edit station") { browser.editingStation = StationEditRequest(station: station) }
                             .buttonStyle(SecondaryButtonStyle())
                         Button("Set image…") {
-                            browser.imaging = ImageRequest(station: station, profileId: stations.profileId)
+                            browser.imaging = ImageRequest(station: station)
                         }
                         .buttonStyle(SecondaryButtonStyle())
                         if station.imageUrl != nil {

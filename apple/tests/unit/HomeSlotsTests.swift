@@ -5,12 +5,13 @@ import XCTest
 @testable import RabbitEarsKit
 
 /// Home's On now and occasion rows arrive after Home first shows; each
-/// holds its space as the last Home showed it until its own answer comes.
+/// holds its space as the last Home this launch showed it until its own
+/// answer comes.
 @MainActor
 final class HomeSlotsTests: XCTestCase {
-    let directory = FileManager.default.temporaryDirectory.appending(path: "Home slots \(UUID().uuidString)")
     var store: MemoryCredentialStore!
     var transport: RoutingTransport!
+    var model: AppModel?
 
     override func setUp() async throws {
         store = MemoryCredentialStore()
@@ -22,18 +23,15 @@ final class HomeSlotsTests: XCTestCase {
         ])
     }
 
-    override func tearDown() async throws {
-        try? FileManager.default.removeItem(at: directory)
-    }
-
+    /// Browsing as Avery; signed in once, and again after a sign-out.
     private func browsing() async throws -> AppModel {
-        let model = AppModel(
-            store: store, deviceName: "Test Mac", transport: transport, cache: ResponseCache(directory: directory))
-        if store.token == nil {
+        let model =
+            model
+            ?? AppModel(store: store, deviceName: "Test Mac", transport: transport, replicaDirectory: Fixtures.replicas)
+        self.model = model
+        if model.phase != .browsing {
             try await model.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
             try await model.choose(try XCTUnwrap(model.profiles.first { $0.id == 1 }))
-        } else {
-            await model.restore()
         }
         return model
     }
@@ -95,16 +93,15 @@ final class HomeSlotsTests: XCTestCase {
         XCTAssertEqual(model.homeSlots(1).onNow(answered: false)?.wide, [false], "only the active profile's is kept")
     }
 
-    func testOccasionsAnswerOnceTheServerSaysWhetherAnyAreInSeasonOrFails() async throws {
-        let client = ServerEndpoint(userInput: "192.168.1.9")!.client(token: "t", transport: transport)
+    func testOccasionsAnswerOnceTheReplicaSaysWhetherAnyAreInSeasonOrCannotBeRead() async throws {
+        let fixture = ReplicaFixture()
+        defer { fixture.remove() }
         let occasions = OccasionsModel()
         XCTAssertFalse(occasions.answered)
-        transport.routes["GET /profiles/1/occasions"] = (.ok, Fixtures.page([]))
-        await occasions.load(client: client, profileId: 1)
+        await occasions.load(replica: try fixture.v1 { try $0.account(1, "Avery") }, profileId: 1)
         XCTAssertTrue(occasions.answered)
         let failed = OccasionsModel()
-        transport.routes["GET /profiles/1/occasions"] = (.internalServerError, Fixtures.error("internal"))
-        await failed.load(client: client, profileId: 1)
+        await failed.load(replica: Replica(directory: Fixtures.replicas), profileId: 1)
         XCTAssertTrue(failed.answered, "nothing to show, so the space it held collapses")
     }
 

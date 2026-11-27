@@ -133,7 +133,7 @@ final class CarPlayController: NSObject {
             return
         }
         guard let services = await context.services(for: profileId), self.gate == gate else { return }
-        library = CarPlayLibrary(music: services.music)
+        library = CarPlayLibrary(music: services.music, stations: services.stations)
         player = services.player
         observe()
         let tabBar = templates.tabBar()
@@ -218,8 +218,10 @@ final class CarPlayController: NSObject {
             await player.jump(to: id)
             interface.pop(to: CPNowPlayingTemplate.shared, animated: true, completion: nil)
         case .tune(let station):
-            guard let client = context.model.client else { return }
-            await player.tune(StationTuner(client: client, station: station))
+            guard let client = context.model.client, let replica = context.model.sync?.replica,
+                let profile = context.model.activeProfile
+            else { return }
+            await player.tune(StationTuner(client: client, replica: replica, profileId: profile.id, station: station))
             showNowPlaying()
         }
     }

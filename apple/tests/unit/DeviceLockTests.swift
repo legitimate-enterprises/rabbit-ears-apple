@@ -20,7 +20,8 @@ final class DeviceLockTests: XCTestCase {
             "POST /profiles/1/unlock": (.noContent, ""),
             "POST /profiles/2/unlock": (.noContent, ""),
         ])
-        model = AppModel(store: store, deviceName: "Test Mac", transport: transport)
+        model = AppModel(
+            store: store, deviceName: "Test Mac", transport: transport, replicaDirectory: Fixtures.replicas)
     }
 
     private func restore(_ me: String) async {

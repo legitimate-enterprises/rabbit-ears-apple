@@ -3,12 +3,15 @@ import RabbitEarsKit
 import SwiftUI
 
 extension Browser {
-    func tune(_ station: Station, music: MusicPlayer, client: Client) {
+    func tune(_ station: Station, music: MusicPlayer, app: AppModel) {
         guard station.kind == .music else {
             tuning = station
             return
         }
-        Task { await music.tune(StationTuner(client: client, station: station)) }
+        guard let client = app.client, let replica = app.sync?.replica, let profile = app.activeProfile else { return }
+        Task {
+            await music.tune(StationTuner(client: client, replica: replica, profileId: profile.id, station: station))
+        }
         if path.last != .nowPlaying { path.append(.nowPlaying) }
     }
 }
@@ -70,7 +73,7 @@ struct StationArt: View {
 
 /// A click tunes in, since a TV has no station page.
 struct StationTile: View {
-    @Environment(StationsModel.self) private var stations
+    @Environment(AppModel.self) private var app
     @Environment(MusicPlayer.self) private var music
     @Environment(Browser.self) private var browser
     let station: Station
@@ -79,7 +82,7 @@ struct StationTile: View {
 
     var body: some View {
         Button {
-            browser.tune(station, music: music, client: stations.client)
+            browser.tune(station, music: music, app: app)
         } label: {
             VStack(alignment: .leading, spacing: 14) {
                 StationArt(station: station)

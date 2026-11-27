@@ -83,10 +83,6 @@ struct GridView: View {
             .padding(EdgeInsets(top: shellTop + 8, leading: 80, bottom: 60, trailing: 80))
         }
         .scrollClipDisabled()
-        // Hiding kids' content leaves them out of the catalog; the pill reads them apart.
-        .task(id: "\(shown.rawValue)/\(model.hidingKids)/\(ObjectIdentifier(model).hashValue)") {
-            if shown == .kids { await model.showKids(kind) }
-        }
     }
 
     private func caption(_ total: Int) -> String {

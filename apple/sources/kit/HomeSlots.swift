@@ -27,14 +27,10 @@ public struct HomeSlots: Codable, Equatable, Sendable {
 }
 
 extension AppModel {
-    /// What the profile's last Home showed on this server; nothing before
-    /// its first, or after a sign-out.
+    /// What the profile's last Home showed on this server this launch;
+    /// nothing before its first, or after a sign-out.
     public func homeSlots(_ profileId: Int64) -> HomeSlots {
-        guard let key = homeSlotsKey(profileId) else { return HomeSlots() }
-        if let held = heldHomeSlots[key] { return held }
-        let kept = live.cache?.read(key).flatMap { try? JSONDecoder().decode(HomeSlots.self, from: $0.body) }
-        heldHomeSlots[key] = kept ?? HomeSlots()
-        return kept ?? HomeSlots()
+        homeSlotsKey(profileId).flatMap { heldHomeSlots[$0] } ?? HomeSlots()
     }
 
     /// The stations On now showed; none drops the row.
@@ -56,13 +52,10 @@ extension AppModel {
         keepHomeSlots(slots, profileId)
     }
 
-    /// Only the active profile's Home is kept, as every kept answer is.
+    /// Only the active profile's Home is kept.
     private func keepHomeSlots(_ slots: HomeSlots, _ profileId: Int64) {
-        guard let key = homeSlotsKey(profileId), let cache = live.cache, cache.profile == profileId,
-            let body = try? JSONEncoder().encode(slots)
-        else { return }
+        guard let key = homeSlotsKey(profileId), activeProfile?.id == profileId else { return }
         heldHomeSlots[key] = slots
-        cache.keep(.init(at: Date(), body: body), for: key, profile: profileId)
     }
 
     private func homeSlotsKey(_ profileId: Int64) -> String? {

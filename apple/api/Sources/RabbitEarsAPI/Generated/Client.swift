@@ -20,7 +20,8 @@ import HTTPTypes
 /// their adult's device token. Operations whose security lists the `admin`
 /// scope require the device's adult to be an admin. A device locked at
 /// Who's watching answers 403 `device_locked` to every operation not marked
-/// `x-while-locked`.
+/// `x-while-locked`. An operation marked `x-replayable` may also run later,
+/// queued by a client while offline, through replaySyncActions.
 ///
 /// Every error response carries the Error schema. Lists are paged with
 /// `limit` and `offset`; a page carries `nextOffset` only when more follow.
@@ -6787,6 +6788,13 @@ public struct Client: APIProtocol {
                     method: .delete
                 )
                 suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "at",
+                    value: input.query.at
+                )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
                     contentTypes: input.headers.accept
@@ -6797,6 +6805,168 @@ public struct Client: APIProtocol {
                 switch response.status.code {
                 case 204:
                     return .noContent(.init())
+                case 400:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.BadRequest.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .badRequest(.init(body: body))
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.Unauthorized.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                case 404:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.NotFound.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .notFound(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
+    /// Count one finished play the server did not see.
+    ///
+    /// For a play the server did not stream, such as of a downloaded file, sent once per play when it ends. playCount goes up by one, and lastPlayedAt becomes the latest play, in whatever order plays and putWatchState arrive. Over a state that changed no later than at, the item is watched and resumes from the start of the edition played; a state that changed later stays. Playback the server streams counts a play only when it marks the item watched, so a client sends no putWatchState with watched true for a play it records.
+    ///
+    /// - Remark: HTTP `POST /profiles/{profileId}/watch-state/{itemId}/plays`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/plays/post(recordPlay)`.
+    public func recordPlay(_ input: Operations.RecordPlay.Input) async throws -> Operations.RecordPlay.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.RecordPlay.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/profiles/{}/watch-state/{}/plays",
+                    parameters: [
+                        input.path.profileId,
+                        input.path.itemId
+                    ]
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .post
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                let body: OpenAPIRuntime.HTTPBody?
+                switch input.body {
+                case let .json(value):
+                    body = try converter.setRequiredRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
+                return (request, body)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.RecordPlay.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.WatchState.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                case 400:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.BadRequest.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .badRequest(.init(body: body))
                 case 401:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Components.Responses.Unauthorized.Body
@@ -7470,7 +7640,7 @@ public struct Client: APIProtocol {
     }
     /// Add many to a playlist, appended in order.
     ///
-    /// Each entry is checked as `addPlaylistEntry` checks it, and its position is ignored; a title of several editions without an editionId takes its default edition. A station's own playlist is written through its owner's profile, as `addPlaylistEntry` writes it. Nothing is added unless every entry may be.
+    /// Each entry is checked as `addPlaylistEntry` checks it, and its position and rank are ignored: the entries take the ranks of generateNKeysBetween after the last entry's; a title of several editions without an editionId takes its default edition. A station's own playlist is written through its owner's profile, as `addPlaylistEntry` writes it. Nothing is added unless every entry may be.
     ///
     /// - Remark: HTTP `POST /profiles/{profileId}/playlists/{playlistId}/entries/batch`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/batch/post(addPlaylistEntries)`.
@@ -37709,6 +37879,567 @@ public struct Client: APIProtocol {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
                             Components.Schemas.EventPage.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                case 400:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.BadRequest.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .badRequest(.init(body: body))
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.Unauthorized.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
+    /// What changed in this device's replica since a version.
+    ///
+    /// A native client keeps a replica: a local SQLite database of what its
+    /// household may see, in a sync schema the server defines. It fills it
+    /// from getSyncSnapshot, then keeps it current from this operation, on
+    /// every start, return to the foreground, reconnection and ring of
+    /// waitSyncVersion.
+    ///
+    /// Every change the server makes moves a version, one global counter.
+    /// A pass asks with `since`, the version the replica holds, and without
+    /// `cursor`. An answer with mode `diff` and a `cursor` has more to read:
+    /// the client asks again with the same `since` and `schema` and that
+    /// cursor, until an answer comes without one. Each row appears at most
+    /// once per pass, in its state at the time it was read; it replaces the
+    /// replica's row of the same key in that table. Each tombstone deletes
+    /// the replica's row of that key, if it holds one. The replica has no
+    /// foreign keys, so rows and tombstones apply in the order given or any
+    /// other.
+    ///
+    /// `version` is the watermark: a client that applied every page of a
+    /// pass holds everything up to `version`, and asks from it next time.
+    /// A page with a `cursor` reports `since` as its `version`, so a client
+    /// that stops mid-pass keeps its `since` and loses nothing by starting
+    /// the pass again.
+    ///
+    /// Mode `snapshot` carries no rows: the client replaces its replica with
+    /// getSyncSnapshot, then catches up from that snapshot's version. It is
+    /// the answer, on any page, when `since` is absent; when `since` is older
+    /// than the deletions the server keeps (90 days) or newer than the
+    /// server's version, as after a restore; when a change after
+    /// `since` altered which rows the household's replica holds, such as a
+    /// membership, adult link, share, profile offer, a station made,
+    /// deleted or changing visibility, owner or playlist, or a device moving
+    /// household, or when the server was upgraded; and, on a
+    /// first page, when more rows changed since `since` than half the
+    /// replica holds.
+    ///
+    /// Mode `unsupported` carries no rows: `schema` is outside
+    /// `ranges.schemaMin` to `ranges.schemaMax`. A client below schemaMin
+    /// updates before it syncs again; one above schemaMax waits for the
+    /// server to be upgraded.
+    ///
+    ///
+    /// - Remark: HTTP `GET /sync/changes`.
+    /// - Remark: Generated from `#/paths//sync/changes/get(getSyncChanges)`.
+    public func getSyncChanges(_ input: Operations.GetSyncChanges.Input) async throws -> Operations.GetSyncChanges.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.GetSyncChanges.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/sync/changes",
+                    parameters: []
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .get
+                )
+                suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "schema",
+                    value: input.query.schema
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "since",
+                    value: input.query.since
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "cursor",
+                    value: input.query.cursor
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "limit",
+                    value: input.query.limit
+                )
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.GetSyncChanges.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.SyncChanges.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                case 400:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.BadRequest.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .badRequest(.init(body: body))
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.Unauthorized.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
+    /// This device's whole replica as a SQLite database.
+    ///
+    /// The replica of the device's household in sync schema `schema`, as
+    /// one SQLite database: the schema's tables holding every row the
+    /// household may see, its views, among them those that apply each
+    /// profile's kid filter such as profile_item and profile_station, and
+    /// its indexes. Its
+    /// one-row table replica_meta holds `schema`, `version`, the version
+    /// the snapshot was taken at, and `household_id`. The client replaces
+    /// its replica with the file whole, then asks getSyncChanges with
+    /// `since` set to replica_meta's `version`. A `schema` outside
+    /// SyncRanges' schemaMin to schemaMax answers 400.
+    ///
+    ///
+    /// - Remark: HTTP `GET /sync/snapshot`.
+    /// - Remark: Generated from `#/paths//sync/snapshot/get(getSyncSnapshot)`.
+    public func getSyncSnapshot(_ input: Operations.GetSyncSnapshot.Input) async throws -> Operations.GetSyncSnapshot.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.GetSyncSnapshot.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/sync/snapshot",
+                    parameters: []
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .get
+                )
+                suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "schema",
+                    value: input.query.schema
+                )
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.GetSyncSnapshot.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/vnd.sqlite3"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/vnd.sqlite3":
+                        body = try converter.getResponseBodyAsBinary(
+                            OpenAPIRuntime.HTTPBody.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .applicationVnd_sqlite3(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                case 400:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.BadRequest.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .badRequest(.init(body: body))
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.Unauthorized.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
+    /// Wait until this device's replica has changes to read.
+    ///
+    /// A long poll, held as listEvents is, at most 25 seconds. It answers `changed` true as soon as getSyncChanges since `after` would answer a row, a tombstone or mode `snapshot`, else false when the time is up; it carries no data. A client asks with the version its replica holds while it is in the foreground, runs getSyncChanges on true, and asks again at once on false. A write elsewhere that the household cannot see does not ring, except a deletion from a table keyed by a single id, which reaches every household as a tombstone.
+    ///
+    /// - Remark: HTTP `GET /sync/version`.
+    /// - Remark: Generated from `#/paths//sync/version/get(waitSyncVersion)`.
+    public func waitSyncVersion(_ input: Operations.WaitSyncVersion.Input) async throws -> Operations.WaitSyncVersion.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.WaitSyncVersion.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/sync/version",
+                    parameters: []
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .get
+                )
+                suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "after",
+                    value: input.query.after
+                )
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.WaitSyncVersion.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.SyncBell.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                case 400:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.BadRequest.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .badRequest(.init(body: body))
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.Unauthorized.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
+    /// Replay writes a client queued, in order.
+    ///
+    /// A client writes to its replica at once and queues each write as an
+    /// action naming an operation marked `x-replayable`, to send when it is
+    /// online. The server runs the actions in `seq` order, each as the
+    /// request it names would run, with the same validation, permissions
+    /// and rules, as `actingProfileId`, which must be a profile of the
+    /// device's household that is not revoked, with that profile's
+    /// permissions at the time of the replay. A profile's PIN is not asked,
+    /// and a device locked at Who's watching replays too and stays locked.
+    ///
+    /// Each action the server answers gets one result: `accepted` when the
+    /// operation succeeded, `rejected` with the operation's Error `code`
+    /// when it answered 4xx. An operation not marked `x-replayable`, or a
+    /// `path` and `method` that are not `operationId`'s, is rejected with
+    /// `not_replayable`; an `actingProfileId` outside the household, or
+    /// revoked, with `not_found`. When an operation fails on the server, a 5xx, the
+    /// batch stops there: that action and every later one are absent from
+    /// `results`, and the client sends them again later. The client
+    /// removes from its queue only the actions answered.
+    ///
+    /// The server remembers each answered action's `id` for 90 days per
+    /// device: an action sent again answers its stored result without
+    /// running again. A batch whose `apiVersion` is outside SyncRanges'
+    /// apiMin to apiMax rejects every action with `unsupported_version`,
+    /// runs and remembers none.
+    ///
+    /// After each answered action, accepted or rejected, the server marks
+    /// every row in its `touched` as changed, or a deletion when the row
+    /// no longer exists, so the next getSyncChanges brings the replica's
+    /// copy of each to what the server holds; a row that exists but the
+    /// household may not see is left alone. A client keeps no rollback of
+    /// its own.
+    ///
+    /// A batch that fails validation, names in `touched` a table that is
+    /// not one of the sync schema's, a key of the wrong length or a key
+    /// part of the wrong type (an integer for an integer column, a string
+    /// for a text one), or whose `seq` does not strictly increase, answers
+    /// 400 and runs nothing.
+    ///
+    ///
+    /// - Remark: HTTP `POST /sync/actions`.
+    /// - Remark: Generated from `#/paths//sync/actions/post(replaySyncActions)`.
+    public func replaySyncActions(_ input: Operations.ReplaySyncActions.Input) async throws -> Operations.ReplaySyncActions.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.ReplaySyncActions.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/sync/actions",
+                    parameters: []
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .post
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                let body: OpenAPIRuntime.HTTPBody?
+                switch input.body {
+                case let .json(value):
+                    body = try converter.setRequiredRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
+                return (request, body)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.ReplaySyncActions.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.SyncActionResults.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)

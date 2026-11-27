@@ -126,6 +126,20 @@ class API:
             time.sleep(1)
         raise RuntimeError("Demo library scan did not produce six movies with metadata and artwork")
 
+    def fixtures(self, folder):
+        """Add libraries over the server's own test media: a show, music and YouTube channels."""
+        made = [self.call("/libraries", dict(name=name, kind=kind))["id"]
+                for name, kind in (("TV", "tv"), ("Music", "music"), ("YouTube", "youtube"))]
+        for library, path in zip(made, ("library/TV", "music", "youtube")):
+            self.call(f"/libraries/{library}/folders", dict(path=str(folder / path)))
+        deadline = time.monotonic() + 150
+        while time.monotonic() < deadline:
+            scans = {task["kind"]: task for task in self.call("/tasks?limit=200")["items"]}
+            if all(scans.get(f"scan:{library}", {}).get("lastRun", {}).get("finishedAt") for library in made):
+                return
+            time.sleep(1)
+        raise RuntimeError("The server's fixtures did not scan")
+
 
 def child_environment(base):
     """Publish only anonymous demo credentials to clients and XCTest runners."""
@@ -138,10 +152,14 @@ def child_environment(base):
 
 
 def main(command):
+    # With --fixtures the server's own test media are scanned too, for tests beyond the screenshots' catalog.
+    fixtures = command[:1] == ["--fixtures"]
+    if fixtures:
+        command = command[1:]
     if command[:1] == ["--"]:
         command = command[1:]
     if not command:
-        raise SystemExit("usage: with-demo-server.py -- command [args...]")
+        raise SystemExit("usage: with-demo-server.py [--fixtures] -- command [args...]")
     def interrupted(_signum, _frame):
         raise KeyboardInterrupt
 
@@ -175,6 +193,8 @@ def main(command):
                 else:
                     raise RuntimeError("Demo server did not become ready")
                 api.seed(library)
+                if fixtures:
+                    api.fixtures(Path(source) / "fixtures")
                 print("Anonymous demo server ready: six movies, three profiles", file=sys.stderr)
                 child = subprocess.Popen(command, env=child_environment(base), start_new_session=True)
                 try:

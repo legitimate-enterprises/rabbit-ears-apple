@@ -17,7 +17,8 @@ extension AppModelTests {
             var profileMemories: [String: ProfileMemory] = [:]
         }
         transport.routes["POST /auth/sign-out"] = (.noContent, "")
-        model = AppModel(store: RefusingStore(), deviceName: "Test Mac", transport: transport)
+        model = AppModel(
+            store: RefusingStore(), deviceName: "Test Mac", transport: transport, replicaDirectory: Fixtures.replicas)
         do {
             try await model.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
             XCTFail("signed in with a token the device did not keep")

@@ -17,7 +17,8 @@ final class ServerNameTests: XCTestCase {
             "GET /me": (.ok, Fixtures.me),
             "GET /health": (.ok, Self.health("The Den")),
         ])
-        model = AppModel(store: store, deviceName: "Test Mac", transport: transport)
+        model = AppModel(
+            store: store, deviceName: "Test Mac", transport: transport, replicaDirectory: Fixtures.replicas)
     }
 
     static func health(_ name: String?) -> String {
@@ -50,7 +51,8 @@ final class ServerNameTests: XCTestCase {
         store.token = "tok-1"
         store.serverName = "The Den"
         transport.failure = URLError(.cannotConnectToHost)
-        model = AppModel(store: store, deviceName: "Test Mac", transport: transport)
+        model = AppModel(
+            store: store, deviceName: "Test Mac", transport: transport, replicaDirectory: Fixtures.replicas)
         XCTAssertEqual(model.serverName, "The Den")
         await model.restore()
         XCTAssertEqual(model.phase, .unreachable)
@@ -62,7 +64,8 @@ final class ServerNameTests: XCTestCase {
         store.token = "tok-1"
         store.serverName = "The Den"
         transport.routes["GET /health"] = (.ok, Self.health("Cabin"))
-        model = AppModel(store: store, deviceName: "Test Mac", transport: transport)
+        model = AppModel(
+            store: store, deviceName: "Test Mac", transport: transport, replicaDirectory: Fixtures.replicas)
         await model.restore()
         await until { model.serverName == "Cabin" }
         XCTAssertEqual(model.serverName, "Cabin")
