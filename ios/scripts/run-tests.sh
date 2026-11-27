@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Runs the unit suite on the first available iPhone simulator. xcodebuild
-# boots it headless; Simulator.app is never opened. The bundle is compiled
+# Runs the unit suite on the first available iPhone simulator, booted
+# headless; Simulator.app is never opened. The bundle is compiled
 # first, so a machine without a usable runtime still checks that it builds.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -20,4 +20,16 @@ udid="$(
     exit 1
 }
 
-exec "${XCODEBUILD[@]}" -destination "id=$udid" test-without-building -only-testing:RabbitEarsTests
+# xcodebuild gives up on a simulator still in its first boot, so it is booted
+# here first; one this script boots is shut down again on exit.
+if [[ "$(xcrun simctl list devices)" != *"$udid) (Booted)"* ]]; then
+    trap 'xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+fi
+perl -e 'alarm shift; exec @ARGV' 600 xcrun simctl bootstatus "$udid" -b || {
+    echo "iPhone simulator $udid did not finish booting within 600s" >&2
+    exit 1
+}
+
+"${XCODEBUILD[@]}" -destination "id=$udid" test-without-building -only-testing:RabbitEarsTests
