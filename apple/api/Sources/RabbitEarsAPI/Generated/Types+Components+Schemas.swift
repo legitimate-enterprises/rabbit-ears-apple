@@ -9045,13 +9045,13 @@ extension Components {
         public struct WatchTogetherMember: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/WatchTogetherMember/accountId`.
             public var accountId: Components.Schemas.Id
-            /// As Heidi in In sync with Heidi.
+            /// As Helga in In sync with Helga.
             ///
             /// - Remark: Generated from `#/components/schemas/WatchTogetherMember/name`.
             public var name: Swift.String
             /// - Remark: Generated from `#/components/schemas/WatchTogetherMember/role`.
             public var role: Components.Schemas.WatchTogetherRole
-            /// The member's device, as Heidi is on her Apple TV.
+            /// The member's device, as Helga is on her Apple TV.
             ///
             /// - Remark: Generated from `#/components/schemas/WatchTogetherMember/deviceName`.
             public var deviceName: Swift.String
@@ -9071,9 +9071,9 @@ extension Components {
             ///
             /// - Parameters:
             ///   - accountId:
-            ///   - name: As Heidi in In sync with Heidi.
+            ///   - name: As Helga in In sync with Helga.
             ///   - role:
-            ///   - deviceName: The member's device, as Heidi is on her Apple TV.
+            ///   - deviceName: The member's device, as Helga is on her Apple TV.
             ///   - platform:
             ///   - present: Polled within the last 30 seconds.
             ///   - joinedAt:
@@ -9134,7 +9134,7 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/WatchTogether/positionMs`.
             public var positionMs: Swift.Int64
-            /// Who paused last, while paused, as Heidi paused.
+            /// Who paused last, while paused, as Helga paused.
             ///
             /// - Remark: Generated from `#/components/schemas/WatchTogether/pausedById`.
             public var pausedById: Components.Schemas.Id?
@@ -9175,7 +9175,7 @@ extension Components {
             ///   - joinMsLeft: Milliseconds of the window left at serverTime, for the m:ss countdown without trusting the client's clock.
             ///   - playing:
             ///   - positionMs: The shared position at serverTime.
-            ///   - pausedById: Who paused last, while paused, as Heidi paused.
+            ///   - pausedById: Who paused last, while paused, as Helga paused.
             ///   - pausedByName:
             ///   - version: Rises on every join, play, pause, seek and end.
             ///   - serverTime: When the server answered.

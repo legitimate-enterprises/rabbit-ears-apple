@@ -22,18 +22,16 @@ public final class PlaylistsModel {
     public let client: Client
     public let replica: Replica
     public let queue: ActionQueue
-    public let engine: SyncEngine
     public let profileId: UID
     /// An adult makes and adds to playlists; a kid only has those shared with them.
     public let adult: Bool
 
     public init(
-        client: Client, replica: Replica, queue: ActionQueue, engine: SyncEngine, profileId: UID, adult: Bool = true
+        client: Client, replica: Replica, queue: ActionQueue, profileId: UID, adult: Bool = true
     ) {
         self.client = client
         self.replica = replica
         self.queue = queue
-        self.engine = engine
         self.profileId = profileId
         self.adult = adult
     }
@@ -181,9 +179,7 @@ public final class PlaylistsModel {
     }
 
     /// Appends a selection in one request, to a playlist or a station's own;
-    /// a title of several editions takes its default one. One of more
-    /// entries than a queued action may touch goes to the server at once and
-    /// shows after the catch-up that follows.
+    /// a title of several editions takes its default one.
     @discardableResult
     public func add(_ itemIds: [UID], to playlistId: UID) async -> Bool {
         await write {
@@ -203,7 +199,7 @@ public final class PlaylistsModel {
                 }
             }
             try await queue.addEntries(as: profileId, to: playlistId, entries)
-            if entries.count > ActionQueue.touchedLimit { try await caughtUp() } else { try await reload() }
+            try await reload()
         }
     }
 
@@ -254,12 +250,6 @@ public final class PlaylistsModel {
             try await queue.rankEntry(as: profileId, entry, rank: rank)
             try await reload()
         }
-    }
-
-    /// After a write the server made, its rows are pulled before the list is read again.
-    private func caughtUp() async throws {
-        try? await engine.catchUp()
-        try await reload()
     }
 
     private func reload() async throws {

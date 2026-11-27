@@ -68,10 +68,10 @@ extension ActionQueue {
             apply: { db, _ in try Self.setKids(kidsContent, [itemId], db) })
     }
 
-    /// Movies, shows and channels, one action per batch of touched rows the server takes.
+    /// Movies, shows and channels, one action per batch of items the call takes.
     public func setKidsContents(_ kidsContent: Bool, for itemIds: [UID], as profileId: UID) async throws {
-        for start in stride(from: 0, to: itemIds.count, by: Self.touchedLimit) {
-            let ids = Array(itemIds[start..<min(start + Self.touchedLimit, itemIds.count)])
+        for start in stride(from: 0, to: itemIds.count, by: Self.itemsLimit) {
+            let ids = Array(itemIds[start..<min(start + Self.itemsLimit, itemIds.count)])
             try await act(
                 as: profileId, touching: try ids.map { try .row("item", $0) },
                 call: { client, _ in

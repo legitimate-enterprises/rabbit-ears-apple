@@ -136,17 +136,20 @@ final class WatchActionsTests: ActionQueueCase {
         XCTAssertEqual(body?["watched"] as? Bool, true)
     }
 
-    func testALargeSelectionGoesInActionsOfAtMostTheTouchedLimit() async throws {
+    func testALargeSelectionGoesInActionsOfAtMostTheItemsLimit() async throws {
         let replica = try library { db in
-            for number in 1...(ActionQueue.touchedLimit + 6) {
+            for number in 1...(ActionQueue.itemsLimit + 6) {
                 try db.item(UID.n(1000 + number), "episode", "E\(number)", parent: 11, season: 1, episode: number)
             }
         }
-        try await queue(replica).putWatchStates(false, items: [11], as: 1, in: replica)
+        let queue = queue(replica)
+        try await queue.putWatchStates(false, items: [11], as: 1, in: replica)
         let touched = try await replica.read {
             try Int.fetchAll($0, sql: "SELECT COUNT(*) FROM queue.action_touch GROUP BY action ORDER BY action")
         }
-        XCTAssertEqual(touched, [ActionQueue.touchedLimit, 8])
+        XCTAssertEqual(touched, [ActionQueue.itemsLimit, 8])
+        _ = await queue.flush()
+        XCTAssertEqual(notices.all, [])
     }
 
     func testASelectionWithATitleTheProfileMayNotSeeOrAnAlbumQueuesNothing() async throws {

@@ -10,15 +10,15 @@ extension Fixtures {
             + #""platform":"tvos","present":true,"joinedAt":"2026-11-14T20:00:00Z"}"#
     }
 
-    /// Heidi (3) hosts; Avery (1), the signed-in adult, is the guest once joined. The
+    /// Helga (3) hosts; Avery (1), the signed-in adult, is the guest once joined. The
     /// server's clock matches the tests' and the state is in effect from now.
     static func together(
-        _ id: UID = 5, status: String = "waiting", host: (UID, String) = (3, "Heidi"), joined: Bool = false,
+        _ id: UID = 5, status: String = "waiting", host: (UID, String) = (3, "Helga"), joined: Bool = false,
         playing: Bool = false, position: Int64 = 0, version: Int = 1, msLeft: Int64 = 252_000,
         pausedBy: (UID, String)? = nil, effectiveAt: Int64 = 1_000_000_000, serverTime: Int64 = 1_000_000_000
     ) -> String {
         var members = [member(host.0, host.1, role: "host")]
-        if joined { members.append(member(host.0 == 1 ? 3 : 1, host.0 == 1 ? "Heidi" : "Avery", role: "guest")) }
+        if joined { members.append(member(host.0 == 1 ? 3 : 1, host.0 == 1 ? "Helga" : "Avery", role: "guest")) }
         let paused = pausedBy.map { #","pausedById":"\#($0.0)","pausedByName":"\#($0.1)""# } ?? ""
         return #"{"id":"\#(id)","itemId":"\#(UID.n(20))","status":"\#(status)","#
             + #""members":[\#(members.joined(separator: ","))],"#
@@ -49,8 +49,8 @@ final class WatchTogetherModelTests: XCTestCase {
         await model.refresh()
         XCTAssertEqual(transport.queries(.get, "/watch-together"), ["itemId=\(UID.n(20))"])
         XCTAssertNil(model.current)
-        XCTAssertEqual(model.joinLabel(at: clock), "Join Heidi · 4:12")
-        XCTAssertEqual(model.joinLabel(at: clock.addingTimeInterval(12)), "Join Heidi · 4:00")
+        XCTAssertEqual(model.joinLabel(at: clock), "Join Helga · 4:12")
+        XCTAssertEqual(model.joinLabel(at: clock.addingTimeInterval(12)), "Join Helga · 4:00")
         XCTAssertNil(model.joinLabel(at: clock.addingTimeInterval(300)))
         XCTAssertNil(model.waitingLabel(at: clock))
     }
@@ -83,7 +83,7 @@ final class WatchTogetherModelTests: XCTestCase {
         await model.join()
         XCTAssertEqual(transport.paths(.post), ["/watch-together/\(UID.n(5))/join"])
         XCTAssertEqual(model.current?.status, .joined)
-        XCTAssertEqual(model.partnerName, "Heidi")
+        XCTAssertEqual(model.partnerName, "Helga")
         XCTAssertNil(model.joinLabel(at: clock))
     }
 
@@ -130,13 +130,13 @@ final class WatchTogetherModelTests: XCTestCase {
         transport.routes["GET /watch-together/\(UID.n(5))"] = (
             .ok,
             Fixtures.together(
-                status: "joined", joined: true, position: 70_000, version: 4, pausedBy: (3, "Heidi"))
+                status: "joined", joined: true, position: 70_000, version: 4, pausedBy: (3, "Helga"))
         )
         output.positionMs = 69_800
         await model.poll()
         XCTAssertTrue(output.isPaused)
         XCTAssertEqual(output.seeks, [65_000])
-        XCTAssertEqual(model.pausedNotice, "Heidi paused")
+        XCTAssertEqual(model.pausedNotice, "Helga paused")
     }
 
     func testABufferingPlayerIsNotSeekedAgainUntilItPlays() async {
@@ -361,6 +361,6 @@ final class WatchTogetherProfileTests: XCTestCase {
         XCTAssertEqual(together.invite?.id, 5)
         await together.join()
         XCTAssertTrue(together.inSync)
-        XCTAssertEqual(together.partnerName, "Heidi")
+        XCTAssertEqual(together.partnerName, "Helga")
     }
 }

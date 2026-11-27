@@ -90,7 +90,7 @@ final class PlaylistSharesTests: XCTestCase {
                 .ok,
                 Fixtures.page([
                     Self.household(7, "Mark's household", profiles: 4),
-                    Self.household(8, "Heidi's household", profiles: 1),
+                    Self.household(8, "Helga's household", profiles: 1),
                 ])
             ),
             "GET /profiles/\(UID.n(1))/playlists/\(UID.n(3))/household-shares": (
@@ -99,29 +99,29 @@ final class PlaylistSharesTests: XCTestCase {
             "GET /profiles/\(UID.n(1))/playlists/\(UID.n(3))/shares": (
                 .ok,
                 Fixtures.page([
-                    Fixtures.share(2, "Heidi", access: "write"),
+                    Fixtures.share(2, "Helga", access: "write"),
                     Fixtures.share(9, "Gone", kind: "kid", household: 8),
                 ])
             ),
             "GET /profiles/\(UID.n(1))/share-candidates": (
                 .ok,
                 Fixtures.page([
-                    Self.candidate(2, "Heidi", household: 8, householdName: "Heidi's household", color: "#6B3A2E"),
-                    Self.candidate(4, "Jax", kind: "kid", household: 8, householdName: "Heidi's household"),
-                    Self.candidate(5, "Pat", household: 9, householdName: "Heidi's household"),
+                    Self.candidate(2, "Helga", household: 8, householdName: "Helga's household", color: "#6B3A2E"),
+                    Self.candidate(4, "Jason", kind: "kid", household: 8, householdName: "Helga's household"),
+                    Self.candidate(5, "Pat", household: 9, householdName: "Helga's household"),
                 ])
             ),
         ])
         await model.load()
         XCTAssertNil(model.error)
-        XCTAssertEqual(model.households.map(\.name), ["Mark's household", "Heidi's household"])
+        XCTAssertEqual(model.households.map(\.name), ["Mark's household", "Helga's household"])
         XCTAssertEqual(model.households.map(\.profilesLabel), ["4 profiles", "1 profile"])
         XCTAssertEqual(model.households.map { model.access($0) }, [.read, nil])
         XCTAssertEqual(
-            model.profiles.map(\.name), ["Heidi", "Jax", "Pat", "Gone"], "a share outside the candidates stays")
+            model.profiles.map(\.name), ["Helga", "Jason", "Pat", "Gone"], "a share outside the candidates stays")
         XCTAssertEqual(
             model.profiles.map(\.subtitle),
-            ["Heidi's household", "Heidi's household · Kid", nil, "Heidi's household · Kid"],
+            ["Helga's household", "Helga's household · Kid", nil, "Helga's household · Kid"],
             "only a household of the owner's is named, by id")
         XCTAssertEqual(model.profiles.map(\.rgb), [0x6B3A2E, 0x2E6B5B, 0x2E6B5B, nil])
         XCTAssertEqual(model.profiles.map { model.access($0) }, [.write, nil, nil, .read])
@@ -141,7 +141,7 @@ final class PlaylistSharesTests: XCTestCase {
                 .ok,
                 Fixtures.page([
                     Self.candidate(2, "Sam"),
-                    Self.candidate(4, "Jax", kind: "kid"),
+                    Self.candidate(4, "Jason", kind: "kid"),
                 ])
             ),
         ])

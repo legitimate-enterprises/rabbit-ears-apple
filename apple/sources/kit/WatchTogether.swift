@@ -71,13 +71,13 @@ public final class WatchTogetherModel {
     /// Joined: play, pause and seek go through this model.
     public var inSync: Bool { current?.status == .joined }
 
-    /// The other member, as in "In sync with Heidi"; the profile's own other device by that device's name.
+    /// The other member, as in "In sync with Helga"; the profile's own other device by that device's name.
     public var partnerName: String? {
         current?.members.first { $0.accountId != profileId }?.name
             ?? current?.members.first { $0.thisDevice == false }?.deviceName
     }
 
-    /// "Heidi paused", while the other member's pause holds.
+    /// "Helga paused", while the other member's pause holds.
     public var pausedNotice: String? {
         guard let current, current.status == .joined, !current.playing, current.pausedById != profileId,
             let name = current.pausedByName
@@ -85,7 +85,7 @@ public final class WatchTogetherModel {
         return "\(name) paused"
     }
 
-    /// "Join Heidi · 4:12" while someone else's window is open.
+    /// "Join Helga · 4:12" while someone else's window is open.
     public func joinLabel(at date: Date) -> String? {
         guard current == nil, let invite, let host = invite.members.first(where: { $0.role == .host }),
             let left = countdown(invite, at: date)

@@ -66,7 +66,9 @@ class ActionQueueCase: XCTestCase {
     }
 
     /// Accepts every action of the batch, but rejects those `rejecting`
-    /// names with its code and answers only the first `answered`.
+    /// names with its code and answers only the first `answered`. As the
+    /// server's request validation does, it rejects a body whose itemIds or
+    /// entries are over the spec's maxItems for them.
     static func answer(
         _ sent: RoutingTransport.Sent, answered: Int = .max, rejecting: [String: String] = [:]
     ) -> (HTTPResponse.Status, String) {
@@ -74,7 +76,10 @@ class ActionQueueCase: XCTestCase {
         // The server answers each id in a UUID's canonical, lowercase form.
         let results = batch.actions.prefix(answered).map { action in
             let id = action.id.lowercased()
-            return rejecting[action.operationId].map { #"{"id":"\#(id)","result":"rejected","code":"\#($0)"}"# }
+            let fields = action.body?.value as? [String: (any Sendable)?]
+            let oversized = ["itemIds", "entries"].contains { (fields?[$0] as? [(any Sendable)?])?.count ?? 0 > 2000 }
+            return (oversized ? "bad_request" : rejecting[action.operationId])
+                .map { #"{"id":"\#(id)","result":"rejected","code":"\#($0)"}"# }
                 ?? #"{"id":"\#(id)","result":"accepted"}"#
         }
         return (.ok, #"{"results":[\#(results.joined(separator: ","))]}"#)

@@ -129,7 +129,7 @@ extension View {
     }
 }
 
-/// Back, labelled with the page it returns to. Forward is the Go menu's,
+/// Back, labeled with the page it returns to. Forward is the Go menu's,
 /// Cmd-] and mouse button 5.
 struct BackButton: View {
     @Environment(Browser.self) private var browser

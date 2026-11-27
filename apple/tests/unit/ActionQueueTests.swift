@@ -233,6 +233,30 @@ final class ActionQueueTests: ActionQueueCase {
         XCTAssertEqual(kicks.all.count, 1)
     }
 
+    func testABatchRefusedAsTooLargeGoesOneAtATimeAndOnlyTheActionTooLargeAloneIsDropped() async throws {
+        let replica = try replica()
+        let queue = queue(replica)
+        for item in 40...42 { try await watch(queue, item: .n(item)) }
+        let ids = try await queued(replica)
+        let large = "/profiles/\(UID.n(1))/watch-state/\(UID.n(41))"
+        // A reverse proxy's body limit, answered with its own page rather than the server's error.
+        transport.respond = { sent in
+            let batch = Fixtures.decode(sent.body, as: Batch.self)
+            guard batch.actions.count > 1 || batch.actions.contains(where: { $0.path == large }) else {
+                return Self.answer(sent)
+            }
+            return (.init(code: 413), "<html><body>413 Request Entity Too Large</body></html>")
+        }
+
+        let flushed = await queue.flush()
+
+        XCTAssertEqual(flushed, .done)
+        XCTAssertEqual(batches().map { $0.actions.map(\.id) }, [ids, [ids[0]], [ids[1]], [ids[2]]])
+        XCTAssertEqual(notices.all, ["putWatchState internal"])
+        let left = try await queued(replica)
+        XCTAssertEqual(left, [])
+    }
+
     func testAFailedSendLosesNothing() async throws {
         let replica = try replica()
         let queue = queue(replica)
@@ -287,61 +311,6 @@ final class ActionQueueTests: ActionQueueCase {
         XCTAssertEqual(kept, ids)
         XCTAssertEqual(notices.all, [])
         XCTAssertEqual(kicks.all.count, 0)
-    }
-
-    // MARK: Limits
-
-    func testAnActionTouchingMoreRowsThanTheSpecAllowsIsSentAtOnceAfterTheQueue() async throws {
-        let replica = try replica()
-        let queue = queue(replica)
-        try await watch(queue, item: 40)
-        try await mark(queue, ActionQueue.touchedLimit)
-        transport.routes["PUT /profiles/\(UID.n(1))/watch-state/batch"] = (.noContent, "")
-
-        try await mark(queue, ActionQueue.touchedLimit + 1)
-
-        XCTAssertEqual(transport.sent.map(\.path), ["/sync/actions", "/profiles/\(UID.n(1))/watch-state/batch"])
-        XCTAssertEqual(batches().map { $0.actions.map(\.touched.count) }, [[1, ActionQueue.touchedLimit]])
-        let ids = transport.json(.put, "/profiles/\(UID.n(1))/watch-state/batch")?["itemIds"] as? [String]
-        XCTAssertEqual(ids?.count, ActionQueue.touchedLimit + 1)
-        let left = try await queued(replica)
-        XCTAssertEqual(left, [])
-        let applied = try await replica.read {
-            try UID.fetchAll($0, sql: "SELECT item_id FROM watch_state ORDER BY item_id")
-        }
-        XCTAssertEqual(applied, [40, .n(ActionQueue.touchedLimit)], "the server's rows come back by sync")
-        XCTAssertEqual(kicks.all.count, 2, "a catch-up after each")
-    }
-
-    func testLargeActionsGoInBatchesThatFitTheRequestBodyLimit() async throws {
-        let replica = try replica()
-        let queue = queue(replica)
-        for _ in 0..<30 { try await mark(queue, ActionQueue.touchedLimit) }
-        let ids = try await queued(replica)
-
-        let flushed = await queue.flush()
-
-        XCTAssertEqual(flushed, .done)
-        let sizes = transport.sent.filter { $0.path == "/sync/actions" }.map(\.body.utf8.count)
-        XCTAssertGreaterThan(sizes.reduce(0, +), ActionQueue.bodyLimit, "the queue holds more than one body")
-        XCTAssertTrue(sizes.allSatisfy { $0 <= ActionQueue.bodyLimit }, "\(sizes)")
-        XCTAssertEqual(batches().flatMap { $0.actions.map(\.id) }, ids)
-    }
-
-    /// putWatchStates of `count` items, each touched; its local write is a
-    /// row for item `count`.
-    private func mark(_ queue: ActionQueue, _ count: Int) async throws {
-        let items = (0..<count).map { UID.n($0 + 1000) }
-        try await queue.act(
-            as: 1, touching: try items.map { try .row("watch_state", 1, $0) },
-            call: { client, at in
-                _ = try await client.putWatchStates(
-                    path: .init(profileId: 1), body: .json(.init(itemIds: items, watched: true, at: at)))
-            },
-            apply: { db, _ in
-                try db.execute(
-                    sql: "INSERT OR IGNORE INTO watch_state VALUES (?, ?, 0)", arguments: [UID.n(1), UID.n(count)])
-            })
     }
 
     func testUnsentActionsOutliveASnapshotAndActionsGoOnAfterIt() async throws {

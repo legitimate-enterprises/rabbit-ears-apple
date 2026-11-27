@@ -286,21 +286,20 @@ final class PlaylistsModelTests: XCTestCase {
         XCTAssertTrue(transport.sent.isEmpty, "nothing goes until the queue flushes")
     }
 
-    func testABatchBeyondWhatAnActionMayTouchGoesToTheServerAtOnce() async throws {
+    func testABatchBeyondWhatAnActionMayTouchIsQueuedInCallsOfAtMostTheItemsLimit() async throws {
         let ids = (0...ActionQueue.touchedLimit).map { UID.n(1000 + $0) }
         try await synced.replica.write { db in
             for id in ids { try db.item(id, "movie", "Movie") }
         }
-        transport.routes["POST /profiles/\(UID.n(1))/playlists/\(UID.n(4))/entries/batch"] = (.noContent, "")
         let added = await model.add(ids, to: 4)
         XCTAssertTrue(added)
         XCTAssertNil(model.error)
-        let sent = transport.json(.post, "/profiles/\(UID.n(1))/playlists/\(UID.n(4))/entries/batch")?["entries"]
-        let entries = try XCTUnwrap(sent as? [[String: Any]])
-        XCTAssertEqual(entries.compactMap { $0["itemId"] as? String }, ids.map(\.description))
-        XCTAssertEqual(Set(entries.compactMap { $0["id"] as? String }).count, ids.count)
-        XCTAssertEqual(try synced.queued(), [])
-        XCTAssertTrue(synced.caughtUp, "its rows come by sync")
+        let sent: [Int] = try await synced.read(
+            "SELECT json_array_length(CAST(body AS TEXT), '$.entries') FROM queue.action ORDER BY seq")
+        XCTAssertEqual(sent, [2000, 2000, 1001])
+        XCTAssertTrue(transport.sent.isEmpty, "nothing goes until the queue flushes")
+        let read = await model.entries(of: 4)
+        XCTAssertEqual(try XCTUnwrap(read).compactMap(\.itemId), ids)
     }
 
     func testARefusedAddSaysWhyAndQueuesNothing() async throws {

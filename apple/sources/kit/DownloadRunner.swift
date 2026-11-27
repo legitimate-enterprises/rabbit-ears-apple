@@ -223,7 +223,7 @@ extension DownloadStore {
             ledger.titles[id]?.resumeData = nil
             ledger.titles[id]?.state = .onDevice
             save()
-            if await release(claim, link) {
+            if await release(claim, link, me) {
                 ledger.titles[id]?.claim = nil
                 save()
             }
@@ -293,14 +293,15 @@ extension DownloadStore {
 
     /// Lets the server forget the claims of titles already on the device.
     private func releaseFetched(_ link: Link) async {
+        let me = me
         for (id, title) in ledger.titles where title.state == .onDevice {
-            guard let claim = title.claim, await release(claim, link) else { continue }
+            guard let claim = title.claim, await release(claim, link, me) else { continue }
             ledger.titles[id]?.claim = nil
         }
     }
 
     /// Whether the server no longer holds the claim, released now or gone before.
-    func release(_ claim: DownloadClaim, _ link: Link) async -> Bool {
+    func release(_ claim: DownloadClaim, _ link: Link, _ me: Components.Schemas.Me?) async -> Bool {
         guard answers(for: claim.profileId, me) else { return false }
         do {
             _ = try await link.client.deleteDownload(path: .init(profileId: claim.profileId, downloadId: claim.id))

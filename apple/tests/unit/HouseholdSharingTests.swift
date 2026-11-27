@@ -68,8 +68,8 @@ final class SharedMemberTests: XCTestCase {
 
     func testAnOfferSaysWhoOffersWhom() {
         let offer = Fixtures.decode(
-            Fixtures.offer(3, of: 2, "Jax", from: "Heidi", to: "Avery"), as: ProfileOffer.self)
-        XCTAssertEqual(Format.offer(offer, incoming: true), "Kid · Heidi offers to share Jax with your household")
+            Fixtures.offer(3, of: 2, "Jason", from: "Helga", to: "Avery"), as: ProfileOffer.self)
+        XCTAssertEqual(Format.offer(offer, incoming: true), "Kid · Helga offers to share Jason with your household")
         XCTAssertEqual(Format.offer(offer, incoming: false), "Kid · Offered to Avery, waiting")
     }
 }
@@ -79,8 +79,8 @@ final class HouseholdSharingTests: XCTestCase {
     var transport: RoutingTransport!
     var app: AppModel!
     var model: HouseholdModel!
-    let incoming = Fixtures.offer(3, of: 6, "Jax", from: "Heidi", to: "Avery")
-    let outgoing = Fixtures.offer(4, of: 2, "Robin", from: "Avery", to: "Heidi")
+    let incoming = Fixtures.offer(3, of: 6, "Jason", from: "Helga", to: "Avery")
+    let outgoing = Fixtures.offer(4, of: 2, "Robin", from: "Avery", to: "Helga")
 
     override func setUp() async throws {
         transport = RoutingTransport([
@@ -118,11 +118,11 @@ final class HouseholdSharingTests: XCTestCase {
     }
 
     func testOfferingAProfileListsConnectedAdultsAndSendsTheOffer() async throws {
-        transport.routes["GET /household/linked-adults"] = (.ok, Fixtures.page([Fixtures.account(7, "Heidi")]))
+        transport.routes["GET /household/linked-adults"] = (.ok, Fixtures.page([Fixtures.account(7, "Helga")]))
         transport.routes["POST /household/offers"] = (.created, outgoing)
         let robin = Fixtures.decode(Fixtures.kid, as: Account.self)
         let adults = try await model.connectedAdults()
-        XCTAssertEqual(adults.map(\.name), ["Heidi"])
+        XCTAssertEqual(adults.map(\.name), ["Helga"])
         try await model.offer(robin, to: adults[0])
         let sent = transport.json(.post, "/household/offers")
         XCTAssertEqual(sent?["profileId"] as? String, "\(UID.n(2))")

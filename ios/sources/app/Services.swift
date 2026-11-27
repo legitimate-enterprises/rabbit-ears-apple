@@ -83,7 +83,7 @@ final class Services {
         music = MusicModel(client: client, replica: sync.replica, profileId: profileId)
         youtube = YouTubeModel(client: client, replica: sync.replica, queue: sync.queue, profileId: profileId)
         playlists = PlaylistsModel(
-            client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profileId,
+            client: client, replica: sync.replica, queue: sync.queue, profileId: profileId,
             adult: adult)
         collections = CollectionsModel(replica: sync.replica, queue: sync.queue, profileId: profileId)
         stations = StationsModel(client: client, replica: sync.replica, queue: sync.queue, profileId: profileId)

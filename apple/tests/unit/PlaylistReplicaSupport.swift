@@ -30,7 +30,7 @@ final class SyncedReplica {
 
     func playlists(_ profile: UID = 1, adult: Bool = true) -> PlaylistsModel {
         PlaylistsModel(
-            client: client, replica: replica, queue: queue, engine: engine, profileId: profile, adult: adult)
+            client: client, replica: replica, queue: queue, profileId: profile, adult: adult)
     }
 
     func collections(_ profile: UID = 1) -> CollectionsModel {

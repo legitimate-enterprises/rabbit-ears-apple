@@ -23,9 +23,8 @@ public struct BearerAuth: ClientMiddleware {
 
 extension Client {
     /// The session every client without its own transport shares. An answer
-    /// stalled half a minute fails, as on Android, rather than after
-    /// URLSession's minute. Made on first use, so it takes the URLCache an
-    /// app sets at launch.
+    /// stalled half a minute fails, rather than after URLSession's minute.
+    /// Made on first use, so it takes the URLCache an app sets at launch.
     public static let session: URLSession = {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30

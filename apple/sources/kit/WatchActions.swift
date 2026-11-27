@@ -50,14 +50,14 @@ extension ActionQueue {
     /// putWatchStates: marks a selection with no position, a show or season
     /// as each episode of it the profile may see and a channel as each of
     /// its videos. The episodes and videos are sent themselves, in as many
-    /// actions as the touched-row limit needs. Nothing is queued when the
+    /// actions as the call's item limit needs. Nothing is queued when the
     /// profile may not see an item or it is of a kind not watched.
     public func putWatchStates(
         _ watched: Bool, items ids: [UID], as profileId: UID, in replica: Replica
     ) async throws {
         let targets = try await replica.read { try Self.targets(of: ids, profileId, $0) }
-        for start in stride(from: 0, to: targets.count, by: Self.touchedLimit) {
-            let chunk = Array(targets[start..<min(start + Self.touchedLimit, targets.count)])
+        for start in stride(from: 0, to: targets.count, by: Self.itemsLimit) {
+            let chunk = Array(targets[start..<min(start + Self.itemsLimit, targets.count)])
             try await act(
                 as: profileId, touching: try chunk.map { try Self.watchKey(profileId, $0) },
                 call: { client, at in

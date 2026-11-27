@@ -134,7 +134,7 @@ final class SyncEndToEndTests: XCTestCase {
     private func assertLists(_ device: SyncDevice, _ profile: SyncServer.Profile) async throws {
         let (rest, who) = (profile.rest, profile.name)
         let playlists = PlaylistsModel(
-            client: rest, replica: device.replica, queue: device.queue, engine: device.engine, profileId: profile.id,
+            client: rest, replica: device.replica, queue: device.queue, profileId: profile.id,
             adult: profile.adult)
         await playlists.load()
         let served = try await rest.listPlaylists(path: .init(profileId: profile.id)).ok.body.json.items
@@ -243,7 +243,7 @@ final class SyncEndToEndTests: XCTestCase {
             body: .json(.init(profileId: kid.id, access: .read))
         ).created
         let jamie = PlaylistsModel(
-            client: kid.rest, replica: device.replica, queue: device.queue, engine: device.engine, profileId: kid.id,
+            client: kid.rest, replica: device.replica, queue: device.queue, profileId: kid.id,
             adult: false)
         try await until("the share arrives") {
             await jamie.load()
@@ -261,7 +261,7 @@ final class SyncEndToEndTests: XCTestCase {
         try await device.engine.catchUp()
         let adult = server.adult
         let playlists = PlaylistsModel(
-            client: adult.rest, replica: device.replica, queue: device.queue, engine: device.engine,
+            client: adult.rest, replica: device.replica, queue: device.queue,
             profileId: adult.id)
         let created = await playlists.create(name: "Made online", kind: .tv)
         let made = try XCTUnwrap(created)

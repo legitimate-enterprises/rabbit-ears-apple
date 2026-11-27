@@ -1,3 +1,4 @@
+import AVFoundation
 import AppKit
 import AudioToolbox
 import CoreAudio
@@ -58,6 +59,8 @@ public final class SystemCapabilities: CapabilitySource {
 
     public static func readFacts(screen: NSScreen? = NSScreen.main, path: PathFacts = PathFacts()) -> DeviceFacts {
         var facts = DeviceFacts.decoder
+        // It follows the display, which can change while the app runs.
+        facts.hdrPlayback = AVPlayer.eligibleForHDRPlayback
         facts.screen = screen.map(screenFacts)
         facts.route = routeFacts()
         facts.path = path

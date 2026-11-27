@@ -49,8 +49,11 @@ archive="$out/$scheme.xcarchive"
 # place of what this run builds.
 rm -rf "$out"
 
-# The build and the export need neither secret.
-unset_secrets=(env -u APPLE_API_KEY -u PROVISIONING_PROFILE)
+# The build and the export need none of the secrets: signing-keychain.sh has
+# already imported the certificates.
+unset_secrets=(env -u APPLE_API_KEY -u PROVISIONING_PROFILE
+    -u APPLE_DISTRIBUTION_CERT_P12 -u APPLE_DISTRIBUTION_CERT_PASSWORD
+    -u MAC_INSTALLER_CERT_P12 -u MAC_INSTALLER_CERT_PASSWORD)
 "${unset_secrets[@]}" xcodebuild -project "$project" -scheme "$scheme" -derivedDataPath build \
     -destination "generic/platform=$platform" -configuration Release \
     -archivePath "$archive" archive \

@@ -144,7 +144,7 @@ final class CarPlayTemplates {
         return draw(size, round: round) { UIImage(cgImage: bitmap).draw(in: $0) }
     }
 
-    /// A grey stand-in until the artwork arrives, in the artwork's shape.
+    /// A gray stand-in until the artwork arrives, in the artwork's shape.
     private func placeholder(_ art: CarPlayRow.Art?) -> UIImage {
         let round = if case .round = art { true } else { false }
         return draw(CPListItem.maximumImageSize, round: round) { rect in

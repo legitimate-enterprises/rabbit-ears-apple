@@ -20,7 +20,7 @@ enum Theme {
 
     /// A person without a headshot, in one of the profile colors.
     static func placeholder(_ id: UID) -> Color { Color(hex: ProfilePalette.placeholder(id)) }
-    /// Someone known only by name, coloured by `count`.
+    /// Someone known only by name, colored by `count`.
     static func placeholder(_ count: Int) -> Color {
         Color(hex: ProfilePalette.rgb(ProfilePalette.colors[count % ProfilePalette.colors.count]) ?? 0)
     }

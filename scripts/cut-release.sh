@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Tags a release. The version is the one apple/version.yaml states for all
-# three apps on origin/main, so there is no bump to choose here: the tag is
-# v<version>, cut on origin/main once ci is green there.
+# Tags origin/main v<version>, the version apple/version.yaml states there
+# for all three apps, once ci is green on that commit.
 #
 # Usage: cut-release.sh                  the version and whether it can be tagged
 #        cut-release.sh --yes            tag and push it

@@ -247,7 +247,7 @@ struct MainView: View {
         music = player
         entered(player)
         let lists = PlaylistsModel(
-            client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profile.id,
+            client: client, replica: sync.replica, queue: sync.queue, profileId: profile.id,
             adult: profile.kind == .adult)
         playlists = lists
         Task { await lists.load() }

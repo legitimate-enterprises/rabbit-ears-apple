@@ -62,6 +62,8 @@ public final class SystemCapabilities: CapabilitySource {
 
     public static func readFacts(screen: ScreenFacts?, route: RouteFacts, path: PathFacts) -> DeviceFacts {
         var facts = DeviceFacts.decoder
+        // It follows the display, which can change while the app runs.
+        facts.hdrPlayback = AVPlayer.eligibleForHDRPlayback
         facts.screen = screen
         facts.route = route
         facts.path = path

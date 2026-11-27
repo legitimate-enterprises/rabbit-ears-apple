@@ -32,6 +32,9 @@ public actor ActionQueue {
     static let batchLimit = 100
     /// SyncAction's touched maxItems; ActionRecorderTests holds it to openapi.yaml.
     static let touchedLimit = 5000
+    /// The maxItems of WatchStateBatchInput.itemIds, KidsContentBatchInput.itemIds and
+    /// PlaylistEntriesInput.entries; ActionRecorderTests holds it to openapi.yaml.
+    static let itemsLimit = 2000
     /// The largest request body replaySyncActions takes, an `x-upload` operation's.
     static let bodyLimit = 16 << 20
 
@@ -78,7 +81,8 @@ public actor ActionQueue {
     /// takes in its body or query. When `apply` throws nothing is queued.
     /// An action touching more than `touchedLimit` rows cannot be queued: it
     /// is made on the server at once, after what is queued, and `apply` is
-    /// not run; a catch-up brings the rows it wrote.
+    /// not run; a catch-up brings the rows it wrote. While the queue cannot
+    /// be sent it throws `AppError.unreachable` and nothing is made.
     public func act(
         as profileId: UID, touching touched: [Components.Schemas.SyncTouched],
         call: @Sendable (Client, Date) async throws -> Void,
@@ -89,7 +93,7 @@ public actor ActionQueue {
         let recorded = try await record { try await call($0, at) }
         guard touched.allSatisfy({ (1...3).contains($0.key.count) }) else { throw Failure.unsendable("touched keys") }
         guard touched.count <= Self.touchedLimit else {
-            await flush()
+            guard await flush() == .done else { throw AppError.unreachable }
             try await call(client, at)
             afterFlush()
             return
@@ -155,8 +159,9 @@ public actor ActionQueue {
         return outcome
     }
 
-    /// A batch refused whole is sent again one action at a time, so only an
-    /// action refused alone is dropped and none blocks the queue for ever.
+    /// A batch refused whole, as invalid or as too large, is sent again one
+    /// action at a time, so only an action refused alone is dropped and none
+    /// blocks the queue for ever.
     private func sendAll(removed: inout Bool) async -> Flush {
         var limit = Self.batchLimit
         while !unsupported {
@@ -169,7 +174,7 @@ public actor ActionQueue {
                     results = try await client.replaySyncActions(
                         body: .json(.init(apiVersion: Self.apiVersion, actions: batch))
                     ).ok.body.json.results
-                } catch let error where APIError.from(error)?.status == 400 {
+                } catch let error where [400, 413].contains(APIError.from(error)?.status) {
                     guard batch.count == 1 else {
                         limit = 1
                         continue

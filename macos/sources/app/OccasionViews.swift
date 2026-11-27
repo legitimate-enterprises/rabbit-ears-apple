@@ -2,7 +2,7 @@ import RabbitEarsAPI
 import RabbitEarsKit
 import SwiftUI
 
-/// One occasion: every title the profile may see in it, under the occasion's name, over its colours.
+/// One occasion: every title the profile may see in it, under the occasion's name, over its colors.
 struct OccasionScreen: View {
     @Environment(CatalogModel.self) private var model
     let occasion: ActiveOccasion

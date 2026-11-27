@@ -17,7 +17,6 @@ deps: ## Install every stack's tooling
 generate: ## Regenerate the API package and the Xcode projects
 	@for s in $(STACKS); do $(MAKE) --no-print-directory -C $$s generate || exit $$?; done
 
-# The file's info.version is the server release the apps are built against.
 spec: ## Replace openapi.yaml with the one from server release VERSION, and regenerate (make spec VERSION=0.20.0)
 	@[ -n "$(VERSION)" ] || { echo "usage: make spec VERSION=<server version>" >&2; exit 64; }
 	curl --fail --silent --show-error --location --output openapi.yaml.new \
@@ -80,10 +79,8 @@ clean: ## Remove build products, generated projects and the server's source
 	@for s in $(STACKS); do $(MAKE) --no-print-directory -C $$s clean || exit $$?; done
 	rm -rf build
 
-# Tags origin/main v<version>, the version apple/version.yaml states there,
-# once CI is green on that commit; a version already released is refused.
-# Without YES=1 it only says what it would do. There is no local publish
-# path.
+# scripts/cut-release.sh refuses a version already released; without YES=1
+# it only says what it would do.
 deploy: ## Tag origin/main for release and push the tag (make deploy YES=1)
 	scripts/cut-release.sh $(if $(YES),--yes)
 

@@ -52,27 +52,25 @@ the App Store is done by hand in App Store Connect.
 ## Simulator UI tests and store screenshots
 `make -C ios test-ui` and `make -C tvos test-ui` exercise sign-in, profile
 selection, movie browsing and advancing video playback. Both run in CI and
-through root `make test`. They require Xcode, compatible iOS/tvOS 27+
-simulator runtimes, a logged-in macOS desktop session, Python 3, Go, `jq`,
-`ffmpeg` and `ffprobe`. Missing prerequisites or skipped tests fail the run.
+through root `make test`. Beyond the requirements of tests that run a server,
+they need iOS and tvOS 27+ simulator runtimes, a logged-in macOS desktop
+session and `ffprobe`. Missing prerequisites or skipped tests fail the run.
 
 `make screenshots` runs those flows and exports three anonymous images per
 client: profiles, home and movie details. Each run creates its own simulator
 and local server, with fictional movies, original landscape artwork and demo
-profiles. It never connects to a personal server or reuses a signed-in device.
-No credentials or image redaction are needed. These demo images illustrate the
-real UI; they do not depict commercially released films.
+profiles. It never connects to a personal server or reuses a signed-in device,
+so no credentials or image redaction are needed.
 
 The iPhone images are 1206 × 2622; Apple TV images are 3840 × 2160. Each client
 validates its complete set before replacing its directory under
-`assets/apple-app-store/`. Failed tests or invalid exports preserve the previous
-set. Logs and XCTest result bundles remain under that client's `build/ui-tests/`.
+`assets/apple-app-store/`; failed tests or invalid exports keep the previous
+set. Logs and XCTest result bundles stay under that client's `build/ui-tests/`.
 
-`make screenshots SCREENSHOT_CLIENTS="ios"` selects a subset. The root target
-only dispatches to each selected client's `screenshots` target. To support
-another platform, implement that target in its own directory, including its
-store-specific export validation, then add it to `SCREENSHOT_CLIENTS`.
-macOS is not currently included.
+`make screenshots SCREENSHOT_CLIENTS="ios"` selects a subset; the root target
+only runs each selected client's own `screenshots` target. macOS has none. To
+add a platform, implement that target, with its store's export validation, in
+the platform's directory, then add it to `SCREENSHOT_CLIENTS`.
 
 ------------------------------------------------------------------------
 *End of README*

@@ -175,9 +175,9 @@ final class HouseholdActionsTests: XCTestCase {
     }
 
     /// A whole action's items and six more, uid.N(100) on.
-    static let ids = (100..<(106 + ActionQueue.touchedLimit)).map(UID.n)
+    static let ids = (100..<(106 + ActionQueue.itemsLimit)).map(UID.n)
 
-    func testASelectionsKidsContentIsSentInBatchesOfTheTouchedLimit() async throws {
+    func testASelectionsKidsContentIsSentInBatchesOfTheItemsLimit() async throws {
         app.remove()
         app = try SyncedApp { db in
             for id in Self.ids { try db.item(id, "movie", "T\(id)", rating: "G") }
@@ -186,14 +186,14 @@ final class HouseholdActionsTests: XCTestCase {
         app.offline()
         try await sync.queue.setKidsContents(false, for: Self.ids, as: 1)
         let marked: Int? = try await app.value("SELECT count(*) FROM item WHERE kids_content = 0")
-        XCTAssertEqual(marked, ActionQueue.touchedLimit + 6)
+        XCTAssertEqual(marked, ActionQueue.itemsLimit + 6)
         let queued = try await app.queued()
         XCTAssertEqual(queued, Array(repeating: "setKidsContents PUT /items/kids-content/batch", count: 2))
         app.routes.failure = nil
         _ = await sync.queue.flush()
         let ids = app.sentBodies().map { ($0["itemIds"] as? [String]) ?? [] }
         let sent = Self.ids.map(\.description)
-        XCTAssertEqual(ids, [Array(sent[..<ActionQueue.touchedLimit]), Array(sent[ActionQueue.touchedLimit...])])
+        XCTAssertEqual(ids, [Array(sent[..<ActionQueue.itemsLimit]), Array(sent[ActionQueue.itemsLimit...])])
         XCTAssertEqual(app.sentBodies().first?["kidsContent"] as? Bool, false)
     }
 }

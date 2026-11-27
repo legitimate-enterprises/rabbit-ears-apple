@@ -34,16 +34,13 @@ extension ActionQueue {
             apply: { db, at in try Self.insert(db, [entry], in: playlist, by: profile, at) })
     }
 
-    /// PlaylistEntriesInput's entries maxItems; ActionRecorderTests holds it to openapi.yaml.
-    static let entriesLimit = 2000
-
-    /// Entries appended in consecutive calls of at most `entriesLimit`, as
+    /// Entries appended in consecutive calls of at most `itemsLimit`, as
     /// addEntry names each; the server ranks each call's itself, after its
-    /// last entry, as `entries` already are. More than `touchedLimit` go as one call.
+    /// last entry, as `entries` already are.
     func addEntries(as profile: UID, to playlist: UID, _ entries: [PlaylistEntryInput]) async throws {
-        let size = entries.count > Self.touchedLimit ? entries.count : Self.entriesLimit
-        for start in stride(from: 0, to: entries.count, by: size) {
-            try await addBatch(as: profile, to: playlist, Array(entries[start..<min(start + size, entries.count)]))
+        for start in stride(from: 0, to: entries.count, by: Self.itemsLimit) {
+            try await addBatch(
+                as: profile, to: playlist, Array(entries[start..<min(start + Self.itemsLimit, entries.count)]))
         }
     }
 

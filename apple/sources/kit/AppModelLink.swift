@@ -1,9 +1,8 @@
 import Foundation
 import RabbitEarsAPI
 
-/// Signing a TV in with a code an adult approves on another device.
+/// Link a TV: signing a TV in with a code an adult approves on another device.
 extension AppModel {
-    /// Link a TV: a code for an adult signed in on another device to approve.
     public func requestLink(server: ServerEndpoint) async throws -> DeviceLink {
         let input = Components.Schemas.DeviceLinkInput(deviceName: deviceName, platform: platform)
         do {

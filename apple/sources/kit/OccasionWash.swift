@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// A soft wash of an occasion's three colours over the plain background: one very large,
+/// A soft wash of an occasion's three colors over the plain background: one very large,
 /// blurred spot each at the top corners and top edge, fading out below the first rows.
-/// Static; with anything but three valid colours it draws nothing, so the background shows as is.
+/// Static; with anything but three valid colors it draws nothing, so the background shows as is.
 public struct OccasionWash: View {
     struct Channels {
         let red: Double

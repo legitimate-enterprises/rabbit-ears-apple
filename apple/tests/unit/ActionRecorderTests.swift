@@ -156,11 +156,16 @@ final class ActionRecorderTests: ActionQueueCase {
         XCTAssertEqual(ActionQueue.touchedLimit, Int(limit))
     }
 
-    func testTheEntriesLimitIsTheSpecs() throws {
+    func testTheItemsLimitIsTheSpecs() throws {
         let text = try String(contentsOf: Self.spec, encoding: .utf8)
-        let schema = try XCTUnwrap(text.range(of: "\n    PlaylistEntriesInput:\n"))
-        let entries = try XCTUnwrap(text.range(of: "\n        entries:\n", range: schema.upperBound..<text.endIndex))
-        let limit = try XCTUnwrap(text[entries.upperBound...].firstMatch(of: /\n          maxItems: (\d+)\n/)?.1)
-        XCTAssertEqual(ActionQueue.entriesLimit, Int(limit))
+        for (name, field) in [
+            ("WatchStateBatchInput", "itemIds"), ("KidsContentBatchInput", "itemIds"),
+            ("PlaylistEntriesInput", "entries"),
+        ] {
+            let schema = try XCTUnwrap(text.range(of: "\n    \(name):\n"), name)
+            let array = try XCTUnwrap(text.range(of: "\n        \(field):\n", range: schema.upperBound..<text.endIndex))
+            let limit = try XCTUnwrap(text[array.upperBound...].firstMatch(of: /\n          maxItems: (\d+)\n/)?.1)
+            XCTAssertEqual(ActionQueue.itemsLimit, Int(limit), "\(name).\(field)")
+        }
     }
 }

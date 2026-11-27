@@ -86,7 +86,7 @@ public enum Format {
         return "In \(count) households"
     }
 
-    /// "Kid · Heidi offers to share Jax with your household", or "Kid · Offered to Heidi, waiting".
+    /// "Kid · Helga offers to share Jason with your household", or "Kid · Offered to Helga, waiting".
     public static func offer(_ offer: ProfileOffer, incoming: Bool) -> String {
         let what =
             incoming

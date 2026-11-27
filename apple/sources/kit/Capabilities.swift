@@ -41,7 +41,7 @@ public struct DeviceFacts: Equatable, Sendable {
 
 extension DeviceFacts {
     /// Group A, probed once per launch; each platform's `CapabilitySource`
-    /// reads the other groups.
+    /// reads the other groups and `hdrPlayback` again.
     public static let decoder: DeviceFacts = {
         let codecs: [(String, CMVideoCodecType)] = [
             ("h264", kCMVideoCodecType_H264), ("hevc", kCMVideoCodecType_HEVC), ("av1", kCMVideoCodecType_AV1),

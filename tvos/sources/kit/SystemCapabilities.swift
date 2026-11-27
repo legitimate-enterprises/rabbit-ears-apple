@@ -42,10 +42,11 @@ public final class SystemCapabilities: CapabilitySource {
     public func facts() -> DeviceFacts {
         let session = AVAudioSession.sharedInstance()
         var facts = DeviceFacts.decoder
+        // It follows the display, which can change while the app runs.
+        facts.hdrPlayback = AVPlayer.eligibleForHDRPlayback
         facts.screen = Self.screen.map {
             Self.screenFacts(
-                nativeSize: $0.nativeBounds.size, refreshRate: $0.maximumFramesPerSecond,
-                hdr: AVPlayer.eligibleForHDRPlayback)
+                nativeSize: $0.nativeBounds.size, refreshRate: $0.maximumFramesPerSecond, hdr: facts.hdrPlayback)
         }
         facts.route = Self.routeFacts(channels: session.maximumOutputNumberOfChannels, sampleRate: session.sampleRate)
         facts.path = path

@@ -21,7 +21,7 @@ extension SyncEndToEndTests {
 
         let queue = device.queue
         let playlists = PlaylistsModel(
-            client: rest, replica: device.replica, queue: queue, engine: device.engine, profileId: adult.id)
+            client: rest, replica: device.replica, queue: queue, profileId: adult.id)
         let collections = CollectionsModel(replica: device.replica, queue: queue, profileId: adult.id)
         try await queue.putWatchState(true, item: watched, as: adult.id)
         try await queue.putWatchStates(true, items: [show], as: adult.id, in: device.replica)
@@ -139,7 +139,7 @@ extension SyncEndToEndTests {
         let offline = try Client.connect(to: XCTUnwrap(URL(string: "http://127.0.0.1:1")), token: nil)
         let (replica, queue, engine) = (device.replica, device.queue, device.engine)
         let playlists = PlaylistsModel(
-            client: offline, replica: replica, queue: queue, engine: engine, profileId: adult.id)
+            client: offline, replica: replica, queue: queue, profileId: adult.id)
         let collections = CollectionsModel(replica: replica, queue: queue, profileId: adult.id)
         let stations = StationsModel(client: offline, replica: replica, queue: queue, profileId: adult.id)
 

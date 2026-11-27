@@ -334,13 +334,13 @@ public final class DownloadStore {
 
     /// Deletes every stored title no request holds, with its files, any
     /// file in media/ no stored title holds, and the artwork nothing kept
-    /// shows with; its transfer
-    /// stops and the server lets its claim go.
+    /// shows with; its transfer stops and the server lets its claim go.
     func collect() {
         let held = Set(ledger.requests.flatMap(\.titles))
+        let me = me
         for (id, title) in ledger.titles where !held.contains(id) {
             transfers[id]?.cancel()
-            if let claim = title.claim, let link { Task { _ = await release(claim, link) } }
+            if let claim = title.claim, let link { Task { _ = await release(claim, link, me) } }
             ledger.titles[id] = nil
         }
         // Each media file's name starts with its title's id, so one that

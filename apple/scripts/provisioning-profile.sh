@@ -21,7 +21,6 @@ if [ -z "${PROVISIONING_PROFILE:-}" ]; then
     exit 1
 fi
 
-# Xcode 16 and later keep profiles in this folder.
 dir="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
 
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/profile.XXXXXX")"

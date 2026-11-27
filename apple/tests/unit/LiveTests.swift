@@ -239,7 +239,7 @@ final class HandoffTests: XCTestCase {
         ).replacingOccurrences(of: "host", with: "guest")
         func state(_ members: [String], _ status: String) -> String {
             Fixtures.together(status: status).replacingOccurrences(
-                of: Fixtures.member(3, "Heidi", role: "host"), with: members.joined(separator: ","))
+                of: Fixtures.member(3, "Helga", role: "host"), with: members.joined(separator: ","))
         }
         let model = WatchTogetherModel(client: client, profileId: 1, itemId: 20)
         transport.routes["GET /watch-together"] = (.ok, Fixtures.page([state([there], "waiting")]))

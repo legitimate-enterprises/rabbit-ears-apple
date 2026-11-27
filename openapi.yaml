@@ -9384,9 +9384,9 @@ components:
       required: [accountId, name, role, deviceName, platform, present, joinedAt]
       properties:
         accountId: { $ref: "#/components/schemas/Id" }
-        name: { type: string, description: As Heidi in In sync with Heidi. }
+        name: { type: string, description: As Helga in In sync with Helga. }
         role: { $ref: "#/components/schemas/WatchTogetherRole" }
-        deviceName: { type: string, description: "The member's device, as Heidi is on her Apple TV." }
+        deviceName: { type: string, description: "The member's device, as Helga is on her Apple TV." }
         platform: { $ref: "#/components/schemas/Platform" }
         present: { type: boolean, description: Polled within the last 30 seconds. }
         joinedAt: { type: string, format: date-time }
@@ -9417,7 +9417,7 @@ components:
           description: Milliseconds of the window left at serverTime, for the m:ss countdown without trusting the client's clock.
         playing: { type: boolean }
         positionMs: { type: integer, format: int64, minimum: 0, description: The shared position at serverTime. }
-        pausedById: { $ref: "#/components/schemas/Id", description: "Who paused last, while paused, as Heidi paused." }
+        pausedById: { $ref: "#/components/schemas/Id", description: "Who paused last, while paused, as Helga paused." }
         pausedByName: { type: string }
         version: { type: integer, minimum: 1, description: "Rises on every join, play, pause, seek and end." }
         serverTime: { type: string, format: date-time, description: When the server answered. }

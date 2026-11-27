@@ -1,5 +1,5 @@
-# Apple TV targets. xcodebuild targets need full Xcode with a tvOS
-# simulator runtime, which `make deps` downloads when it is missing.
+# xcodebuild targets need full Xcode with a tvOS simulator runtime, which
+# `make deps` downloads when it is missing.
 PROJECT      := RabbitEars.xcodeproj
 SCHEME       := RabbitEars
 # Products stay under build/ so clean leaves the other projects' alone.

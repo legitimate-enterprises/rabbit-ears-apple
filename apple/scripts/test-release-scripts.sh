@@ -2,7 +2,7 @@
 # Exercises the release scripts with no store, certificate or CI:
 # require-env.sh, provisioning-profile.sh on a profile signed here with a
 # throwaway key, and signing-keychain.sh and app-store-release.sh against
-# fakes of security, xcodebuild and xcrun. `make test-unit` runs it.
+# fakes of security, xcodebuild and xcrun.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -93,7 +93,7 @@ FAKE
 cat > "$fakes/xcodebuild" << 'FAKE'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FAKE_LOG/xcodebuild.log"
-[ -z "${APPLE_API_KEY:-}${PROVISIONING_PROFILE:-}" ] || exit 96
+! env | grep -qE '^(APPLE_API_KEY|PROVISIONING_PROFILE|[A-Z_]+_P12|[A-Z_]+_PASSWORD)=' || exit 96
 [ -z "${FAKE_ARCHIVE_FAIL:-}" ] || exit 65
 args=("$@")
 for ((i = 0; i < $#; i++)); do
@@ -160,7 +160,8 @@ emptied "a refused import"
 # CI, then on a missing variable, then on a shallow clone, each before a
 # profile is installed or a build starts.
 release=("$here/app-store-release.sh" RabbitEars.xcodeproj RabbitEars iOS)
-secrets=(APPLE_TEAM_ID=T APPLE_API_KEY=K APPLE_API_KEY_ID=I APPLE_API_ISSUER_ID=S PROVISIONING_PROFILE="$good")
+# The job's environment holds the certificates too.
+secrets=(APPLE_TEAM_ID=T APPLE_API_KEY=K APPLE_API_KEY_ID=I APPLE_API_ISSUER_ID=S PROVISIONING_PROFILE="$good" "${distribution[@]}" "${installer[@]}")
 mkdir -p "$tmp/app"
 cd "$tmp/app"
 expect 64 env "${faked[@]}" HOME="$home" "${secrets[@]}" "$here/app-store-release.sh" RabbitEars.xcodeproj RabbitEars watchOS
