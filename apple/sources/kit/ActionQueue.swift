@@ -255,11 +255,31 @@ public actor ActionQueue {
             guard let method = Components.Schemas.SyncAction.MethodPayload(rawValue: row["method"]) else {
                 throw Failure.unsendable(row["method"])
             }
-            let body = try (row["body"] as Data?).map { try JSONDecoder().decode(OpenAPIValueContainer.self, from: $0) }
+            let body = try (row["body"] as Data?).map(Self.body)
             return .init(
                 id: row["uuid"], seq: seq, operationId: row["operation_id"], method: method, path: row["path"],
                 body: body, actingProfileId: row["profile_id"],
                 at: Date(timeIntervalSince1970: Double(row["at"] as Int64) / 1000), touched: touched[seq] ?? [])
+        }
+    }
+
+    /// The stored JSON as the container decoding it would give, parsed once:
+    /// that decoding throws for each type it tries on each value.
+    static func body(_ data: Data) throws -> OpenAPIValueContainer {
+        try OpenAPIValueContainer(unvalidatedValue: value(JSONSerialization.jsonObject(with: data)))
+    }
+
+    /// A number as the container's decoding takes it: a Bool, else an Int where exact, else a Double.
+    private static func value(_ object: Any) -> (any Sendable)? {
+        switch object {
+        case let number as NSNumber:
+            if CFGetTypeID(number) == CFBooleanGetTypeID() { return number.boolValue }
+            if !CFNumberIsFloatType(number) { return number.intValue }
+            return Int(exactly: number.doubleValue) ?? number.doubleValue
+        case let text as String: return text
+        case let array as [Any]: return array.map(value)
+        case let object as [String: Any]: return object.mapValues(value)
+        default: return nil
         }
     }
 

@@ -110,6 +110,36 @@ final class ActionRecorderTests: ActionQueueCase {
         XCTAssertEqual(body, ["id": parent.description, "itemId": item.description])
     }
 
+    /// The batch carries each stored body as decoding it whole into the container would.
+    func testAStoredBodyIsSentAsDecodingItWouldSendIt() async throws {
+        let bodies = [
+            #"{"a":{"b":[1,-2,0,9223372036854775807,-9223372036854775808]},"c":1.5,"d":1.0,"e":-0.25,"f":1e300,"#
+                + #""g":true,"h":false,"i":null,"j":"Grüße ☃ 😀 \"q\" \\ \/ \u0001","k":[],"l":{},"m":[[{"n":[null]}]],"#
+                + #""o":"2027-01-15T08:00:00.123Z","p":12345678901234567,"q":0.1,"r":-0.0,"s":1e-7}"#,
+            #"[1,true,"x",null,2.5,{"a":false}]"#,
+            #"{"itemIds":["\#(UID.n(1))","\#(UID.n(2))"],"watched":true,"at":"2027-01-15T08:00:00.123Z"}"#,
+        ]
+        let client = Client.connect(to: ServerEndpoint.default.baseURL, token: nil, transport: ActionRecorder())
+        func sent(_ body: OpenAPIValueContainer) async throws -> Data? {
+            let action = Components.Schemas.SyncAction(
+                id: "a", seq: 1, operationId: "op", method: .post, path: "/p", body: body, actingProfileId: 1,
+                at: Self.now, touched: [])
+            do {
+                _ = try await client.replaySyncActions(body: .json(.init(apiVersion: "1", actions: [action])))
+            } catch let error as ClientError {
+                return try XCTUnwrap(error.underlyingError as? ActionRecorder.Recorded).body
+            }
+            return nil
+        }
+        for body in bodies {
+            let data = Data(body.utf8)
+            let decoded = try await sent(JSONDecoder().decode(OpenAPIValueContainer.self, from: data))
+            let parsed = try await sent(ActionQueue.body(data))
+            XCTAssertNotNil(parsed)
+            XCTAssertEqual(parsed, decoded, body)
+        }
+    }
+
     static let spec = URL(filePath: #filePath).deletingLastPathComponent().appending(path: "../../../openapi.yaml")
 
     func testTheApiVersionIsTheSpecs() throws {
