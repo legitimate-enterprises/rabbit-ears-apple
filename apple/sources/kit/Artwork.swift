@@ -5,7 +5,8 @@ import RabbitEarsAPI
 
 /// Item artwork and headshots from the server, held in memory for the signed-in session; beneath it,
 /// URLCache keeps images on disk under the server's Cache-Control. An image the server does not have
-/// stays missing until the artwork generation moves; one that failed to arrive is asked for again.
+/// stays missing until the artwork generation moves; one that failed to arrive is asked for again,
+/// and meanwhile is the copy `kept` holds from its last arrival.
 @MainActor
 public final class ArtworkStore {
     public enum Kind: String, Sendable { case poster, backdrop }
@@ -19,15 +20,18 @@ public final class ArtworkStore {
     private var missing: Set<String> = []
     private let generation: ArtworkGeneration?
     private var seen: Int64?
+    /// Keyed by the image alone, not its address, which carries a generation only the server can name.
+    private let kept: URLCache?
 
     private enum Fetched {
         case found(Data)
         case missing, failed
     }
 
-    public init(client: Client, generation: ArtworkGeneration? = nil) {
+    public init(client: Client, generation: ArtworkGeneration? = nil, kept: URLCache? = nil) {
         self.client = client
         self.generation = generation
+        self.kept = kept
         images.totalCostLimit = 64 << 20
         bitmaps.totalCostLimit = 96 << 20
     }
@@ -161,12 +165,21 @@ public final class ArtworkStore {
         switch outcome {
         case .found(let data):
             images.setObject(data as NSData, forKey: key as NSString, cost: data.count)
+            let request = Self.keptRequest(key)
+            let response = URLResponse(
+                url: request.url!, mimeType: nil, expectedContentLength: data.count, textEncodingName: nil)
+            kept?.storeCachedResponse(CachedURLResponse(response: response, data: data), for: request)
             return data
         case .missing:
             missing.insert(key)
             return nil
         case .failed:
-            return nil
+            return kept?.cachedResponse(for: Self.keptRequest(key))?.data
         }
+    }
+
+    /// An address no server answers, so a kept image never stands in for a response.
+    private static func keptRequest(_ key: String) -> URLRequest {
+        URLRequest(url: URL(string: "https://artwork.invalid")!.appending(path: key))
     }
 }

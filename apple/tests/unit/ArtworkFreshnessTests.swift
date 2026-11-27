@@ -96,6 +96,29 @@ final class ArtworkFreshnessTests: XCTestCase {
         XCTAssertEqual(transport.paths.last, "/items/\(UID.n(2))/artwork/poster?v=4")
     }
 
+    func testArtSeenOnlineIsShownOfflineByAStoreMadeSinceUnderNoGeneration() async throws {
+        let harness = DownloadHarness()
+        let kept = URLCache(
+            memoryCapacity: 1 << 20, diskCapacity: 16 << 20, directory: harness.directory.appending(path: "Cache"))
+        let generation = ArtworkGeneration()
+        let client = harness.endpoint.client(
+            token: "tok-1", transport: harness.transport, generation: generation, offline: harness.store)
+        harness.transport.headers[HTTPField.Name("Artwork-Generation")!] = "3"
+        harness.transport.headers[.eTag] = #""w500/a.jpg""#
+        harness.transport.headers[.cacheControl] = "private, max-age=31536000, immutable"
+        harness.transport.routes["GET /items/\(UID.n(30))/artwork/poster"] = (.ok, "seen")
+        _ = try? await client.getHealth()
+        let online = await ArtworkStore(client: client, generation: generation, kept: kept).data(30, .poster)
+        XCTAssertEqual(online, Data("seen".utf8))
+        XCTAssertEqual(harness.transport.queries(.get, "/items/\(UID.n(30))/artwork/poster"), ["v=3"])
+        harness.goOffline()
+        let relaunched = ArtworkStore(client: harness.client, kept: kept)
+        let poster = await relaunched.data(30, .poster)
+        XCTAssertEqual(poster, Data("seen".utf8))
+        let unseen = await relaunched.data(31, .poster)
+        XCTAssertNil(unseen)
+    }
+
     func testAnImageInMemoryIsKnownToBeSoAtTheSizeItWasDecoded() async {
         let transport = ArtworkTransport()
         transport.image = ArtworkTests.png(width: 500, height: 750)
