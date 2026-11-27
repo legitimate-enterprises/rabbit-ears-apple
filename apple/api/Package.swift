@@ -5,7 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "RabbitEarsAPI",
-    platforms: [.macOS(.v15), .iOS(.v18)],
+    platforms: [.macOS(.v15), .iOS(.v18), .tvOS("26.0")],
     products: [
         .library(name: "RabbitEarsAPI", type: .dynamic, targets: ["RabbitEarsAPI"])
     ],

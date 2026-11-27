@@ -1,4 +1,5 @@
 import Foundation
+import RabbitEarsAPI
 import Security
 
 /// Where the device token, the last server and its name, and each adult's
@@ -17,9 +18,9 @@ public protocol CredentialStore: AnyObject {
 public struct ProfileMemory: Codable, Equatable, Sendable {
     public var remember: Bool
     public var skipPin: Bool
-    public var lastProfileId: Int64?
+    public var lastProfileId: UID?
 
-    public init(remember: Bool, skipPin: Bool, lastProfileId: Int64? = nil) {
+    public init(remember: Bool, skipPin: Bool, lastProfileId: UID? = nil) {
         self.remember = remember
         self.skipPin = skipPin
         self.lastProfileId = lastProfileId

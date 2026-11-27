@@ -15,6 +15,7 @@ struct StationGlyph: View {
 
 /// A station's own tile: the image its owner set, else drawn from its name.
 struct StationIdentity: View {
+    let id: UID
     let name: String
     var aspect: CGFloat = 16 / 9
     var radius: CGFloat = 6
@@ -22,7 +23,7 @@ struct StationIdentity: View {
 
     var body: some View {
         if let imageUrl {
-            Art(id: 0, aspect: aspect, radius: radius, url: imageUrl, badged: false)
+            Art(id: id, aspect: aspect, radius: radius, url: imageUrl, badged: false)
         } else {
             drawn
         }
@@ -52,14 +53,15 @@ struct StationArt: View {
         let program = StationText.art(station.onAir)
         if station.imageUrl != nil {
             StationIdentity(
-                name: station.name, aspect: station.kind == .music ? 1 : 16 / 9, radius: radius,
+                id: station.id, name: station.name, aspect: station.kind == .music ? 1 : 16 / 9, radius: radius,
                 imageUrl: station.imageUrl)
         } else if let song = program?.song {
             Art(id: song.albumId, radius: radius, placeholder: .album, badged: false)
         } else if let item = program?.item {
             ArtBlock(item: item, aspect: 16 / 9, radius: radius, badged: false)
         } else {
-            StationIdentity(name: station.name, aspect: station.kind == .music ? 1 : 16 / 9, radius: radius)
+            StationIdentity(
+                id: station.id, name: station.name, aspect: station.kind == .music ? 1 : 16 / 9, radius: radius)
         }
     }
 }
@@ -200,7 +202,7 @@ struct StationScreen: View {
     @Environment(MusicPlayer.self) private var music: MusicPlayer?
     @Environment(AppModel.self) private var app
     @Environment(Browser.self) private var browser
-    let id: Int64
+    let id: UID
     @State private var station: Station?
     @State private var programs: [StationProgram]?
     @State private var entries: [PlaylistEntry]?
@@ -257,7 +259,8 @@ struct StationScreen: View {
     private func header(_ station: Station) -> some View {
         HStack(alignment: .top, spacing: 22) {
             StationIdentity(
-                name: station.name, aspect: station.kind == .music ? 1 : 16 / 9, radius: 10, imageUrl: station.imageUrl
+                id: station.id, name: station.name, aspect: station.kind == .music ? 1 : 16 / 9, radius: 10,
+                imageUrl: station.imageUrl
             )
             .frame(width: station.kind == .music ? 140 : 250)
             VStack(alignment: .leading, spacing: 12) {
@@ -348,9 +351,9 @@ struct StationMenu: View {
     @Environment(StationsModel.self) private var stations: StationsModel?
     @Environment(PlaylistsModel.self) private var playlists: PlaylistsModel?
     @Environment(Browser.self) private var browser
-    var itemId: Int64?
-    var editionId: Int64?
-    var collectionId: Int64?
+    var itemId: UID?
+    var editionId: UID?
+    var collectionId: UID?
     let kind: PlaylistKind
     var asButton = false
 

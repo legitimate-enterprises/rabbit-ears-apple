@@ -21,10 +21,10 @@ final class CarPlayOfflineTests: XCTestCase {
 
         let harness = DownloadHarness()
         harness.objects["GET /me"] = Fixtures.me
-        harness.objects["GET /music/songs/5"] = Fixtures.song(5, "Reckoner", album: 50, track: 7)
-        harness.objects["GET /music/albums/50"] = Fixtures.album(50, "In Rainbows")
-        harness.objects["GET /music/artists/40"] = Fixtures.artist
-        harness.resolves["item/5"] = [Fixtures.downloadTitle(5, "song", library: 3)]
+        harness.objects["GET /music/songs/\(UID.n(5))"] = Fixtures.song(5, "Reckoner", album: 50, track: 7)
+        harness.objects["GET /music/albums/\(UID.n(50))"] = Fixtures.album(50, "In Rainbows")
+        harness.objects["GET /music/artists/\(UID.n(40))"] = Fixtures.artist
+        harness.resolves["item/\(UID.n(5))"] = [Fixtures.downloadTitle(5, "song", library: 3)]
         try await harness.download(.title(5))
         _ = try await harness.client.getMe()
         XCTAssertTrue(harness.store.hasMusic(for: 1))

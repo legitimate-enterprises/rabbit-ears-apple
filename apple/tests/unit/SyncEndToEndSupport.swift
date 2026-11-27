@@ -14,7 +14,7 @@ import XCTest
 @MainActor
 final class SyncServer {
     struct Profile {
-        let id: Int64
+        let id: UID
         let name: String
         let adult: Bool
         /// Read as an adult hiding kids' content.
@@ -27,7 +27,7 @@ final class SyncServer {
     let profiles: [Profile]
     private let email: String
     private let password: String
-    private let titles: [String: [ItemKind: Int64]]
+    private let titles: [String: [ItemKind: UID]]
 
     private static var made: SyncServer?
     private static var failure: (any Error)?
@@ -54,9 +54,9 @@ final class SyncServer {
 
     func profile(_ name: String) throws -> Profile { try XCTUnwrap(profiles.first { $0.name == name && !$0.hiding }) }
 
-    func movie(_ title: String) throws -> Int64 { try item(title, .movie) }
+    func movie(_ title: String) throws -> UID { try item(title, .movie) }
 
-    func item(_ title: String, _ kind: ItemKind) throws -> Int64 { try XCTUnwrap(titles[title]?[kind], title) }
+    func item(_ title: String, _ kind: ItemKind) throws -> UID { try XCTUnwrap(titles[title]?[kind], title) }
 
     private init(url: URL, email: String, password: String) async throws {
         (self.url, self.email, self.password) = (url, email, password)
@@ -79,7 +79,7 @@ final class SyncServer {
             }
         }
         self.profiles = profiles
-        var titles: [String: [ItemKind: Int64]] = [:]
+        var titles: [String: [ItemKind: UID]] = [:]
         for kind in [ItemKind.movie, .show] {
             for item in try await Served.items(rest, kind) { titles[item.parsedTitle, default: [:]][kind] = item.id }
         }
@@ -102,7 +102,7 @@ final class SyncServer {
     /// kid on an allow list and a kids' channel, a shared playlist with
     /// entries, a collection, household stations over the playlist, one on
     /// air whenever it is read, and a kid's watch state.
-    private func seed(_ rest: Client, _ adult: Int64) async throws {
+    private func seed(_ rest: Client, _ adult: UID) async throws {
         let sam = try profile("Sam")
         for title in ["Aurora", "Wildflower"] {
             _ = try await rest.setKidsContent(
@@ -197,7 +197,7 @@ final class SyncDevice {
     }
 
     /// The profile's position in the item, nil with no watch state.
-    func position(_ profile: Int64, _ item: Int64) async throws -> Int64? {
+    func position(_ profile: UID, _ item: UID) async throws -> Int64? {
         try await replica.read { db in
             try Int64.fetchOne(
                 db, sql: "SELECT position_ms FROM watch_state WHERE account_id = ? AND item_id = ?",
@@ -246,7 +246,7 @@ enum Served {
         return out
     }
 
-    static func watchStates(_ client: Client, _ profile: Int64) async throws -> [WatchState] {
+    static func watchStates(_ client: Client, _ profile: UID) async throws -> [WatchState] {
         var out: [WatchState] = []
         var offset: Int? = 0
         while let at = offset {
@@ -260,7 +260,7 @@ enum Served {
     }
 
     /// Today's programs, on this device's calendar, which is the server's.
-    static func schedule(_ client: Client, _ station: Int64) async throws -> [StationProgram] {
+    static func schedule(_ client: Client, _ station: UID) async throws -> [StationProgram] {
         let today = Date().formatted(Date.ISO8601FormatStyle(timeZone: .current).year().month().day())
         var out: [StationProgram] = []
         var offset: Int? = 0
@@ -274,7 +274,7 @@ enum Served {
         return out
     }
 
-    static func watchState(_ client: Client, _ profile: Int64, _ item: Int64) async throws -> WatchState? {
+    static func watchState(_ client: Client, _ profile: UID, _ item: UID) async throws -> WatchState? {
         try await watchStates(client, profile).first { $0.itemId == item }
     }
 }
@@ -320,7 +320,8 @@ enum Parity {
         guard var object = json as? [String: Any] else { return json }
         if object["parsedTitle"] != nil, object["libraryId"] != nil {
             object["path"] = nil
-            object["updatedAt"] = object["addedAt"]
+            object["createdAt"] = object["addedAt"]
+            object["modifiedAt"] = object["addedAt"]
             if var metadata = object["metadata"] as? [String: Any] {
                 metadata["fetchedAt"] = nil
                 for key in ["posterPath", "backdropPath"] {

@@ -8,10 +8,10 @@ struct StationEditRequest: Identifiable {
     let id = UUID()
     var station: Station?
     var kind = PlaylistKind.movies
-    var itemId: Int64?
+    var itemId: UID?
     /// The edition chosen on details; nil asks the server, which may ask the adult.
-    var editionId: Int64?
-    var collectionId: Int64?
+    var editionId: UID?
+    var collectionId: UID?
 }
 
 struct StationEditor: View {

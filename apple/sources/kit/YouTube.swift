@@ -52,9 +52,9 @@ public final class YouTubeModel {
     public let client: Client
     public let replica: Replica
     public let queue: ActionQueue
-    public let profileId: Int64
+    public let profileId: UID
 
-    public init(client: Client, replica: Replica, queue: ActionQueue, profileId: Int64) {
+    public init(client: Client, replica: Replica, queue: ActionQueue, profileId: UID) {
         self.client = client
         self.replica = replica
         self.queue = queue
@@ -75,7 +75,7 @@ public final class YouTubeModel {
 
     /// One page of the Videos view; `query` is the toolbar search.
     public func videos(
-        sort: YouTubeVideoSort = .newest, channelId: Int64? = nil,
+        sort: YouTubeVideoSort = .newest, channelId: UID? = nil,
         unwatched: Bool = false, query: String? = nil, offset: Int? = nil, limit: Int = 100
     ) async throws -> Components.Schemas.YouTubeVideoPage {
         let filter = YouTubeRows.VideoFilter(
@@ -91,7 +91,7 @@ public final class YouTubeModel {
         try await read { db, me in try YouTubeRows.channels(db, me, sort: sort.rawValue) }
     }
 
-    public func channel(_ id: Int64, sort: YouTubeVideoSort = .newest) async throws -> ChannelDetail {
+    public func channel(_ id: UID, sort: YouTubeVideoSort = .newest) async throws -> ChannelDetail {
         try await read { db, me in
             let channel = try found(YouTubeRows.channels(db, me, id: id, audience: .open))
             let videos = try YouTubeRows.videos(db, me, .init(channelId: id, sort: sort.rawValue, limit: .max - 1)).0
@@ -99,7 +99,7 @@ public final class YouTubeModel {
         }
     }
 
-    public func video(_ id: Int64) async throws -> VideoDetail {
+    public func video(_ id: UID) async throws -> VideoDetail {
         try await read { db, me in
             let video = try found(YouTubeRows.videos(db, me, .init(id: id, audience: .open)).0)
             let more = try YouTubeRows.videos(db, me, .init(channelId: video.channelId, limit: 13)).0
@@ -107,25 +107,25 @@ public final class YouTubeModel {
         }
     }
 
-    public func setWatched(_ watched: Bool, channel id: Int64) async throws {
+    public func setWatched(_ watched: Bool, channel id: UID) async throws {
         try await call { try await markChannel(id, watched: watched) }
     }
 
     /// Any adult marks a channel for kids, which kids under rating ceilings then see.
-    public func setForKids(_ forKids: Bool, channel id: Int64) async throws {
+    public func setForKids(_ forKids: Bool, channel id: UID) async throws {
         try await call { try await queue.setYouTubeChannelForKids(forKids, channel: id, as: profileId) }
     }
 
     /// Marks a selection of channels and videos; a channel marks each video.
-    public func setWatched(_ watched: Bool, items ids: [Int64]) async throws {
+    public func setWatched(_ watched: Bool, items ids: [UID]) async throws {
         try await call { try await queue.putWatchStates(watched, items: ids, as: profileId, in: replica) }
     }
 
-    public func setForKids(_ forKids: Bool, channels ids: [Int64]) async throws {
+    public func setForKids(_ forKids: Bool, channels ids: [UID]) async throws {
         try await call { try await queue.setKidsContents(forKids, for: ids, as: profileId) }
     }
 
-    private func read<T: Sendable>(_ body: @escaping @Sendable (Database, Int64) throws -> T) async throws -> T {
+    private func read<T: Sendable>(_ body: @escaping @Sendable (Database, UID) throws -> T) async throws -> T {
         let profile = profileId
         return try await call { try await replica.read { try body($0, profile) } }
     }
@@ -216,7 +216,7 @@ extension Item {
             metadata: .init(
                 status: .matched, title: video.title, overview: video.overview,
                 runtimeMinutes: video.durationMs.map { Int(($0 + 30_000) / 60_000) }),
-            addedAt: video.addedAt, updatedAt: video.addedAt)
+            addedAt: video.addedAt, createdAt: video.addedAt, modifiedAt: video.addedAt)
     }
 }
 

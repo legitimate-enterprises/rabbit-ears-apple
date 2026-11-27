@@ -1,3 +1,4 @@
+import RabbitEarsAPI
 import RabbitEarsKit
 import SwiftUI
 
@@ -16,7 +17,7 @@ enum Theme {
     static let border = Color.white.opacity(0.14)
 
     /// A person without a headshot, in one of the profile colors.
-    static func placeholder(_ id: Int64) -> Color { Color(hex: ProfilePalette.placeholder(id)) }
+    static func placeholder(_ id: UID) -> Color { Color(hex: ProfilePalette.placeholder(id)) }
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
@@ -133,7 +134,7 @@ struct ArtBlock: View {
 /// artist, channel, video, playlist or collection. Square by default;
 /// people's circles.
 struct Art: View {
-    let id: Int64
+    let id: UID
     var aspect: CGFloat = 1
     var circle = false
     var radius: CGFloat = 6

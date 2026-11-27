@@ -18,8 +18,8 @@ final class KeptLaunchTests: XCTestCase {
             try db.account(1, "Avery")
             try db.item(20, "movie", "Dune")
         }
-        app.routes.routes["POST /profiles/1/unlock"] = (.noContent, "")
-        app.routes.routes["POST /profiles/2/unlock"] = (.noContent, "")
+        app.routes.routes["POST /profiles/\(UID.n(1))/unlock"] = (.noContent, "")
+        app.routes.routes["POST /profiles/\(UID.n(2))/unlock"] = (.noContent, "")
     }
 
     override func tearDown() async throws {
@@ -92,7 +92,7 @@ final class KeptLaunchTests: XCTestCase {
         await launch.value
         XCTAssertEqual(next.phase, .browsing)
         XCTAssertFalse(next.locked)
-        XCTAssertEqual(posts, ["/me/lock", "/profiles/1/unlock"])
+        XCTAssertEqual(posts, ["/me/lock", "/profiles/\(UID.n(1))/unlock"])
     }
 
     func testWithTheServerUnreachableALaunchKeepsBrowsingTheKeptLibrary() async throws {
@@ -126,7 +126,7 @@ final class KeptLaunchTests: XCTestCase {
         XCTAssertEqual(next.phase, .browsing)
         XCTAssertEqual(next.activeProfile?.id, 1)
         XCTAssertFalse(next.locked)
-        XCTAssertEqual(posts, ["/profiles/1/unlock"])
+        XCTAssertEqual(posts, ["/profiles/\(UID.n(1))/unlock"])
     }
 
     func testARevokedTokenFoundAfterTheKeptLaunchSignsOut() async throws {

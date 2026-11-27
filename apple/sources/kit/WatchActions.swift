@@ -23,7 +23,7 @@ extension ActionQueue {
     /// putWatchState: marks the item, counting a play when it becomes
     /// watched, resumes at `positionMs` in `edition`, else the default one.
     public func putWatchState(
-        _ watched: Bool, positionMs: Int64? = nil, edition: Int64? = nil, item: Int64, as profileId: Int64
+        _ watched: Bool, positionMs: Int64? = nil, edition: UID? = nil, item: UID, as profileId: UID
     ) async throws {
         try await act(
             as: profileId, touching: [try Self.watchKey(profileId, item)],
@@ -36,13 +36,13 @@ extension ActionQueue {
                 try db.execute(
                     sql: """
                         INSERT INTO watch_state (account_id, item_id, position_ms, watched, play_count, last_played_at,
-                            updated_at, edition_id)
+                            changed_at, edition_id)
                         VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?5, COALESCE(?6, \(Self.defaultEdition("?2"))))
                         ON CONFLICT (account_id, item_id) DO UPDATE SET position_ms = excluded.position_ms,
                             watched = excluded.watched, play_count = play_count + (excluded.watched AND NOT watched),
-                            last_played_at = excluded.last_played_at, updated_at = excluded.updated_at,
+                            last_played_at = excluded.last_played_at, changed_at = excluded.changed_at,
                             edition_id = excluded.edition_id
-                        WHERE watch_state.updated_at <= excluded.updated_at
+                        WHERE watch_state.changed_at <= excluded.changed_at
                         """, arguments: [profileId, item, positionMs ?? 0, watched, Self.ms(at), edition])
             })
     }
@@ -53,7 +53,7 @@ extension ActionQueue {
     /// actions as the touched-row limit needs. Nothing is queued when the
     /// profile may not see an item or it is of a kind not watched.
     public func putWatchStates(
-        _ watched: Bool, items ids: [Int64], as profileId: Int64, in replica: Replica
+        _ watched: Bool, items ids: [UID], as profileId: UID, in replica: Replica
     ) async throws {
         let targets = try await replica.read { try Self.targets(of: ids, profileId, $0) }
         for start in stride(from: 0, to: targets.count, by: Self.touchedLimit) {
@@ -71,24 +71,24 @@ extension ActionQueue {
     /// watchstate.Mark(watched, 0) of each of `items`, as the server saves
     /// it: the cut kept, a play counted when it becomes watched, and a state
     /// that changed later left alone.
-    static func mark(_ db: Database, _ profileId: Int64, _ items: [Int64], watched: Bool, at: Date) throws {
+    static func mark(_ db: Database, _ profileId: UID, _ items: [UID], watched: Bool, at: Date) throws {
         for item in items {
             try db.execute(
                 sql: """
                     INSERT INTO watch_state (account_id, item_id, position_ms, watched, play_count,
-                        last_played_at, updated_at, edition_id)
+                        last_played_at, changed_at, edition_id)
                     VALUES (?1, ?2, 0, ?3, ?3, ?4, ?4, NULL)
                     ON CONFLICT (account_id, item_id) DO UPDATE SET position_ms = 0,
                         watched = excluded.watched,
                         play_count = play_count + (excluded.watched AND NOT watched),
-                        last_played_at = excluded.last_played_at, updated_at = excluded.updated_at
-                    WHERE watch_state.updated_at <= excluded.updated_at
+                        last_played_at = excluded.last_played_at, changed_at = excluded.changed_at
+                    WHERE watch_state.changed_at <= excluded.changed_at
                     """, arguments: [profileId, item, watched, ms(at)])
         }
     }
 
     /// deleteWatchState: forgets the item's state unless it changed later.
-    public func deleteWatchState(item: Int64, as profileId: Int64) async throws {
+    public func deleteWatchState(item: UID, as profileId: UID) async throws {
         try await act(
             as: profileId, touching: [try Self.watchKey(profileId, item)],
             call: { client, at in
@@ -97,7 +97,7 @@ extension ActionQueue {
             },
             apply: { db, at in
                 try db.execute(
-                    sql: "DELETE FROM watch_state WHERE account_id = ? AND item_id = ? AND updated_at <= ?",
+                    sql: "DELETE FROM watch_state WHERE account_id = ? AND item_id = ? AND changed_at <= ?",
                     arguments: [profileId, item, Self.ms(at)])
             })
     }
@@ -106,7 +106,7 @@ extension ActionQueue {
     /// one, that ended `at`, for a play the server did not stream. The count
     /// only adds and lastPlayedAt goes to the later play; over a state that
     /// changed no later, the item is watched from the start of that edition.
-    public func recordPlay(item: Int64, edition: Int64?, as profileId: Int64, at ended: Date) async throws {
+    public func recordPlay(item: UID, edition: UID?, as profileId: UID, at ended: Date) async throws {
         try await act(
             as: profileId, touching: [try Self.watchKey(profileId, item)],
             call: { client, _ in
@@ -117,16 +117,16 @@ extension ActionQueue {
                 try db.execute(
                     sql: """
                         INSERT INTO watch_state (account_id, item_id, position_ms, watched, play_count, last_played_at,
-                            updated_at, edition_id)
+                            changed_at, edition_id)
                         VALUES (?1, ?2, 0, 1, 1, ?3, ?3, COALESCE(?4, \(Self.defaultEdition("?2"))))
                         ON CONFLICT (account_id, item_id) DO UPDATE SET
                             play_count = play_count + 1,
                             last_played_at = MAX(COALESCE(last_played_at, 0), excluded.last_played_at),
-                            watched = CASE WHEN updated_at <= excluded.updated_at THEN 1 ELSE watched END,
-                            position_ms = CASE WHEN updated_at <= excluded.updated_at THEN 0 ELSE position_ms END,
-                            edition_id = CASE WHEN updated_at <= excluded.updated_at THEN excluded.edition_id
+                            watched = CASE WHEN changed_at <= excluded.changed_at THEN 1 ELSE watched END,
+                            position_ms = CASE WHEN changed_at <= excluded.changed_at THEN 0 ELSE position_ms END,
+                            edition_id = CASE WHEN changed_at <= excluded.changed_at THEN excluded.edition_id
                                 ELSE edition_id END,
-                            updated_at = MAX(updated_at, excluded.updated_at)
+                            changed_at = MAX(changed_at, excluded.changed_at)
                         """,
                     // The server takes a time ahead of its own as now.
                     arguments: [profileId, item, Self.ms(min(ended, at)), edition])
@@ -134,9 +134,9 @@ extension ActionQueue {
     }
 
     /// The leaf items a putWatchStates selection marks, each once, in order.
-    static func targets(of ids: [Int64], _ profile: Int64, _ db: Database) throws -> [Int64] {
+    static func targets(of ids: [UID], _ profile: UID, _ db: Database) throws -> [UID] {
         let seen = "IN (SELECT item_id FROM profile_item_open WHERE account_id = ?2)"
-        var targets: [Int64] = []
+        var targets: [UID] = []
         for id in ids {
             guard
                 let kind = try String.fetchOne(
@@ -146,7 +146,7 @@ extension ActionQueue {
             case "movie", "episode", "video":
                 targets.append(id)
             case "show":
-                targets += try Int64.fetchAll(
+                targets += try UID.fetchAll(
                     db,
                     sql: """
                         SELECT e.id FROM item e JOIN item s ON s.id = e.parent_id
@@ -154,7 +154,7 @@ extension ActionQueue {
                         ORDER BY s.season_number, e.episode_number
                         """, arguments: [id, profile])
             case "season":
-                targets += try Int64.fetchAll(
+                targets += try UID.fetchAll(
                     db,
                     sql: """
                         SELECT i.id FROM item i WHERE i.parent_id = ?1 AND i.kind = 'episode' AND i.id \(seen)
@@ -162,20 +162,18 @@ extension ActionQueue {
                         """, arguments: [id, profile])
             case "channel":
                 // Every video of it, as the server marks them whoever sees them.
-                targets += try Int64.fetchAll(
+                targets += try UID.fetchAll(
                     db, sql: "SELECT id FROM item WHERE parent_id = ? AND kind = 'video' ORDER BY id", arguments: [id])
             default:
                 throw WatchRefusal.notWatchable
             }
         }
-        var marked: Set<Int64> = []
+        var marked: Set<UID> = []
         return targets.filter { marked.insert($0).inserted }
     }
 
-    static func watchKey(_ profile: Int64, _ item: Int64) throws -> Components.Schemas.SyncTouched {
-        .init(
-            table: "watch_state",
-            key: [try .init(unvalidatedValue: Int(profile)), try .init(unvalidatedValue: Int(item))])
+    static func watchKey(_ profile: UID, _ item: UID) throws -> Components.Schemas.SyncTouched {
+        try .row("watch_state", profile, item)
     }
 
     /// edition.DefaultOf: the item's first untagged edition with a file on

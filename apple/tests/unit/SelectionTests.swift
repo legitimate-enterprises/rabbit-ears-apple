@@ -8,7 +8,7 @@ import XCTest
 final class SelectionTests: XCTestCase {
     func testClickTogglesShiftClickTakesTheRangeAndSelectAllTakesEveryOne() {
         let selection = Selection()
-        let order: [Int64] = [5, 4, 3, 2, 1]
+        let order: [UID] = [5, 4, 3, 2, 1]
         selection.begin()
         selection.toggle(4)
         selection.extend(to: 2, in: order)
@@ -75,7 +75,7 @@ final class BulkActionTests: XCTestCase {
         let queued = try await model.replica.read {
             try String.fetchAll($0, sql: "SELECT operation_id || ' ' || path FROM queue.action")
         }
-        XCTAssertEqual(queued, ["putWatchStates /profiles/2/watch-state/batch"])
+        XCTAssertEqual(queued, ["putWatchStates /profiles/\(UID.n(2))/watch-state/batch"])
         XCTAssertEqual(model.catalog.unwatchedCount(30), 0)
         XCTAssertTrue(model.catalog.isWatched(20))
         XCTAssertFalse(model.catalog.isInProgress(32))
@@ -104,15 +104,24 @@ final class BulkActionTests: XCTestCase {
         XCTAssertEqual(model.catalog.item(20)?.kidsContent, true)
     }
 
-    func testAddingASelectionToAPlaylistIsOneRequest() async throws {
-        let synced = try SyncedReplica { try $0.account(2, "Avery") }
+    func testAddingASelectionToAPlaylistIsOneAction() async throws {
+        let synced = try SyncedReplica { db in
+            try db.account(2, "Avery")
+            try db.item(100, "movie", "Dune")
+            try db.item(101, "movie", "Heat")
+            try db.playlist(9, "Mix", owner: 2)
+        }
         addTeardownBlock { await synced.remove() }
-        synced.transport.routes["POST /profiles/2/playlists/9/entries/batch"] = (.noContent, "")
         let model = synced.playlists(2)
         let added = await model.add([101, 100], to: 9)
         XCTAssertTrue(added)
-        let body = try XCTUnwrap(synced.transport.json(.post, "/profiles/2/playlists/9/entries/batch"))
-        XCTAssertEqual((body["entries"] as? [[String: Any]])?.compactMap { $0["itemId"] as? Int64 }, [101, 100])
+        XCTAssertEqual(
+            try synced.queued(),
+            ["addPlaylistEntries POST /profiles/\(UID.n(2))/playlists/\(UID.n(9))/entries/batch"])
+        let body = try XCTUnwrap(try synced.lastBody())
+        XCTAssertEqual(
+            (body["entries"] as? [[String: Any]])?.compactMap { $0["itemId"] as? String },
+            ["\(UID.n(101))", "\(UID.n(100))"])
     }
 
     func testYouTubeSelectionsMarkAndSetForKidsInOneActionEach() async throws {
@@ -134,7 +143,8 @@ final class BulkActionTests: XCTestCase {
             try String.fetchAll($0, sql: "SELECT operation_id || ' ' || path FROM queue.action ORDER BY seq")
         }
         XCTAssertEqual(
-            queued, ["putWatchStates /profiles/1/watch-state/batch", "setKidsContents /items/kids-content/batch"])
+            queued,
+            ["putWatchStates /profiles/\(UID.n(1))/watch-state/batch", "setKidsContents /items/kids-content/batch"])
         let channels = try await model.channels()
         XCTAssertEqual(channels.map(\.forKids), [true, true])
         let video = try await model.video(70).video

@@ -23,7 +23,8 @@ final class PullToRefreshTests: XCTestCase {
         app.routes.respond = { sent in
             guard sent.path == "/sync/changes" else { return nil }
             let item = SyncFixture.Table(
-                "item", #"["id","library_id","kind","parsed_title","added_at"]"#, #"[[21,1,"movie","Flow",0]]"#)
+                "item", #"["id","library_id","kind","parsed_title","added_at"]"#,
+                #"[["\#(UID.n(21))","\#(UID.n(1))","movie","Flow",0]]"#)
             return (.ok, SyncFixture.diff(version: 2, tables: [item]))
         }
     }

@@ -64,7 +64,7 @@ struct MusicScreen: View {
             .padding(EdgeInsets(top: shellTop + 8, leading: 80, bottom: 60, trailing: 80))
         }
         .scrollClipDisabled()
-        .task(id: "\(tab.rawValue)/\(sort.rawValue)/\(genre ?? 0)") {
+        .task(id: "\(tab.rawValue)/\(sort.rawValue)/\(genre?.description ?? "")") {
             // The tab is remembered per device, so an adult's Playlists may be what a kid finds.
             if !MusicTab.tabs(playlists: playlists.offersView(.music)).contains(tab) { tab = .albums }
             guard let model = app.musicModel else { return }

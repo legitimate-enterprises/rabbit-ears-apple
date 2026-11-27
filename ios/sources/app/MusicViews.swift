@@ -139,7 +139,7 @@ struct AlbumsGrid: View {
                 ProgressView().padding(40)
             }
         }
-        .task(id: "\(sort.rawValue)/\(genre ?? 0)") {
+        .task(id: "\(sort.rawValue)/\(genre?.description ?? "")") {
             let (music, genre) = (services.music, genre)
             let next = Pager<MusicAlbum>(counted: { offset in
                 try await music.albums(sort: sort, genreId: genre, offset: offset)
@@ -273,7 +273,7 @@ struct SongsList: View {
             }
         }
         .addToPlaylist($target)
-        .task(id: "\(sort.rawValue)/\(genre ?? 0)") {
+        .task(id: "\(sort.rawValue)/\(genre?.description ?? "")") {
             let (music, genre) = (services.music, genre)
             let next = Pager<MusicSong>(counted: { offset in
                 try await music.songs(sort: sort, genreId: genre, offset: offset)

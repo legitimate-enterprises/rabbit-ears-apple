@@ -12,15 +12,15 @@ public struct DownloadTarget: Hashable, Codable, Sendable {
     public enum Scope: String, Codable, Sendable { case item, collection, playlist }
 
     public let scope: Scope
-    public let id: Int64
-    public let editionId: Int64?
+    public let id: UID
+    public let editionId: UID?
     public let standing: Bool
     /// Music offers Original or AAC 256; video the picture sizes.
     public let music: Bool
     /// What the Downloads list calls it.
     public let name: String
 
-    public init(scope: Scope, id: Int64, name: String, standing: Bool, music: Bool = false, editionId: Int64? = nil) {
+    public init(scope: Scope, id: UID, name: String, standing: Bool, music: Bool = false, editionId: UID? = nil) {
         self.scope = scope
         self.id = id
         self.name = name
@@ -34,7 +34,7 @@ public struct DownloadTarget: Hashable, Codable, Sendable {
     public static func == (lhs: Self, rhs: Self) -> Bool { lhs.key == rhs.key }
     public func hash(into hasher: inout Hasher) { hasher.combine(key) }
 
-    public static func item(_ item: Item, editionId: Int64? = nil) -> Self {
+    public static func item(_ item: Item, editionId: UID? = nil) -> Self {
         let single = item.kind == .movie || item.kind == .episode
         return Self(
             scope: .item, id: item.id, name: Catalog.title(item), standing: !single, editionId: single ? editionId : nil
@@ -123,7 +123,7 @@ public enum DownloadState: Codable, Equatable, Sendable {
 
 /// A text subtitle kept beside a stored title, as WebVTT.
 public struct StoredSubtitle: Codable, Equatable, Sendable {
-    public let trackId: Int64
+    public let trackId: UID
     public let language: String?
     public let title: String?
     public let isForced: Bool
@@ -133,10 +133,12 @@ public struct StoredSubtitle: Codable, Equatable, Sendable {
 /// One title's single stored copy on this device, whichever requests and
 /// profiles cover it.
 public struct StoredTitle: Codable, Equatable, Sendable, Identifiable {
-    public let itemId: Int64
+    public let itemId: UID
     public let kind: DownloadTitle.KindPayload
-    public let libraryId: Int64
-    public var editionId: Int64?
+    public let libraryId: UID
+    public var editionId: UID?
+    /// The server's file this copy is of, once fetched.
+    var mediaFileId: UID?
     public var quality: DownloadQuality
     public var sizeBytes: Int64
     public var runtimeMs: Int64?
@@ -149,7 +151,7 @@ public struct StoredTitle: Codable, Equatable, Sendable, Identifiable {
     var claim: DownloadClaim?
     /// The artwork files it shows with, its parents' included.
     var art: [String]?
-    public var id: Int64 { itemId }
+    public var id: UID { itemId }
 
     init(_ title: DownloadTitle, quality: DownloadQuality) {
         itemId = title.itemId
@@ -165,20 +167,20 @@ public struct StoredTitle: Codable, Equatable, Sendable, Identifiable {
 /// A download the server made for this device: what fetches its file and
 /// what releases it.
 struct DownloadClaim: Codable, Equatable, Sendable {
-    let id: Int64
-    let profileId: Int64
+    let id: UID
+    let profileId: UID
     let container: String
 
     /// Held by the server until the file is ready, then served.
-    var file: String { "/api/v1/downloads/\(id)/file?wait=1" }
+    var file: String { "/api/v2/downloads/\(id)/file?wait=1" }
 }
 
 /// One profile's standing or single request, with what it covers now in play order.
 public struct DownloadRequest: Codable, Equatable, Sendable, Identifiable {
-    public let profileId: Int64
+    public let profileId: UID
     public let target: DownloadTarget
     public var quality: DownloadQuality
-    public var titles: [Int64]
+    public var titles: [UID]
     public let createdAt: Date
     /// The artwork files a collection or playlist shows with.
     var art: [String]?
@@ -191,14 +193,14 @@ public struct DownloadSettings: Codable, Equatable, Sendable {
     /// What Download picks first; music takes Original or AAC 256 from it.
     public var quality: DownloadQuality = .original
     /// By library: whether a watched title stays; absent is the kind's default.
-    public var keep: [Int64: Bool] = [:]
+    public var keep: [UID: Bool] = [:]
     /// Off after Don't ask again on a big request.
     public var confirmBig = true
 
     public init() {}
 
     /// Movies keep and TV and YouTube remove once watched, unless set; music always keeps.
-    public func keeps(library: Int64, kind: DownloadTitle.KindPayload) -> Bool {
+    public func keeps(library: UID, kind: DownloadTitle.KindPayload) -> Bool {
         if kind == .song { return true }
         return keep[library] ?? (kind == .movie)
     }
@@ -210,14 +212,14 @@ public struct DownloadSettings: Codable, Equatable, Sendable {
 
 /// A library of the server, as Downloads' keep-watched settings name it.
 public struct DownloadLibrary: Equatable, Sendable {
-    public let id: Int64
+    public let id: UID
     public let name: String
     public let kind: Components.Schemas.LibraryKind
 }
 
 /// What a big request is, for "This is a lot" before it is kept.
 public struct DownloadPlan: Sendable {
-    public let profileId: Int64
+    public let profileId: UID
     public let target: DownloadTarget
     public let quality: DownloadQuality
     public let titles: [DownloadTitle]

@@ -6,7 +6,7 @@ import RabbitEarsAPI
 extension DownloadStore {
     /// What downloading the target at a quality would keep, as the server
     /// resolves it now for this device and profile.
-    public func plan(_ target: DownloadTarget, quality: DownloadQuality, profile: Int64) async throws -> DownloadPlan {
+    public func plan(_ target: DownloadTarget, quality: DownloadQuality, profile: UID) async throws -> DownloadPlan {
         guard let link else { throw AppError.signedOut }
         let titles: [DownloadTitle]
         do {
@@ -24,7 +24,7 @@ extension DownloadStore {
 
     /// Plans and keeps a request in one go, unless it is big enough to ask about first; then the plan is answered.
     public func request(
-        _ target: DownloadTarget, quality: DownloadQuality, profile: Int64
+        _ target: DownloadTarget, quality: DownloadQuality, profile: UID
     ) async throws -> DownloadPlan? {
         let plan = try await plan(target, quality: quality, profile: profile)
         if needsConfirmation(plan) { return plan }
@@ -33,7 +33,7 @@ extension DownloadStore {
     }
 
     private func resolve(
-        _ target: DownloadTarget, quality: DownloadQuality, profile: Int64, _ link: Link
+        _ target: DownloadTarget, quality: DownloadQuality, profile: UID, _ link: Link
     ) async throws -> [DownloadTitle] {
         let snapshot = await link.endpoint.snapshot(facts(), checkedWith: link.client, maxBitrate: nil)
         return try await link.client.resolveDownloads(
@@ -47,7 +47,7 @@ extension DownloadStore {
     /// new. A profile the server no longer knows loses its downloads, and a
     /// device it no longer knows loses all of them. What already waits is
     /// fetched whether or not the rest went through.
-    public func sync(profile: Int64) async {
+    public func sync(profile: UID) async {
         guard let link else { return }
         forgetProfilesGone()
         await refresh(profile: profile, link)
@@ -61,7 +61,7 @@ extension DownloadStore {
         for profile in known.subtracting(me.profiles.map(\.id)) { wipe(profile: profile) }
     }
 
-    private func refresh(profile: Int64, _ link: Link) async {
+    private func refresh(profile: UID, _ link: Link) async {
         let held = Array(Set(requests(for: profile).flatMap(\.titles))).sorted()
         do {
             if !held.isEmpty {
@@ -93,7 +93,7 @@ extension DownloadStore {
     }
 
     /// The server's unauthorized is a device it no longer knows, its not_found such a profile.
-    private func lost(_ error: any Error, profile: Int64) {
+    private func lost(_ error: any Error, profile: UID) {
         guard let api = APIError.from(error) else { return }
         if api.code == .unauthorized {
             wipe()
@@ -104,7 +104,7 @@ extension DownloadStore {
 
     /// Keeps the artwork a collection or playlist shows with; a playlist's
     /// is its art title's, as the replica reads it to the profile.
-    func describe(_ target: DownloadTarget, profile: Int64, _ link: Link) async {
+    func describe(_ target: DownloadTarget, profile: UID, _ link: Link) async {
         let client = link.client
         var keys: [ArtKey] = []
         switch target.scope {
@@ -139,12 +139,12 @@ extension DownloadStore {
     /// A movie or episode and each item above it, both images; a song's
     /// album, performer and album artist; a video and its channel.
     private nonisolated static func art(
-        of id: Int64, _ kind: DownloadTitle.KindPayload, _ db: Database
+        of id: UID, _ kind: DownloadTitle.KindPayload, _ db: Database
     ) throws -> [ArtKey] {
         switch kind {
         case .movie, .episode:
             var art: [ArtKey] = []
-            var next: Int64? = id
+            var next: UID? = id
             while let current = next,
                 let row = try Row.fetchOne(db, sql: "SELECT parent_id FROM item WHERE id = ?", arguments: [current])
             {
@@ -157,7 +157,7 @@ extension DownloadStore {
             return [song.albumId, song.artistId, song.albumArtistId].map { ArtKey(id: $0, kind: .poster) }
         case .video:
             guard
-                let channel = try Int64.fetchOne(
+                let channel = try UID.fetchOne(
                     db, sql: "SELECT parent_id FROM item WHERE id = ? AND kind = 'video'", arguments: [id])
             else { return [] }
             return [ArtKey(id: id, kind: .poster), ArtKey(id: channel, kind: .poster)]

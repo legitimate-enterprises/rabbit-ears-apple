@@ -57,27 +57,27 @@ extension ReplicaRows {
 
     /// item.Repo.Neighbors: the nearest item on each side of `id` among
     /// `from`, a FROM clause aliasing the candidates `item` and ending in its
-    /// WHERE, that the profile browses; 0 for none.
+    /// WHERE, that the profile browses; nil for none.
     static func neighbors(
-        _ db: Database, from: String, order: String, of id: Int64, browsedBy profile: Int64
-    ) throws -> (previous: Int64, next: Int64) {
+        _ db: Database, from: String, order: String, of id: UID, browsedBy profile: UID
+    ) throws -> (previous: UID?, next: UID?) {
         let row = try Row.fetchOne(
             db,
             sql: """
-                WITH o AS (SELECT item.id, LAG(item.id, 1, 0) OVER w AS prev, LEAD(item.id, 1, 0) OVER w AS next \(from)
+                WITH o AS (SELECT item.id, LAG(item.id) OVER w AS prev, LEAD(item.id) OVER w AS next \(from)
                     AND (item.id = ?1 OR item.id IN (SELECT item_id FROM profile_item WHERE account_id = ?2))
                     WINDOW w AS (ORDER BY \(order)))
                 SELECT prev, next FROM o WHERE id = ?1
                 """, arguments: [id, profile])
-        return (row?["prev"] ?? 0, row?["next"] ?? 0)
+        return (row.flatMap { $0["prev"] as UID? }, row.flatMap { $0["next"] as UID? })
     }
 
     /// item.Repo.Next: the first item after `id` among `from` that the
     /// profile may see and that has a file on disk; nil for none.
     static func next(
-        _ db: Database, from: String, order: String, after id: Int64, seenBy profile: Int64
-    ) throws -> Int64? {
-        try Int64.fetchOne(
+        _ db: Database, from: String, order: String, after id: UID, seenBy profile: UID
+    ) throws -> UID? {
+        try UID.fetchOne(
             db,
             sql: """
                 WITH o AS (SELECT item.id, ROW_NUMBER() OVER (ORDER BY \(order)) AS pos \(from)
@@ -88,9 +88,9 @@ extension ReplicaRows {
     }
 
     /// Catalog items in the order of `ids`, each once.
-    static func items(_ db: Database, ids: [Int64]) throws -> [Item] {
+    static func items(_ db: Database, ids: [UID]) throws -> [Item] {
         let found = Dictionary(
-            try items(db, "i.id IN (SELECT value FROM json_each(?))", ["\(ids)"]).map { ($0.id, $0) },
+            try items(db, "i.id IN (SELECT unhex(value, '-') FROM json_each(?))", [json(ids)]).map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first })
         return ids.compactMap { found[$0] }
     }
@@ -98,7 +98,8 @@ extension ReplicaRows {
     /// A collection as the server answers it to the profile `browsing`,
     /// over `collection c`.
     static let collectionSQL = """
-        SELECT c.id, c.source, c.household_id, c.tmdb_id, c.name, c.overview, c.created_at, c.updated_at,
+        SELECT c.id, c.source, c.household_id, c.tmdb_id, c.name, c.overview, c.created_at, c.modified_at,
+            c.created_by, c.modified_by,
             (SELECT COUNT(*) FROM collection_movie cm WHERE cm.collection_id = c.id
                 AND cm.item_id IN (SELECT item_id FROM profile_item WHERE account_id = a.account_id)) AS movie_count,
             c.source = 'custom' AND EXISTS (SELECT 1 FROM collection_movie o WHERE o.collection_id = c.id
@@ -109,12 +110,12 @@ extension ReplicaRows {
     static func collection(_ row: Row) -> Components.Schemas.Collection? {
         guard let source = Components.Schemas.CollectionSource(rawValue: row["source"]) else { return nil }
         let overview: String? = row["overview"]
-        let (created, updated): (Int64, Int64) = (row["created_at"], row["updated_at"])
-        let (household, tmdb): (Int64?, Int64?) = (row["household_id"], row["tmdb_id"])
+        let (created, modified): (Int64, Int64) = (row["created_at"], row["modified_at"])
+        let (household, tmdb): (UID?, Int64?) = (row["household_id"], row["tmdb_id"])
         let (count, custom): (Int, Bool) = (row["movie_count"], row["custom_order"])
         return .init(
             id: row["id"], source: source, name: row["name"], overview: overview?.isEmpty == false ? overview : nil,
             householdId: household, tmdbId: tmdb, movieCount: count, customOrder: custom, createdAt: instant(created),
-            updatedAt: instant(updated))
+            modifiedAt: instant(modified), createdBy: row["created_by"], modifiedBy: row["modified_by"])
     }
 }

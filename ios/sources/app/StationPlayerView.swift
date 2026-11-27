@@ -26,7 +26,7 @@ struct StationPlayerScreen: View {
     /// Nil once signed out, when nothing plays.
     let replica: Replica?
     let endpoint: ServerEndpoint
-    let profileId: Int64
+    let profileId: UID
     let close: () -> Void
     @State private var model: PlayerModel?
     @State private var output: AVPlayerOutput?
@@ -126,8 +126,10 @@ struct StationSurface: View {
             Theme.ground.ignoresSafeArea()
             VStack(spacing: 14) {
                 if station.imageUrl != nil {
-                    StationIdentity(name: station.name, aspect: 1, radius: 10, imageUrl: station.imageUrl)
-                        .frame(width: 120)
+                    StationIdentity(
+                        id: station.id, name: station.name, aspect: 1, radius: 10, imageUrl: station.imageUrl
+                    )
+                    .frame(width: 120)
                 } else {
                     StationGlyph(size: 48)
                 }

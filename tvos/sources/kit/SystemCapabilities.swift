@@ -10,7 +10,7 @@ public final class SystemCapabilities: CapabilitySource {
 
     private let pathMonitor = NWPathMonitor()
     public private(set) var path = PathFacts()
-    private var observers: [any NSObjectProtocol] = []
+    private let observers = ObserverTokens()
 
     public init() {
         pathMonitor.pathUpdateHandler = { [weak self] newPath in
@@ -30,17 +30,14 @@ public final class SystemCapabilities: CapabilitySource {
             (AVAudioSession.routeChangeNotification, .audioRoute),
         ]
         for (name, group) in groups {
-            observers.append(
+            observers.tokens.append(
                 NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                     MainActor.assumeIsolated { self?.onChange?(group) }
                 })
         }
     }
 
-    isolated deinit {
-        pathMonitor.cancel()
-        observers.forEach(NotificationCenter.default.removeObserver)
-    }
+    deinit { pathMonitor.cancel() }
 
     public func facts() -> DeviceFacts {
         let session = AVAudioSession.sharedInstance()

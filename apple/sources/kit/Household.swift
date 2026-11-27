@@ -123,12 +123,13 @@ public final class HouseholdModel {
     public func allowed(_ kid: Account) async throws -> [Item] {
         let (kidId, viewer) = (kid.id, try acting())
         return try await read { db in
-            let ids = try Int64.fetchAll(
+            let ids = try UID.fetchAll(
                 db, sql: "SELECT item_id FROM account_allow WHERE account_id = ? ORDER BY item_id", arguments: [kidId])
             let items = try ReplicaRows.items(
                 db,
-                "i.id IN (SELECT value FROM json_each(?))"
-                    + " AND i.id IN (SELECT item_id FROM profile_item_open WHERE account_id = ?)", ["\(ids)", viewer])
+                "i.id IN (SELECT unhex(value, '-') FROM json_each(?))"
+                    + " AND i.id IN (SELECT item_id FROM profile_item_open WHERE account_id = ?)",
+                [ReplicaRows.json(ids), viewer])
             return Self.ordered(items, ids)
         }
     }
@@ -138,25 +139,26 @@ public final class HouseholdModel {
     public func findTitles(_ query: String) async throws -> [Item] {
         let viewer = try acting()
         return try await read { db in
-            let page = try Int64.fetchAll(
+            let page = try UID.fetchAll(
                 db,
                 sql: """
-                    SELECT i.id FROM item i WHERE i.id IN (SELECT value FROM json_each(?))
+                    SELECT i.id FROM item i WHERE i.id IN (SELECT unhex(value, '-') FROM json_each(?))
                         AND i.id IN (SELECT item_id FROM profile_item WHERE account_id = ?)
                     ORDER BY i.parsed_title COLLATE NOCASE, i.season_number, i.episode_number, i.id LIMIT 20
-                    """, arguments: ["\(try ReplicaSearch.items(matching: query, in: db))", viewer])
+                    """, arguments: [ReplicaRows.json(try ReplicaSearch.items(matching: query, in: db)), viewer])
             return Self.ordered(
-                try ReplicaRows.items(db, "i.id IN (SELECT value FROM json_each(?))", ["\(page)"]), page
+                try ReplicaRows.items(
+                    db, "i.id IN (SELECT unhex(value, '-') FROM json_each(?))", [ReplicaRows.json(page)]), page
             )
             .filter { $0.kind == .movie || $0.kind == .show }
         }
     }
 
     /// The kids of the device's household on an allow list whose list holds this title or channel.
-    public func allowedFor(_ itemId: Int64) async throws -> Set<Account.ID> {
+    public func allowedFor(_ itemId: UID) async throws -> Set<Account.ID> {
         try await read { db in
             Set(
-                try Int64.fetchAll(
+                try UID.fetchAll(
                     db,
                     sql: """
                         SELECT a.id FROM account a JOIN account_allow w ON w.account_id = a.id
@@ -232,7 +234,7 @@ public final class HouseholdModel {
     }
 
     /// The profile the server answers as, whose reads and writes these are.
-    private func acting() throws -> Int64 {
+    private func acting() throws -> UID {
         guard let id = app.serverActiveProfile?.id else { throw AppError.signedOut }
         return id
     }
@@ -242,12 +244,12 @@ public final class HouseholdModel {
         do { return try await replica.read(body) } catch { throw AppError.from(error) }
     }
 
-    private func write(_ action: (ActionQueue, Int64) async throws -> Void) async throws {
+    private func write(_ action: (ActionQueue, UID) async throws -> Void) async throws {
         guard let queue = app.sync?.queue else { throw AppError.signedOut }
         do { try await action(queue, try acting()) } catch { throw AppError.from(error) }
     }
 
-    private nonisolated static func ordered(_ items: [Item], _ ids: [Int64]) -> [Item] {
+    private nonisolated static func ordered(_ items: [Item], _ ids: [UID]) -> [Item] {
         let byId = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
         return ids.compactMap { byId[$0] }
     }

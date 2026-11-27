@@ -13,7 +13,7 @@ final class MiniPlayerTests: XCTestCase {
         let transport = RoutingTransport([
             "POST /auth/sign-in": (.created, Fixtures.signedIn),
             "GET /me": (.ok, Fixtures.me),
-            "POST /profiles/1/unlock": (.noContent, ""),
+            "POST /profiles/\(UID.n(1))/unlock": (.noContent, ""),
             "POST /playback/sessions": (.created, Fixtures.audioStream(1)),
         ])
         let model = AppModel(

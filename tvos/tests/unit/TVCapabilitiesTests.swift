@@ -31,4 +31,13 @@ final class TVCapabilitiesTests: XCTestCase {
         XCTAssertFalse(facts.model.isEmpty)
         XCTAssertEqual(CapabilitySnapshotBuilder.decoder(facts).protocols, [.http, .hls])
     }
+
+    func testAReleasedReaderDeinitializes() {
+        weak var released: SystemCapabilities?
+        do {
+            let reader = SystemCapabilities()
+            released = reader
+        }
+        XCTAssertNil(released)
+    }
 }

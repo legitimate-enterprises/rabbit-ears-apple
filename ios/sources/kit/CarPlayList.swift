@@ -22,7 +22,7 @@ public struct CarPlayMessage: Equatable, Sendable {
 /// kid's is the music the server allows them.
 public enum CarPlayGate: Equatable, Sendable {
     case loading, notSignedIn, choosingProfile, unreachable, offline
-    case music(Int64)
+    case music(UID)
 
     /// `reachable` is false after a music read found the server gone. The
     /// phone choosing its household or at Who's watching has no profile for
@@ -39,10 +39,10 @@ public enum CarPlayGate: Equatable, Sendable {
             self = .offline
         } else if phase == .unreachable || !reachable {
             self = .unreachable
-        } else if phase == .starting || profile == nil {
-            self = .loading
+        } else if phase != .starting, let profile {
+            self = .music(profile.id)
         } else {
-            self = .music(profile?.id ?? 0)
+            self = .loading
         }
     }
 
@@ -63,7 +63,7 @@ public enum CarPlayGate: Equatable, Sendable {
 
 extension DownloadStore {
     /// Whether any of the profile's own downloads is a song on this device.
-    public func hasMusic(for profile: Int64) -> Bool {
+    public func hasMusic(for profile: UID) -> Bool {
         requests(for: profile).flatMap(\.titles).contains {
             titles[$0]?.kind == .song && titles[$0]?.state == .onDevice
         }
@@ -111,17 +111,17 @@ public struct CarPlayLimits: Equatable, Sendable {
 }
 
 public enum CarPlayDestination: Equatable, Sendable {
-    case album(Int64)
-    case artist(Int64)
-    case playlist(Int64)
+    case album(UID)
+    case artist(UID)
+    case playlist(UID)
     case letter(MusicLetterGroup, String)
 }
 
 /// Something Play, Shuffle or a Recent row plays from the top.
 public enum CarPlayPlayable: Equatable, Sendable {
-    case album(Int64)
-    case playlist(Int64)
-    case artist(Int64, name: String)
+    case album(UID)
+    case playlist(UID)
+    case artist(UID, name: String)
 }
 
 public enum CarPlayAction: Equatable, Sendable {
@@ -136,16 +136,16 @@ public enum CarPlayAction: Equatable, Sendable {
 
 public struct CarPlayRow: Equatable, Sendable {
     public enum Art: Equatable, Sendable {
-        case square(Int64)
-        case round(Int64)
+        case square(UID)
+        case round(UID)
         /// A playlist's or station's own image, by its imageUrl.
         case custom(String)
     }
 
     /// What the row stands for, so it shows the playing indicator.
     public enum Marker: Equatable, Sendable {
-        case album(Int64)
-        case song(Int64)
+        case album(UID)
+        case song(UID)
 
         public func matches(_ song: MusicSong?) -> Bool {
             guard let song else { return false }
@@ -187,7 +187,7 @@ public struct CarPlayHeader: Equatable, Sendable {
 public struct CarPlayQueue: Equatable, Sendable {
     public let songs: [MusicSong]
     public let source: String
-    public let playlistId: Int64?
+    public let playlistId: UID?
 }
 
 public struct CarPlayList: Equatable, Sendable {

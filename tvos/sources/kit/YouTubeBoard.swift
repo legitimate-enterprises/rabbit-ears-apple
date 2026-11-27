@@ -21,7 +21,7 @@ public final class YouTubeBoard {
 
     /// Videos and Unwatched page in as the grid scrolls (`loadMore`), since
     /// a library of channels holds thousands.
-    public func load(_ tab: YouTubeTab, sort: YouTubeVideoSort, channel: Int64?) async {
+    public func load(_ tab: YouTubeTab, sort: YouTubeVideoSort, channel: UID?) async {
         switch tab {
         case .videos, .unwatched:
             let youTube = youTube

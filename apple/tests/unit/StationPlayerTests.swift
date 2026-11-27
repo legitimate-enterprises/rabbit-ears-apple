@@ -7,9 +7,9 @@ import XCTest
 @MainActor
 final class StationPlayerTests: XCTestCase {
     func testTheStreamEndingAsksTheStationWhatIsOnNext() async throws {
-        let transport = RoutingTransport(["DELETE /playback/sessions/7": (.noContent, "")])
+        let transport = RoutingTransport(["DELETE /playback/sessions/\(UID.n(7))": (.noContent, "")])
         let onAir = Fixtures.onAir("on_air", now: Fixtures.lantern, position: 4_328_000, next: Fixtures.salt)
-        transport.routes["POST /stations/5/playback"] = (
+        transport.routes["POST /stations/\(UID.n(5))/playback"] = (
             .created, #"{"stream":\#(Fixtures.stream(session: 7, position: 4_328_000)),"onAir":\#(onAir)}"#
         )
         let server = ServerEndpoint(userInput: "192.168.1.9")!
@@ -21,7 +21,7 @@ final class StationPlayerTests: XCTestCase {
             client: client, endpoint: server, profileId: 1, item: nil, output: FakeOutput(),
             capabilities: FakeCapabilities())
         let output = AVPlayerOutput()
-        var asks: Int { transport.paths(.post).filter { $0 == "/stations/5/playback" }.count }
+        var asks: Int { transport.paths(.post).filter { $0 == "/stations/\(UID.n(5))/playback" }.count }
         await player.tune(tuner, on: output)
         XCTAssertEqual(asks, 1)
         output.onEnd?()

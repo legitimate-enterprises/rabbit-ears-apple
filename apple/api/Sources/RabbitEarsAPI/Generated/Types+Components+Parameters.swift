@@ -102,10 +102,10 @@ extension Components {
         public typealias WatchTogetherFloorMs = Swift.Int
         /// - Remark: Generated from `#/components/parameters/StationId`.
         public typealias StationId = Components.Schemas.Id
-        /// Read by nothing; imageUrl carries it so that a new image has a new address.
+        /// Read by nothing; imageUrl carries it, the image's id, so that a new image has a new address.
         ///
         /// - Remark: Generated from `#/components/parameters/ImageVersion`.
-        public typealias ImageVersion = Swift.Int64
+        public typealias ImageVersion = Swift.String
         /// - Remark: Generated from `#/components/parameters/SsoProviderId`.
         public typealias SsoProviderId = Components.Schemas.Id
         /// Only those filed under this letter of `listMusicLetters`.

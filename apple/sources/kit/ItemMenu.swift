@@ -52,7 +52,7 @@ public final class AllowLists {
         let pairs = try? await replica.read { db in
             try SQLRequest<Row>(literal: "SELECT account_id, item_id FROM account_allow WHERE account_id IN \(ids)")
                 .fetchAll(db)
-                .map { (kid: $0["account_id"] as Int64, item: $0["item_id"] as Int64) }
+                .map { (kid: $0["account_id"] as UID, item: $0["item_id"] as UID) }
         }
         var next: [Item.ID: Set<Account.ID>] = [:]
         for pair in pairs ?? [] { next[pair.item, default: []].insert(pair.kid) }

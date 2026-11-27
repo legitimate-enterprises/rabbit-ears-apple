@@ -37,7 +37,7 @@ public final class DownloadPrompt {
 
     public init() {}
 
-    public func ask(_ target: DownloadTarget, quality: DownloadQuality, store: DownloadStore, profile: Int64) {
+    public func ask(_ target: DownloadTarget, quality: DownloadQuality, store: DownloadStore, profile: UID) {
         Task {
             do {
                 asking = try await store.request(target, quality: quality, profile: profile)

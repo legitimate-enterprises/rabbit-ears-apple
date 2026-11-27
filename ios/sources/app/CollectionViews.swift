@@ -71,7 +71,7 @@ struct CollectionView: View {
     @Environment(CatalogModel.self) private var catalog
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
-    let id: Int64
+    let id: UID
     @State private var movies: [Item]?
     @State private var addTarget: PlaylistTarget?
     @State private var renaming = false
@@ -249,7 +249,7 @@ struct CollectionView: View {
 struct AddToCollectionSheet: View {
     @Environment(Services.self) private var services
     @Environment(\.dismiss) private var dismiss
-    let movieId: Int64
+    let movieId: UID
     @State private var naming = false
     @State private var name = ""
 

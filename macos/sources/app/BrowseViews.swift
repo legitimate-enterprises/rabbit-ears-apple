@@ -15,39 +15,6 @@ extension AppModel {
     }
 }
 
-/// Follows the server's live events while the window is in view, loads again
-/// what each says has changed, and shows the app's brief notices.
-struct LiveUpdates: ViewModifier {
-    @Environment(AppModel.self) private var model
-    @Environment(\.scenePhase) private var scenePhase
-    let catalog: CatalogModel?
-    let stations: StationsModel?
-    let playlists: PlaylistsModel?
-    let browser: Browser
-
-    func body(content: Content) -> some View {
-        content
-            .task(id: "\(catalog.map { ObjectIdentifier($0).hashValue } ?? 0)/\(scenePhase == .background)") {
-                await model.followLive(catalog, inView: scenePhase != .background)
-            }
-            .onChange(of: model.live.watched) { browser.revision += 1 }
-            .onChange(of: model.live.stations) {
-                browser.revision += 1
-                if model.activeProfile?.kind == .adult { Task { await stations?.loadMine() } }
-            }
-            .onChange(of: model.live.playlists) {
-                browser.revision += 1
-                Task { await playlists?.load() }
-            }
-            .overlay(alignment: .bottom) {
-                if let notice = model.live.notice {
-                    Text(notice).font(.system(size: 13, weight: .semibold)).padding(.horizontal, 14)
-                        .frame(height: 32).background(.black.opacity(0.8), in: .capsule).padding(.bottom, 28)
-                }
-            }
-    }
-}
-
 extension View {
     /// On each page, not around the stack: a pushed page fills the detail column over anything beside the stack.
     fileprivate func miniPlayer(_ music: MusicPlayer?, _ audio: AVAudioOutput?) -> some View {
@@ -135,7 +102,7 @@ struct MainView: View {
         .environment(browser)
         .downloadPrompt(prompt, store: model.downloads)
         // In view, the downloads catch up: watch changes made offline go up, then what is new comes down.
-        .task(id: "\(model.activeProfile?.id ?? 0)/\(scenePhase == .active)") {
+        .task(id: "\(model.activeProfile?.id.description ?? "")/\(scenePhase == .active)") {
             guard scenePhase == .active, let profile = model.activeProfile?.id else { return }
             Task {
                 // The profile too, for a Hide kids' content changed on another device.
@@ -145,7 +112,9 @@ struct MainView: View {
             await model.downloads?.sync(profile: profile)
         }
         // A title's menu shows which kids' lists hold it without asking per tile.
-        .task(id: "\(model.activeProfile?.id ?? 0)/\(model.allowListKids.map(\.id))/\(scenePhase == .active)") {
+        .task(
+            id: "\(model.activeProfile?.id.description ?? "")/\(model.allowListKids.map(\.id))/\(scenePhase == .active)"
+        ) {
             if scenePhase == .active { await model.loadAllowLists() }
         }
         .background(Theme.ground)
@@ -264,11 +233,9 @@ struct MainView: View {
             client: client, replica: sync.replica, queue: sync.queue, profileId: profile.id,
             hidingKids: profile.hideKidsContent == true)
         catalog = next
-        let sets = CollectionsModel(
-            client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profile.id)
+        let sets = CollectionsModel(replica: sync.replica, queue: sync.queue, profileId: profile.id)
         collections = sets
-        let tuned = StationsModel(
-            client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profile.id)
+        let tuned = StationsModel(client: client, replica: sync.replica, queue: sync.queue, profileId: profile.id)
         stations = tuned
         Task { await sets.load() }
         let output = AVAudioOutput()

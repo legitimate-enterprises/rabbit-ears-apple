@@ -14,13 +14,15 @@ public enum ProfilePalette {
         return UInt32(hex.dropFirst(), radix: 16)
     }
 
+    /// The color an id picks, from its last byte as the server's ShownColor
+    /// does: random in a UUIDv7 and the same on every launch.
+    public static func color(for id: UID) -> String { colors[Int(id.uuid.uuid.15) % colors.count] }
+
     /// Stable per id, so a person keeps their placeholder everywhere.
-    public static func placeholder(_ id: Int64) -> UInt32 {
-        rgb(colors[Int(id.magnitude % UInt64(colors.count))]) ?? 0
-    }
+    public static func placeholder(_ id: UID) -> UInt32 { rgb(color(for: id)) ?? 0 }
 }
 
 extension Account {
     /// The server's color for this profile; the first stands in for none.
-    public var rgb: UInt32 { color.flatMap(ProfilePalette.rgb) ?? ProfilePalette.placeholder(0) }
+    public var rgb: UInt32 { color.flatMap(ProfilePalette.rgb) ?? ProfilePalette.rgb(ProfilePalette.colors[0]) ?? 0 }
 }

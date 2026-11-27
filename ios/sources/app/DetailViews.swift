@@ -128,7 +128,7 @@ struct PlayableDetail: View {
     @Environment(Browser.self) private var browser
     @Environment(AppModel.self) private var app
     let item: Item
-    @State private var audioTrackId: Int64?
+    @State private var audioTrackId: UID?
     @State private var cuts = EditionChoice()
     @State private var verdict: Components.Schemas.Verdict?
     @State private var credits: Credits?

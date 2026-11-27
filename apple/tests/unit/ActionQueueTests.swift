@@ -19,17 +19,23 @@ final class ActionQueueTests: ActionQueueCase {
 
         let (rows, action, uuid, touched) = try await replica.read { db in
             (
-                try Int.fetchOne(db, sql: "SELECT count(*) FROM watch_state WHERE item_id = 40"),
-                try Row.fetchAll(db, sql: "SELECT profile_id, at FROM queue.action").map { [$0[0], $0[1]] as [Int64] },
+                try Int.fetchOne(db, sql: "SELECT count(*) FROM watch_state WHERE item_id = \(sqlID(40))"),
+                try Row.fetchAll(db, sql: "SELECT profile_id, at FROM queue.action").map {
+                    "\($0["profile_id"] as UID) \($0["at"] as Int64)"
+                },
                 try String.fetchOne(db, sql: "SELECT uuid FROM queue.action") ?? "",
                 try Row.fetchAll(db, sql: "SELECT table_name, key1, key2, key3 FROM queue.action_touch")
                     .map { Array($0.databaseValues) }
             )
         }
         XCTAssertEqual(rows, 1)
-        XCTAssertEqual(action, [[1, 1_800_000_000_123]], "the acting profile, and at in Unix milliseconds")
+        XCTAssertEqual(
+            action, ["\(UID.n(1)) 1800000000123"], "the acting profile as a blob, and at in Unix milliseconds")
         XCTAssertNotNil(UUID(uuidString: uuid))
-        XCTAssertEqual(touched, [["watch_state".databaseValue, 1.databaseValue, 40.databaseValue, .null]])
+        XCTAssertEqual(uuid, uuid.lowercased())
+        let text = { (id: UID) in id.description.databaseValue }
+        XCTAssertEqual(
+            touched, [["watch_state".databaseValue, text(1), text(40), .null]], "id key parts are kept as their text")
     }
 
     func testALocalChangeThatFailsQueuesNothing() async throws {
@@ -39,12 +45,12 @@ final class ActionQueueTests: ActionQueueCase {
 
         do {
             try await queue.act(
-                as: 1, touching: [.init(table: "watch_state", key: [1, 40])],
+                as: 1, touching: [try .row("watch_state", 1, 40)],
                 call: {
                     _ = try await $0.recordPlay(path: .init(profileId: 1, itemId: 40), body: .json(.init(at: $1)))
                 },
                 apply: { db, _ in
-                    try db.execute(sql: "INSERT INTO watch_state VALUES (1, 40, 0)")
+                    try db.execute(sql: "INSERT INTO watch_state VALUES (\(sqlID(1)), \(sqlID(40)), 0)")
                     throw Refused()
                 })
             XCTFail("the failure is the caller's")
@@ -67,23 +73,23 @@ final class ActionQueueTests: ActionQueueCase {
         let replica = try replica()
         let queue = queue(replica)
 
-        for item in Int64(40)...42 { try await watch(queue, item: item) }
+        for item in 40...42 { try await watch(queue, item: .n(item)) }
         try? await Task.sleep(for: .milliseconds(50))
         XCTAssertEqual(batches().count, 0, "nothing goes before the debounce ends")
         gate.open()
         await until { batches().count == 1 }
         try await until { try await queued(replica).isEmpty }
 
-        XCTAssertEqual(batches().map { $0.actions.map(\.path) }, [(40...42).map { "/profiles/1/watch-state/\($0)" }])
+        XCTAssertEqual(
+            batches().map { $0.actions.map(\.path) },
+            [(40...42).map { "/profiles/\(UID.n(1))/watch-state/\(UID.n($0))" }])
         let batch = try XCTUnwrap(batches().first)
         XCTAssertEqual(batch.apiVersion, ActionQueue.apiVersion)
         XCTAssertEqual(batch.actions.map(\.actingProfileId), [1, 1, 1])
         XCTAssertEqual(batch.actions.map(\.at), Array(repeating: Self.now, count: 3))
         XCTAssertEqual(
             batch.actions.map(\.touched),
-            try (40...42).map {
-                [Components.Schemas.SyncTouched(table: "watch_state", key: [1, try .init(unvalidatedValue: $0)])]
-            })
+            try (40...42).map { [try .row("watch_state", 1, .n($0))] })
         XCTAssertEqual(firstBody()?["watched"] as? Bool, true)
         XCTAssertEqual(firstBody()?["at"] as? String, "2027-01-15T08:00:00.123Z")
         XCTAssertEqual(kicks.all.count, 1)
@@ -111,7 +117,7 @@ final class ActionQueueTests: ActionQueueCase {
     func testOnlyAnsweredActionsLeaveAndTheRestGoAgainWithTheirIds() async throws {
         let replica = try replica()
         let queue = queue(replica)
-        for item in Int64(40)...42 { try await watch(queue, item: item) }
+        for item in 40...42 { try await watch(queue, item: .n(item)) }
         let ids = try await queued(replica)
         // As when the server fails at the second action: it and those after it go unanswered.
         transport.respond = { Self.answer($0, answered: 1) }
@@ -154,7 +160,8 @@ final class ActionQueueTests: ActionQueueCase {
         let outcome = await flushed
         XCTAssertEqual(outcome, .done)
         XCTAssertEqual(
-            batches().map { $0.actions.map(\.path) }, [["/profiles/1/watch-state/40"], ["/profiles/1/watch-state/41"]])
+            batches().map { $0.actions.map(\.path) },
+            [["/profiles/\(UID.n(1))/watch-state/\(UID.n(40))"], ["/profiles/\(UID.n(1))/watch-state/\(UID.n(41))"]])
     }
 
     func testFlushesAskedWhileOneRunsShareIt() async throws {
@@ -186,7 +193,7 @@ final class ActionQueueTests: ActionQueueCase {
         let queue = queue(replica)
         try await watch(queue, item: 40)
         try await queue.act(
-            as: 1, touching: [.init(table: "playlist_entry", key: [9])],
+            as: 1, touching: [try .row("playlist_entry", 9)],
             call: {
                 _ = try await $0.addPlaylistEntry(
                     path: .init(profileId: 2, playlistId: 3), body: .json(.init(itemId: 40)))
@@ -207,9 +214,9 @@ final class ActionQueueTests: ActionQueueCase {
     func testABatchRefusedWholeGoesOneAtATimeAndOnlyTheActionRefusedAloneIsDropped() async throws {
         let replica = try replica()
         let queue = queue(replica)
-        for item in Int64(40)...42 { try await watch(queue, item: item) }
+        for item in 40...42 { try await watch(queue, item: .n(item)) }
         let ids = try await queued(replica)
-        let refused = "/profiles/1/watch-state/41"
+        let refused = "/profiles/\(UID.n(1))/watch-state/\(UID.n(41))"
         transport.respond = { sent in
             let batch = Fixtures.decode(sent.body, as: Batch.self)
             guard batch.actions.contains(where: { $0.path == refused }) else { return Self.answer(sent) }
@@ -289,20 +296,20 @@ final class ActionQueueTests: ActionQueueCase {
         let queue = queue(replica)
         try await watch(queue, item: 40)
         try await mark(queue, ActionQueue.touchedLimit)
-        transport.routes["PUT /profiles/1/watch-state/batch"] = (.noContent, "")
+        transport.routes["PUT /profiles/\(UID.n(1))/watch-state/batch"] = (.noContent, "")
 
         try await mark(queue, ActionQueue.touchedLimit + 1)
 
-        XCTAssertEqual(transport.sent.map(\.path), ["/sync/actions", "/profiles/1/watch-state/batch"])
+        XCTAssertEqual(transport.sent.map(\.path), ["/sync/actions", "/profiles/\(UID.n(1))/watch-state/batch"])
         XCTAssertEqual(batches().map { $0.actions.map(\.touched.count) }, [[1, ActionQueue.touchedLimit]])
-        let ids = transport.json(.put, "/profiles/1/watch-state/batch")?["itemIds"] as? [Int]
+        let ids = transport.json(.put, "/profiles/\(UID.n(1))/watch-state/batch")?["itemIds"] as? [String]
         XCTAssertEqual(ids?.count, ActionQueue.touchedLimit + 1)
         let left = try await queued(replica)
         XCTAssertEqual(left, [])
         let applied = try await replica.read {
-            try Int64.fetchAll($0, sql: "SELECT item_id FROM watch_state ORDER BY item_id")
+            try UID.fetchAll($0, sql: "SELECT item_id FROM watch_state ORDER BY item_id")
         }
-        XCTAssertEqual(applied, [40, Int64(ActionQueue.touchedLimit)], "the server's rows come back by sync")
+        XCTAssertEqual(applied, [40, .n(ActionQueue.touchedLimit)], "the server's rows come back by sync")
         XCTAssertEqual(kicks.all.count, 2, "a catch-up after each")
     }
 
@@ -324,7 +331,7 @@ final class ActionQueueTests: ActionQueueCase {
     /// putWatchStates of `count` items, each touched; its local write is a
     /// row for item `count`.
     private func mark(_ queue: ActionQueue, _ count: Int) async throws {
-        let items = (0..<Int64(count)).map { $0 + 1000 }
+        let items = (0..<count).map { UID.n($0 + 1000) }
         try await queue.act(
             as: 1, touching: try items.map { try .row("watch_state", 1, $0) },
             call: { client, at in
@@ -332,7 +339,8 @@ final class ActionQueueTests: ActionQueueCase {
                     path: .init(profileId: 1), body: .json(.init(itemIds: items, watched: true, at: at)))
             },
             apply: { db, _ in
-                try db.execute(sql: "INSERT OR IGNORE INTO watch_state VALUES (1, ?, 0)", arguments: [count])
+                try db.execute(
+                    sql: "INSERT OR IGNORE INTO watch_state VALUES (?, ?, 0)", arguments: [UID.n(1), UID.n(count)])
             })
     }
 
@@ -347,6 +355,32 @@ final class ActionQueueTests: ActionQueueCase {
 
         XCTAssertEqual(flushed, .done)
         XCTAssertEqual(
-            batches().map { $0.actions.map(\.path) }, [["/profiles/1/watch-state/40", "/profiles/1/watch-state/41"]])
+            batches().map { $0.actions.map(\.path) },
+            [["/profiles/\(UID.n(1))/watch-state/\(UID.n(40))", "/profiles/\(UID.n(1))/watch-state/\(UID.n(41))"]])
+    }
+}
+
+extension ActionQueueTests {
+    func testAReplayedActionCarriesIdsAsLowercaseStringsAndIntegerKeyPartsAsIntegers() async throws {
+        let replica = try replica()
+        let queue = queue(replica)
+        try await queue.act(
+            as: 1, touching: [try .row("station", 5), try .row("station_day", 5, 3)],
+            call: {
+                _ = try await $0.deleteStation(path: .init(stationId: 5))
+                _ = $1
+            }, apply: { _, _ in })
+
+        _ = await queue.flush()
+
+        let actions = try XCTUnwrap(transport.json(.post, "/sync/actions")?["actions"] as? [[String: Any]])
+        XCTAssertEqual(actions.first?["actingProfileId"] as? String, UID.n(1).description)
+        XCTAssertEqual(actions.first?["path"] as? String, "/stations/\(UID.n(5))")
+        let touched = try XCTUnwrap(actions.first?["touched"] as? [[String: Any]])
+        let keys = touched.map { $0["key"] as? [Any] ?? [] }
+        XCTAssertEqual(keys.first?.first as? String, UID.n(5).description)
+        XCTAssertEqual(keys.last?.first as? String, UID.n(5).description)
+        XCTAssertEqual(keys.last?.last as? Int, 3, "an integer key part stays an integer")
+        XCTAssertNil(keys.last?.last as? String)
     }
 }

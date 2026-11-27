@@ -39,15 +39,15 @@ extension CatalogModel {
     /// The movies each related collection lists at most.
     nonisolated static let relatedLimit = 10
 
-    private nonisolated static func related(_ id: Item.ID, _ profile: Int64, _ db: Database) throws -> ItemRelated? {
+    private nonisolated static func related(_ id: Item.ID, _ profile: UID, _ db: Database) throws -> ItemRelated? {
         guard
             let kind = try String.fetchOne(
                 db,
                 sql: "SELECT kind FROM item WHERE id = ? AND kind IN ('movie', 'show', 'season', 'episode') AND id "
                     + ReplicaRows.seenBy, arguments: [id, profile])
         else { return nil }
-        var around: (previous: Int64, next: Int64) = (0, 0)
-        var collections: [(Components.Schemas.Collection, [Int64])] = []
+        var around: (previous: UID?, next: UID?) = (nil, nil)
+        var collections: [(Components.Schemas.Collection, [UID])] = []
         if kind == "movie" {
             around = try ReplicaRows.neighbors(
                 db, from: ReplicaRows.franchise, order: ReplicaRows.collectionOrder, of: id, browsedBy: profile)
@@ -56,22 +56,20 @@ extension CatalogModel {
             around = try ReplicaRows.neighbors(
                 db, from: ReplicaRows.showEpisodes, order: ReplicaRows.episodeOrder, of: id, browsedBy: profile)
         }
+        let ids = [around.previous, around.next].compactMap { $0 } + collections.flatMap(\.1)
         let items = Dictionary(
-            try ReplicaRows.items(db, ids: [around.previous, around.next] + collections.flatMap(\.1)).map {
-                ($0.id, $0)
-            },
-            uniquingKeysWith: { first, _ in first })
+            try ReplicaRows.items(db, ids: ids).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return ItemRelated(
             collections: collections.map { .init(collection: $0.0, items: $0.1.compactMap { items[$0] }) },
-            similar: [], previous: items[around.previous], next: items[around.next])
+            similar: [], previous: around.previous.flatMap { items[$0] }, next: around.next.flatMap { items[$0] })
     }
 
     /// The collections holding the movie that the household and profile
     /// see, TMDB's first then the rest by name, each with the ids of the
     /// relatedLimit other movies nearest it; one with none is left out.
     private nonisolated static func collections(
-        holding movie: Item.ID, _ profile: Int64, _ db: Database
-    ) throws -> [(Components.Schemas.Collection, [Int64])] {
+        holding movie: Item.ID, _ profile: UID, _ db: Database
+    ) throws -> [(Components.Schemas.Collection, [UID])] {
         // As collection.seen: an adult hiding kids' content still sees an empty one.
         let rows = try Row.fetchAll(
             db,
@@ -85,7 +83,7 @@ extension CatalogModel {
                     AND EXISTS (SELECT 1 FROM collection_movie x WHERE x.collection_id = c.id AND x.item_id = ?)
                 ORDER BY c.source != 'tmdb', c.name COLLATE NOCASE, c.id
                 """, arguments: [profile, movie])
-        return try rows.compactMap { row -> (Components.Schemas.Collection, [Int64])? in
+        return try rows.compactMap { row -> (Components.Schemas.Collection, [UID])? in
             guard let collection = ReplicaRows.collection(row) else { return nil }
             let movies = try Self.around(movie, in: collection.id, profile, db)
             return movies.isEmpty ? nil : (collection, movies)
@@ -97,8 +95,8 @@ extension CatalogModel {
     /// short of its half giving the rest to the other. The movie places the
     /// window even when the profile does not browse it.
     private nonisolated static func around(
-        _ movie: Item.ID, in collection: Int64, _ profile: Int64, _ db: Database
-    ) throws -> [Int64] {
+        _ movie: Item.ID, in collection: UID, _ profile: UID, _ db: Database
+    ) throws -> [UID] {
         let rows = try Row.fetchAll(
             db,
             sql: """
@@ -106,10 +104,10 @@ extension CatalogModel {
                 FROM collection_movie cm JOIN item ON item.id = cm.item_id WHERE cm.collection_id = ?1
                 ORDER BY \(ReplicaRows.collectionOrder)
                 """, arguments: [collection, profile])
-        var others: [Int64] = []
+        var others: [UID] = []
         var at = 0
         for row in rows {
-            let id: Int64 = row["id"]
+            let id: UID = row["id"]
             if id == movie {
                 at = others.count
             } else if row["seen"] {

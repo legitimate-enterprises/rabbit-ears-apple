@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import RabbitEarsAPI
 import XCTest
 
 @testable import RabbitEarsKit
@@ -31,14 +32,14 @@ final class DownloadArtTests: XCTestCase {
         }
         for id in [10, 11, 101, 20, 40, 50, 60, 70] {
             for kind in ["poster", "backdrop"] {
-                harness.transport.routes["GET /items/\(id)/artwork/\(kind)"] = (.ok, "jpeg")
+                harness.transport.routes["GET /items/\(UID.n(id))/artwork/\(kind)"] = (.ok, "jpeg")
             }
         }
-        harness.resolves["item/10"] = [Fixtures.downloadTitle(101, "episode")]
-        harness.resolves["item/5"] = [Fixtures.downloadTitle(5, "song", library: 3)]
-        harness.resolves["item/70"] = [Fixtures.downloadTitle(70, "video", library: 4)]
-        harness.resolves["playlist/3"] = [Fixtures.downloadTitle(20, "movie")]
-        harness.resolves["playlist/4"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(10))"] = [Fixtures.downloadTitle(101, "episode")]
+        harness.resolves["item/\(UID.n(5))"] = [Fixtures.downloadTitle(5, "song", library: 3)]
+        harness.resolves["item/\(UID.n(70))"] = [Fixtures.downloadTitle(70, "video", library: 4)]
+        harness.resolves["playlist/\(UID.n(3))"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["playlist/\(UID.n(4))"] = [Fixtures.downloadTitle(20, "movie")]
     }
 
     func testEachTitleKeepsItsOwnArtAndWhatHoldsIts() async throws {
@@ -46,11 +47,13 @@ final class DownloadArtTests: XCTestCase {
         XCTAssertEqual(
             store.ledger.titles[101]?.art,
             [
-                "item-101-poster", "item-101-backdrop", "item-11-poster", "item-11-backdrop", "item-10-poster",
-                "item-10-backdrop",
+                "item-\(UID.n(101))-poster", "item-\(UID.n(101))-backdrop", "item-\(UID.n(11))-poster",
+                "item-\(UID.n(11))-backdrop", "item-\(UID.n(10))-poster",
+                "item-\(UID.n(10))-backdrop",
             ])
-        XCTAssertEqual(Set(store.ledger.titles[5]?.art ?? []), ["item-50-poster", "item-40-poster"])
-        XCTAssertEqual(store.ledger.titles[70]?.art, ["item-70-poster", "item-60-poster"])
+        XCTAssertEqual(
+            Set(store.ledger.titles[5]?.art ?? []), ["item-\(UID.n(50))-poster", "item-\(UID.n(40))-poster"])
+        XCTAssertEqual(store.ledger.titles[70]?.art, ["item-\(UID.n(70))-poster", "item-\(UID.n(60))-poster"])
         XCTAssertEqual(described(), [], "the replica names them")
     }
 
@@ -60,7 +63,7 @@ final class DownloadArtTests: XCTestCase {
         // A request is described after it is kept, in a task of its own.
         for _ in 0..<200 where store.ledger.requests.last?.art == nil { try await Task.sleep(for: .milliseconds(10)) }
         let art = store.ledger.requests.map { [$0.target.id: $0.art ?? []] }
-        XCTAssertEqual(art, [[4: []], [3: ["item-20-poster"]]])
+        XCTAssertEqual(art, [[4: []], [3: ["item-\(UID.n(20))-poster"]]])
         XCTAssertEqual(described(), [])
     }
 

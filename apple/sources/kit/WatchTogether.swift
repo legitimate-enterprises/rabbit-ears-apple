@@ -7,7 +7,7 @@ public typealias WatchTogether = Components.Schemas.WatchTogether
 extension AppModel {
     /// Watch together on one title as the active profile, adult or kid: the
     /// server lists a kid only those on titles the kid may see.
-    public func watchTogether(itemId: Int64) -> WatchTogetherModel? {
+    public func watchTogether(itemId: UID) -> WatchTogetherModel? {
         guard let client, let profile = activeProfile else { return nil }
         return WatchTogetherModel(client: client, profileId: profile.id, itemId: itemId)
     }
@@ -30,7 +30,7 @@ public final class WatchTogetherModel {
     /// After a correcting seek, the player is left this long to buffer before the next.
     static let settle: TimeInterval = 3
 
-    public let itemId: Int64
+    public let itemId: UID
     /// The one this profile is in, waiting or joined.
     public private(set) var current: WatchTogether?
     /// Someone else's waiting one on this title, for Join.
@@ -43,14 +43,14 @@ public final class WatchTogetherModel {
     @ObservationIgnored public private(set) var offsetMs: Int64 = 0
 
     private let client: Client
-    private let profileId: Int64
+    private let profileId: UID
     private let now: () -> Date
     private var receivedAt: Date
     @ObservationIgnored private weak var output: (any VideoOutput)?
     @ObservationIgnored private var startRequested = false
     @ObservationIgnored private var running = false
     /// Left by this viewer; the server may list one until it notices.
-    @ObservationIgnored private var left: Set<Int64> = []
+    @ObservationIgnored private var left: Set<UID> = []
     @ObservationIgnored private var bestRoundTrip = Int64.max
     /// The latest round trip of a request that was not held, reported so the
     /// server leads no further ahead than this device needs.
@@ -60,7 +60,7 @@ public final class WatchTogetherModel {
     @ObservationIgnored private var due: Task<Void, Never>?
     @ObservationIgnored private var settledAt = Date.distantPast
 
-    public init(client: Client, profileId: Int64, itemId: Int64, now: @escaping () -> Date = Date.init) {
+    public init(client: Client, profileId: UID, itemId: UID, now: @escaping () -> Date = Date.init) {
         self.client = client
         self.profileId = profileId
         self.itemId = itemId
@@ -154,7 +154,7 @@ public final class WatchTogetherModel {
     }
 
     /// Opens one from the session playing on another device of the profile, at that session's position.
-    func open(from sessionId: Int64) async throws {
+    func open(from sessionId: UID) async throws {
         receive(
             try await client.openWatchTogether(body: .json(.init(itemId: itemId, fromSessionId: sessionId))).created
                 .body.json)
@@ -162,7 +162,7 @@ public final class WatchTogetherModel {
 
     /// Joins the one another device of the profile opened from this device's
     /// session, and plays for both from where this device is.
-    func join(_ id: Int64, playingAt positionMs: Int64) async -> Bool {
+    func join(_ id: UID, playingAt positionMs: Int64) async -> Bool {
         do {
             receive(try await client.joinWatchTogether(path: .init(watchTogetherId: id)).ok.body.json)
             receive(

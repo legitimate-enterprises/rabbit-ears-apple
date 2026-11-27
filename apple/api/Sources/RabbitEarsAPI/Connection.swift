@@ -47,7 +47,7 @@ extension Client {
         middlewares: [any ClientMiddleware] = []
     ) -> Client {
         Client(
-            serverURL: server.appending(path: "api/v1"),
+            serverURL: server.appending(path: "api/v2"),
             configuration: Configuration(dateTranscoder: ServerDates()),
             transport: transport ?? sharedTransport,
             middlewares: middlewares + (token.map { [BearerAuth(token: $0)] } ?? [])

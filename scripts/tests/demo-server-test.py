@@ -14,7 +14,7 @@ class DemoServerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             probe = Path(folder) / "probe.py"
             probe.write_text('''import json, os, pathlib, urllib.request
-base = os.environ["RABBIT_EARS_UI_SERVER"] + "/api/v1"
+base = os.environ["RABBIT_EARS_UI_SERVER"] + "/api/v2"
 def api(path, data=None, token=None):
     headers = {"Content-Type": "application/json"}
     if token: headers["Authorization"] = "Bearer " + token

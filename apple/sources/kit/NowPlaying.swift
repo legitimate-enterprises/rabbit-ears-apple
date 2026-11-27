@@ -1,5 +1,6 @@
 import Foundation
 import MediaPlayer
+import RabbitEarsAPI
 
 #if os(iOS) || os(tvOS)
     import AVFoundation
@@ -14,7 +15,7 @@ public struct NowPlayingInfo: Equatable, Sendable {
     public let artist: String
     public let album: String
     /// The item whose artwork stands for the song: its album.
-    public let artworkItemId: Int64
+    public let artworkItemId: UID
     public let durationMs: Int64?
     public let elapsedMs: Int64
     public let playing: Bool
@@ -58,12 +59,12 @@ public enum AudioSession {
 @MainActor
 public final class SystemNowPlayingCenter: NowPlayingCenter {
     public var onCommand: ((RemoteCommand) -> Void)?
-    private let artwork: (Int64) async -> Data?
+    private let artwork: (UID) async -> Data?
     private var artworkTask: Task<Void, Never>?
-    private var artworkItemId: Int64?
+    private var artworkItemId: UID?
 
     /// `artwork` fetches an item's poster bytes, as ArtworkStore.data does.
-    public init(artwork: @escaping (Int64) async -> Data?) {
+    public init(artwork: @escaping (UID) async -> Data?) {
         self.artwork = artwork
         let commands = MPRemoteCommandCenter.shared()
         let simple: [(MPRemoteCommand, RemoteCommand)] = [
@@ -152,7 +153,7 @@ public final class SystemNowPlayingCenter: NowPlayingCenter {
     }
 
     /// Fetched once per album; a newer song's art replaces a slower older fetch.
-    private func loadArtwork(_ id: Int64) {
+    private func loadArtwork(_ id: UID) {
         artworkItemId = id
         artworkTask?.cancel()
         artworkTask = Task { [weak self, artwork] in

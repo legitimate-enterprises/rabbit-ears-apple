@@ -12,7 +12,7 @@ import XCTest
     import AppKit
 #endif
 
-/// Serves images for items 1 and 5, 404 for 2 and 503 for 3, and names `generation` on health. An
+/// Serves images for items 1 and 5, 404 for 2 and 503 for 3 (uid.N ids), and names `generation` on health. An
 /// image carries a generation of its own, as one answered from URLCache does.
 final class GenerationTransport: ClientTransport, @unchecked Sendable {
     var paths: [String] = []
@@ -29,9 +29,9 @@ final class GenerationTransport: ClientTransport, @unchecked Sendable {
             response.headerFields[HTTPField.Name("Artwork-Generation")!] = generation
             return (response, HTTPBody(#"{"status":"ok","version":"1.0.0","setupRequired":false}"#))
         }
-        let item = path.split(separator: "/").dropFirst().first.map(String.init) ?? ""
+        let item = path.split(separator: "/").dropFirst().first.flatMap { UID(String($0)) }
         let status: HTTPResponse.Status =
-            ["1", "5"].contains(item) ? .ok : item == "3" ? .serviceUnavailable : .notFound
+            item == UID.n(1) || item == UID.n(5) ? .ok : item == UID.n(3) ? .serviceUnavailable : .notFound
         var response = HTTPResponse(status: status)
         response.headerFields[.contentType] = status == .ok ? "image/jpeg" : "application/json"
         response.headerFields[HTTPField.Name("Artwork-Generation")!] = "1"
@@ -61,17 +61,21 @@ final class ArtworkFreshnessTests: XCTestCase {
         _ = await store.data(1, .poster)
         XCTAssertEqual(
             transport.paths.filter { $0.contains("artwork") },
-            ["/items/1/artwork/poster?v=3", "/items/5/artwork/poster?v=3", "/items/1/artwork/poster?v=4"])
+            [
+                "/items/\(UID.n(1))/artwork/poster?v=3", "/items/\(UID.n(5))/artwork/poster?v=3",
+                "/items/\(UID.n(1))/artwork/poster?v=4",
+            ])
     }
 
     func testACustomImageNamesNoGeneration() async throws {
         let transport = GenerationTransport()
         let (store, client) = store(transport)
         _ = try await client.getHealth().ok
-        _ = try? await client.getStationImage(path: .init(stationId: 5), query: .init(v: 9))
-        _ = try? await client.getPlaylistImage(path: .init(profileId: 1, playlistId: 2), query: .init(v: 9))
+        _ = try? await client.getStationImage(path: .init(stationId: 5), query: .init(v: "\(UID.n(9))"))
+        _ = try? await client.getPlaylistImage(
+            path: .init(profileId: 1, playlistId: 2), query: .init(v: "\(UID.n(9))"))
         _ = await store.data(1, .poster)
-        XCTAssertEqual(transport.paths.last, "/items/1/artwork/poster?v=3")
+        XCTAssertEqual(transport.paths.last, "/items/\(UID.n(1))/artwork/poster?v=3")
     }
 
     func testAMissingImageIsAskedForOncePerGenerationButATransientFailureIsAskedAgain() async throws {
@@ -82,11 +86,14 @@ final class ArtworkFreshnessTests: XCTestCase {
         for _ in 0..<2 { _ = await store.data(3, .poster) }
         XCTAssertEqual(
             Array(transport.paths.dropFirst()),
-            ["/items/2/artwork/poster?v=3", "/items/3/artwork/poster?v=3", "/items/3/artwork/poster?v=3"])
+            [
+                "/items/\(UID.n(2))/artwork/poster?v=3", "/items/\(UID.n(3))/artwork/poster?v=3",
+                "/items/\(UID.n(3))/artwork/poster?v=3",
+            ])
         transport.generation = "4"
         _ = try await client.getHealth().ok
         _ = await store.data(2, .poster)
-        XCTAssertEqual(transport.paths.last, "/items/2/artwork/poster?v=4")
+        XCTAssertEqual(transport.paths.last, "/items/\(UID.n(2))/artwork/poster?v=4")
     }
 
     func testAnImageInMemoryIsKnownToBeSoAtTheSizeItWasDecoded() async {

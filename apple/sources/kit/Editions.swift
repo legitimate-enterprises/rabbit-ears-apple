@@ -34,14 +34,14 @@ public enum Editions {
 
     /// What play names: nothing for a title of one edition, and nothing in
     /// Watch together, which always plays the default.
-    public static func sent(_ edition: Edition?, of editions: [Edition], together: Bool) -> Int64? {
+    public static func sent(_ edition: Edition?, of editions: [Edition], together: Bool) -> UID? {
         editions.count > 1 && !together ? edition?.id : nil
     }
 
     /// What a start names. `chosen` is `.none` where no edition was chosen,
     /// as from Home, which then resumes the position's edition outside Watch
     /// together; a choice made on details, `.some(nil)` for the default, stands.
-    public static func started(_ chosen: Int64??, item: Item.ID, in catalog: Catalog, together: Bool) -> Int64? {
+    public static func started(_ chosen: UID??, item: Item.ID, in catalog: Catalog, together: Bool) -> UID? {
         chosen ?? (together ? nil : catalog.resumeEdition(item))
     }
 }
@@ -52,7 +52,7 @@ public enum Editions {
 @Observable
 public final class EditionChoice {
     public private(set) var editions: [Edition] = []
-    public var editionId: Int64?
+    public var editionId: UID?
     private var files: [Components.Schemas.MediaFile] = []
 
     public init() {}
@@ -76,14 +76,14 @@ public final class EditionChoice {
 
     /// What Play hands the browser: `.none` while unread, so the start
     /// resumes the position's own edition.
-    public func sent(together: Bool) -> Int64?? {
-        editions.isEmpty ? Int64??.none : Editions.sent(chosen, of: editions, together: together)
+    public func sent(together: Bool) -> UID?? {
+        editions.isEmpty ? UID??.none : Editions.sent(chosen, of: editions, together: together)
     }
 }
 
 extension Catalog {
     /// The edition a Resume outside details plays, the one holding the position.
-    public func resumeEdition(_ id: Item.ID) -> Int64? {
+    public func resumeEdition(_ id: Item.ID) -> UID? {
         isInProgress(id) ? watch[id]?.editionId : nil
     }
 }
@@ -108,7 +108,7 @@ extension CatalogModel {
 extension Editions {
     /// One of edition.Repo's editions of an item, with or without files.
     struct Cut {
-        let id: Int64
+        let id: UID
         let tag: String
         let runtimeMs: Int64?
         let files: Int
@@ -161,7 +161,7 @@ extension Editions {
 
     /// The name a row shows for one of the item's editions, as the server's
     /// editionName: nil while the item has fewer than two editions with files.
-    static func name(of edition: Int64, item: Item.ID, _ db: Database) throws -> String? {
+    static func name(of edition: UID, item: Item.ID, _ db: Database) throws -> String? {
         let cuts = try cuts(item, db)
         guard cuts.filter({ $0.files > 0 }).count > 1 else { return nil }
         return cuts.first { $0.id == edition }?.name
@@ -182,7 +182,7 @@ extension Editions {
         }
     }
 
-    private static func copies(_ edition: Int64, _ db: Database) throws -> [Components.Schemas.EditionCopy] {
+    private static func copies(_ edition: UID, _ db: Database) throws -> [Components.Schemas.EditionCopy] {
         try Row.fetchAll(
             db,
             sql: """

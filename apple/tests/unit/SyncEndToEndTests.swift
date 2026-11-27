@@ -147,8 +147,7 @@ final class SyncEndToEndTests: XCTestCase {
             Parity.list(entries ?? [], theirs, "\(who): entries of \(playlist.name)")
         }
 
-        let collections = CollectionsModel(
-            client: rest, replica: device.replica, queue: device.queue, engine: device.engine, profileId: profile.id)
+        let collections = CollectionsModel(replica: device.replica, queue: device.queue, profileId: profile.id)
         await collections.load()
         let shelf = try await rest.listCollections().ok.body.json.items
         Parity.list(collections.collections, shelf, "\(who): collections")
@@ -163,7 +162,7 @@ final class SyncEndToEndTests: XCTestCase {
     private func assertStations(_ device: SyncDevice, _ profile: SyncServer.Profile) async throws {
         let (rest, who) = (profile.rest, profile.name)
         let stations = StationsModel(
-            client: rest, replica: device.replica, queue: device.queue, engine: device.engine, profileId: profile.id)
+            client: rest, replica: device.replica, queue: device.queue, profileId: profile.id)
         let tuned = try await rest.listStations().ok.body.json.items
         let read = await stations.list() ?? []
         // The live position is each answer's own instant's.
@@ -255,9 +254,9 @@ final class SyncEndToEndTests: XCTestCase {
         Parity.list(jamie.playlists, theirs, "Jamie's playlists after the share")
     }
 
-    // MARK: Online creates
+    // MARK: Creates
 
-    func testAPlaylistMadeOnlineIsReadFromTheReplicaOnceCaughtUp() async throws {
+    func testAPlaylistMadeIsReadFromTheReplicaAsTheServerHasItOnceSentAndCaughtUp() async throws {
         let device = try device()
         try await device.engine.catchUp()
         let adult = server.adult
@@ -267,6 +266,10 @@ final class SyncEndToEndTests: XCTestCase {
         let created = await playlists.create(name: "Made online", kind: .tv)
         let made = try XCTUnwrap(created)
         XCTAssertTrue(playlists.playlists.contains(made), "in the replica on return")
+        let flushed = await device.queue.flush()
+        XCTAssertEqual(flushed, .done)
+        try await device.engine.catchUp()
+        await playlists.load()
         let served = try await adult.rest.getPlaylist(path: .init(profileId: adult.id, playlistId: made.id))
             .ok.body.json
         XCTAssertEqual(playlists.playlists.first { $0.id == made.id }, served)

@@ -1,3 +1,4 @@
+import RabbitEarsAPI
 import XCTest
 
 @testable import RabbitEarsKit
@@ -21,7 +22,8 @@ final class NavigationPullTests: XCTestCase {
                 ? (
                     .ok,
                     SyncFixture.diff(
-                        version: 2, tables: [.init("library", #"["id","name","kind"]"#, #"[[2,"M","music"]]"#)])
+                        version: 2,
+                        tables: [.init("library", #"["id","name","kind"]"#, #"[["\#(UID.n(2))","M","music"]]"#)])
                 )
                 : nil
         }

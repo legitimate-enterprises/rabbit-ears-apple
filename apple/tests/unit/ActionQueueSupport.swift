@@ -88,15 +88,17 @@ class ActionQueueCase: XCTestCase {
         try await replica.read { try String.fetchAll($0, sql: "SELECT uuid FROM queue.action ORDER BY seq") }
     }
 
-    /// A watched mark for profile 1 on item `item`, with its row in the replica.
-    func watch(_ queue: ActionQueue, item: Int64) async throws {
+    /// A watched mark for profile UID.n(1) on item `item`, with its row in the replica.
+    func watch(_ queue: ActionQueue, item: UID) async throws {
         try await queue.act(
-            as: 1, touching: [.init(table: "watch_state", key: [1, try .init(unvalidatedValue: Int(item))])],
+            as: 1, touching: [try .row("watch_state", 1, item)],
             call: { client, at in
                 _ = try await client.putWatchState(
                     path: .init(profileId: 1, itemId: item), body: .json(.init(watched: true, at: at)))
             },
-            apply: { db, _ in try db.execute(sql: "INSERT INTO watch_state VALUES (1, ?, 0)", arguments: [item]) })
+            apply: { db, _ in
+                try db.execute(sql: "INSERT INTO watch_state VALUES (?, ?, 0)", arguments: [UID.n(1), item])
+            })
     }
 
     func until(_ condition: () async throws -> Bool) async rethrows {

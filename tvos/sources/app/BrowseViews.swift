@@ -6,14 +6,14 @@ import SwiftUI
 enum Route: Hashable {
     case item(Item.ID)
     case person(Person.ID)
-    case artist(Int64)
-    case album(Int64)
-    case playlist(Int64)
-    case collection(Int64)
+    case artist(UID)
+    case album(UID)
+    case playlist(UID)
+    case collection(UID)
     case occasion(ActiveOccasion)
     case nowPlaying
-    case channel(Int64)
-    case video(Int64)
+    case channel(UID)
+    case video(UID)
 }
 
 /// Navigation shared by every browsing view: the tab, the pages over it, what is playing.
@@ -138,7 +138,7 @@ struct MainView: View {
         .environment(browser)
         .modifier(LiveUpdates(catalog: catalog, playlists: playlists, browser: browser))
         // The profile too is read again on return, for a Hide kids' content changed on another device.
-        .task(id: "\(model.activeProfile?.id ?? 0)/\(scenePhase == .active)") {
+        .task(id: "\(model.activeProfile?.id.description ?? "")/\(scenePhase == .active)") {
             guard scenePhase == .active else { return }
             await model.reload()
             await model.loadLibrarySections()
@@ -168,10 +168,9 @@ struct MainView: View {
                 client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profile.id,
                 adult: profile.kind == .adult)
             playlists = lists
-            collections = CollectionsModel(
-                client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profile.id)
+            collections = CollectionsModel(replica: sync.replica, queue: sync.queue, profileId: profile.id)
             stations = StationsModel(
-                client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profile.id)
+                client: client, replica: sync.replica, queue: sync.queue, profileId: profile.id)
             let next = CatalogModel(
                 client: client, replica: sync.replica, queue: sync.queue, profileId: profile.id,
                 hidingKids: profile.hideKidsContent == true)

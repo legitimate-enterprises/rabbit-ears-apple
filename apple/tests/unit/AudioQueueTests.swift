@@ -6,12 +6,13 @@ import XCTest
 
 extension Fixtures {
     static func song(
-        _ id: Int64, _ title: String, album: Int64 = 50, track: Int? = nil, disc: Int? = nil,
+        _ id: UID, _ title: String, album: UID = 50, track: Int? = nil, disc: Int? = nil,
         durationMs: Int64 = 240_000
     ) -> String {
         var fields = [
-            #""id":\#(id)"#, #""libraryId":3"#, #""albumId":\#(album)"#, #""albumTitle":"In Rainbows""#,
-            #""albumArtistId":40"#, #""artistId":40"#, #""artistName":"Radiohead""#, #""title":"\#(title)""#,
+            #""id":"\#(id)""#, #""libraryId":"\#(UID.n(3))""#, #""albumId":"\#(album)""#,
+            #""albumTitle":"In Rainbows""#, #""albumArtistId":"\#(UID.n(40))""#, #""artistId":"\#(UID.n(40))""#,
+            #""artistName":"Radiohead""#, #""title":"\#(title)""#,
             #""lossless":true"#, #""codec":"flac""#, #""durationMs":\#(durationMs)"#,
         ]
         if let track { fields.append(#""trackNumber":\#(track)"#) }
@@ -21,12 +22,12 @@ extension Fixtures {
 
     /// Songs 1 to `count` of In Rainbows, ids 1 to `count`.
     static func songs(_ count: Int) -> [MusicSong] {
-        (1...count).map { decode(song(Int64($0), "Song \($0)", track: $0), as: MusicSong.self) }
+        (1...count).map { decode(song(.n($0), "Song \($0)", track: $0), as: MusicSong.self) }
     }
 }
 
 final class AudioQueueTests: XCTestCase {
-    private func ids(_ entries: [AudioQueue.Entry]) -> [Int64] { entries.map(\.song.id) }
+    private func ids(_ entries: [AudioQueue.Entry]) -> [UID] { entries.map(\.song.id) }
 
     func testStartsAtThePickedSongWithTheRestUpNext() {
         let queue = AudioQueue(Fixtures.songs(5), start: 2, source: "In Rainbows", playlistId: 8)

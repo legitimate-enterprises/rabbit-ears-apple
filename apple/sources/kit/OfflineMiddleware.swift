@@ -21,8 +21,8 @@ struct LocalCall: Sendable {
         self.body = body
     }
 
-    func id(after name: String) -> Int64? {
-        segments.firstIndex(of: name).flatMap { segments.indices.contains($0 + 1) ? Int64(segments[$0 + 1]) : nil }
+    func id(after name: String) -> UID? {
+        segments.firstIndex(of: name).flatMap { segments.indices.contains($0 + 1) ? UID(segments[$0 + 1]) : nil }
     }
 
     func number(_ name: String) -> Int64? { query[name].flatMap { Int64($0) } }
@@ -107,7 +107,7 @@ extension DownloadStore {
     /// copy plays whatever edition it is, as it plays the audio and quality
     /// it was kept with.
     func answerFirst(_ call: LocalCall) async -> LocalAnswer? {
-        if call.segments.first == "playback", let id = call.id(after: "sessions"), id < 0 {
+        if call.segments.first == "playback", let id = call.id(after: "sessions"), sessions[id] != nil {
             return await session(id, call)
         }
         if call.operation == "startPlayback", let request = call.decode(Components.Schemas.PlaybackRequest.self),

@@ -17,8 +17,8 @@ final class RememberProfileTests: XCTestCase {
             "POST /auth/sign-in": (.created, Fixtures.signedIn),
             "GET /me": (.ok, Fixtures.me),
             "POST /me/lock": (.noContent, ""),
-            "POST /profiles/1/unlock": (.noContent, ""),
-            "POST /profiles/2/unlock": (.noContent, ""),
+            "POST /profiles/\(UID.n(1))/unlock": (.noContent, ""),
+            "POST /profiles/\(UID.n(2))/unlock": (.noContent, ""),
         ])
     }
 
@@ -31,7 +31,7 @@ final class RememberProfileTests: XCTestCase {
     /// Signs in, picks a profile, and returns a fresh model on the same
     /// store, as the next launch would make, with the request log cleared.
     private func lastActive(
-        _ id: Int64, pin: String? = nil, remembering: Bool = true, _ memory: ((AppModel) -> Void)? = nil
+        _ id: UID, pin: String? = nil, remembering: Bool = true, _ memory: ((AppModel) -> Void)? = nil
     ) async throws -> AppModel {
         let first = model(remembering: remembering)
         try await first.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
@@ -41,9 +41,11 @@ final class RememberProfileTests: XCTestCase {
         return model(remembering: remembering)
     }
 
-    private func me(locked: Bool = false, active: Int64 = 1, adult: String = Fixtures.adult) -> String {
-        let me = Fixtures.me.replacingOccurrences(of: #""activeProfileId":1"#, with: #""activeProfileId":\#(active)"#)
-            .replacingOccurrences(of: Fixtures.adult, with: adult)
+    private func me(locked: Bool = false, active: UID = 1, adult: String = Fixtures.adult) -> String {
+        let me = Fixtures.me.replacingOccurrences(
+            of: #""activeProfileId":"\#(UID.n(1))""#, with: #""activeProfileId":"\#(active)""#
+        )
+        .replacingOccurrences(of: Fixtures.adult, with: adult)
         return locked ? String(me.dropLast()) + #","locked":true}"# : me
     }
 
@@ -63,7 +65,7 @@ final class RememberProfileTests: XCTestCase {
         XCTAssertEqual(next.phase, .browsing)
         XCTAssertEqual(next.activeProfile?.id, 1)
         XCTAssertFalse(next.locked)
-        XCTAssertEqual(transport.paths(.post), ["/profiles/1/unlock"])
+        XCTAssertEqual(transport.paths(.post), ["/profiles/\(UID.n(1))/unlock"])
     }
 
     func testWithRememberOffALaunchLocksAtWhoIsWatching() async throws {
@@ -131,7 +133,7 @@ final class RememberProfileTests: XCTestCase {
     func testAnUnlockTheServerRefusesFallsBackToWhoIsWatching() async throws {
         let next = try await lastActive(1)
         transport.routes["GET /me"] = (.ok, me(locked: true, active: 2))
-        transport.routes["POST /profiles/1/unlock"] = (.forbidden, Fixtures.error("forbidden"))
+        transport.routes["POST /profiles/\(UID.n(1))/unlock"] = (.forbidden, Fixtures.error("forbidden"))
         await next.restore()
         XCTAssertEqual(next.phase, .choosingProfile)
         XCTAssertNil(next.activeProfile)
@@ -146,7 +148,8 @@ final class RememberProfileTests: XCTestCase {
         await next.switchProfile()
         XCTAssertEqual(next.phase, .choosingProfile)
         XCTAssertNil(next.pinPrompt)
-        XCTAssertEqual(transport.paths(.post), ["/auth/sign-in", "/me/lock", "/profiles/1/unlock", "/me/lock"])
+        XCTAssertEqual(
+            transport.paths(.post), ["/auth/sign-in", "/me/lock", "/profiles/\(UID.n(1))/unlock", "/me/lock"])
     }
 
     func testEachSignedInAdultHasTheirOwnSettings() async throws {

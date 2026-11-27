@@ -33,7 +33,7 @@ extension ShareHousehold {
 
 /// A profile the owner may share with, or already does.
 public struct ShareProfile: Identifiable, Hashable, Sendable {
-    public let id: Int64
+    public let id: UID
     public let name: String
     /// Its household when the owner is in more than one, and Kid for a kid.
     public let subtitle: String?
@@ -43,7 +43,7 @@ public struct ShareProfile: Identifiable, Hashable, Sendable {
     public let rgb: UInt32?
 
     init(
-        id: Int64, name: String, kind: Components.Schemas.AccountKind, color: String?, household: String?
+        id: UID, name: String, kind: Components.Schemas.AccountKind, color: String?, household: String?
     ) {
         self.id = id
         self.name = name
@@ -67,10 +67,10 @@ public final class PlaylistSharesModel {
     public private(set) var error: String?
     public let client: Client
     public let queue: ActionQueue
-    public let profileId: Int64
-    public let playlistId: Int64
+    public let profileId: UID
+    public let playlistId: UID
 
-    public init(client: Client, queue: ActionQueue, profileId: Int64, playlistId: Int64) {
+    public init(client: Client, queue: ActionQueue, profileId: UID, playlistId: UID) {
         self.client = client
         self.queue = queue
         self.profileId = profileId
@@ -80,7 +80,7 @@ public final class PlaylistSharesModel {
     /// The candidates, then anyone it is shared with who is no longer one.
     public var profiles: [ShareProfile] {
         let named = households.count > 1 ? households : []
-        let household = { (id: Int64?) in named.first { $0.id == id }?.name }
+        let household = { (id: UID?) in named.first { $0.id == id }?.name }
         let listed = candidates.map {
             ShareProfile(
                 id: $0.profileId, name: $0.name, kind: $0.kind, color: $0.color, household: household($0.householdId))

@@ -6,7 +6,7 @@ struct VideoScreen: View {
     @Environment(AppModel.self) private var app
     @Environment(Browser.self) private var browser
     @Environment(CatalogModel.self) private var catalog
-    let id: Int64
+    let id: UID
     @State private var detail: VideoDetail?
     @State private var failed = false
     @State private var media: MediaSummary?

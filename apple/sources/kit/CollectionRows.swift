@@ -23,7 +23,7 @@ enum CollectionRows {
     /// an adult hiding kids' content, who still sees an empty one. `holding`
     /// keeps those holding it, as getItem names them, for a movie the
     /// profile may open.
-    static func list(_ db: Database, profile: Int64, only: Int64 = 0, holding: Int64 = 0) throws -> [MovieCollection] {
+    static func list(_ db: Database, profile: UID, only: UID? = nil, holding: UID? = nil) throws -> [MovieCollection] {
         let seen =
             "(SELECT COUNT(*) FROM collection_movie cm WHERE cm.collection_id = c.id"
             + " AND \(PlaylistRows.seen("cm.item_id")))"
@@ -39,8 +39,8 @@ enum CollectionRows {
                         AND (SELECT COUNT(*) FROM collection_movie n WHERE n.collection_id = c.id) >= 2)
                     AND (a.mode = 0 OR \(seen) > 0
                         OR a.mode = 2 AND NOT EXISTS (SELECT 1 FROM collection_movie e WHERE e.collection_id = c.id))
-                    AND (:id = 0 OR c.id = :id)
-                    AND (:movie = 0 OR EXISTS (SELECT 1 FROM collection_movie x
+                    AND (:id IS NULL OR c.id = :id)
+                    AND (:movie IS NULL OR EXISTS (SELECT 1 FROM collection_movie x
                             WHERE x.collection_id = c.id AND x.item_id = :movie)
                         AND EXISTS (SELECT 1 FROM profile_item_open o JOIN item om ON om.id = o.item_id
                             WHERE o.account_id = :profile AND o.item_id = :movie AND om.kind = 'movie'))
@@ -51,10 +51,10 @@ enum CollectionRows {
 
     /// The collections by id, whoever may see them, counting nothing, for a
     /// playlist entry to fill in.
-    static func collections(_ db: Database, ids: [Int64]) throws -> [Int64: MovieCollection] {
+    static func collections(_ db: Database, ids: [UID]) throws -> [UID: MovieCollection] {
         let rows = try Row.fetchAll(
-            db, sql: "SELECT * FROM collection WHERE id IN (SELECT value FROM json_each(?))",
-            arguments: [PlaylistRows.json(ids)])
+            db, sql: "SELECT * FROM collection WHERE id IN (SELECT unhex(value, '-') FROM json_each(?))",
+            arguments: [ReplicaRows.json(ids)])
         return Dictionary(
             uniqueKeysWithValues: rows.compactMap { row in
                 collection(row, count: 0, customOrder: false).map { ($0.id, $0) }
@@ -62,8 +62,8 @@ enum CollectionRows {
     }
 
     /// The collection's movies the profile browses, in collection order, as listCollectionMovies answers.
-    static func movies(_ db: Database, profile: Int64, of id: Int64) throws -> [Item] {
-        let ids = try Int64.fetchAll(
+    static func movies(_ db: Database, profile: UID, of id: UID) throws -> [Item] {
+        let ids = try UID.fetchAll(
             db,
             sql: """
                 SELECT item.id FROM collection_movie cm JOIN item ON item.id = cm.item_id WHERE cm.collection_id = ?
@@ -72,14 +72,14 @@ enum CollectionRows {
                 """, arguments: [id, profile])
         let items = Dictionary(
             uniqueKeysWithValues: try ReplicaRows.items(
-                db, "i.id IN (SELECT value FROM json_each(?))", [PlaylistRows.json(ids)]
+                db, "i.id IN (SELECT unhex(value, '-') FROM json_each(?))", [ReplicaRows.json(ids)]
             ).map { ($0.id, $0) })
         return ids.compactMap { items[$0] }
     }
 
     /// Every movie of the collection, seen or not, in collection order, as the server moves one among them.
-    static func order(_ db: Database, of id: Int64) throws -> [Int64] {
-        try Int64.fetchAll(
+    static func order(_ db: Database, of id: UID) throws -> [UID] {
+        try UID.fetchAll(
             db,
             sql: """
                 SELECT item.id FROM collection_movie cm JOIN item ON item.id = cm.item_id WHERE cm.collection_id = ?
@@ -94,6 +94,7 @@ enum CollectionRows {
         return MovieCollection(
             id: row["id"], source: source, name: row["name"], overview: overview?.isEmpty == false ? overview : nil,
             householdId: row["household_id"], tmdbId: row["tmdb_id"], movieCount: count, customOrder: customOrder,
-            createdAt: ReplicaRows.instant(row["created_at"]), updatedAt: ReplicaRows.instant(row["updated_at"]))
+            createdAt: ReplicaRows.instant(row["created_at"]), modifiedAt: ReplicaRows.instant(row["modified_at"]),
+            createdBy: row["created_by"], modifiedBy: row["modified_by"])
     }
 }

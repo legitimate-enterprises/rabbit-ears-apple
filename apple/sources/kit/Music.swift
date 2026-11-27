@@ -74,9 +74,9 @@ public struct MusicHome: Equatable, Sendable {
 public final class MusicModel {
     public let client: Client
     public let replica: Replica
-    public let profileId: Int64
+    public let profileId: UID
 
-    public init(client: Client, replica: Replica, profileId: Int64) {
+    public init(client: Client, replica: Replica, profileId: UID) {
         self.client = client
         self.replica = replica
         self.profileId = profileId
@@ -101,7 +101,7 @@ public final class MusicModel {
     }
 
     public func albums(
-        sort: MusicAlbumSort = .title, genreId: Int64? = nil, letter: String? = nil, offset: Int? = nil,
+        sort: MusicAlbumSort = .title, genreId: UID? = nil, letter: String? = nil, offset: Int? = nil,
         limit: Int = 100
     ) async throws -> Components.Schemas.MusicAlbumPage {
         let filter = MusicRows.Filter(
@@ -113,7 +113,7 @@ public final class MusicModel {
     }
 
     public func artists(
-        genreId: Int64? = nil, letter: String? = nil, offset: Int? = nil, limit: Int = 100
+        genreId: UID? = nil, letter: String? = nil, offset: Int? = nil, limit: Int = 100
     ) async throws -> Components.Schemas.MusicArtistPage {
         let filter = MusicRows.Filter(genreId: genreId, letter: letter, limit: limit, offset: offset ?? 0)
         return try await read { db, me in
@@ -123,7 +123,7 @@ public final class MusicModel {
     }
 
     public func songs(
-        sort: MusicSongSort = .title, genreId: Int64? = nil, offset: Int? = nil, limit: Int = 100
+        sort: MusicSongSort = .title, genreId: UID? = nil, offset: Int? = nil, limit: Int = 100
     ) async throws -> Components.Schemas.MusicSongPage {
         let filter = MusicRows.Filter(genreId: genreId, sort: sort.rawValue, limit: limit, offset: offset ?? 0)
         return try await read { db, me in
@@ -133,7 +133,7 @@ public final class MusicModel {
     }
 
     /// Popular, the most played across every profile, is online only: plays are not in the replica.
-    public func artist(_ id: Int64) async throws -> ArtistDetail {
+    public func artist(_ id: UID) async throws -> ArtistDetail {
         let (artist, albums) = try await read { db, me in
             (
                 try found(MusicRows.artists(db, me, .init(id: id)).0),
@@ -146,7 +146,7 @@ public final class MusicModel {
         return ArtistDetail(artist: artist, popular: popular, albums: albums)
     }
 
-    public func album(_ id: Int64) async throws -> AlbumDetail {
+    public func album(_ id: UID) async throws -> AlbumDetail {
         try await read { db, me in
             let album = try found(MusicRows.albums(db, me, .init(id: id)).0)
             let songs = try MusicRows.songs(db, me, .init(albumId: id, limit: MusicRows.Filter.all)).0
@@ -156,7 +156,7 @@ public final class MusicModel {
     }
 
     /// Every song an artist plays, album by album, for Play and Shuffle on Artist.
-    public func songs(byArtist id: Int64) async throws -> [MusicSong] {
+    public func songs(byArtist id: UID) async throws -> [MusicSong] {
         try await read { db, me in
             try MusicRows.songs(db, me, .init(artistId: id, sort: "album", limit: MusicRows.Filter.all)).0
         }
@@ -178,7 +178,7 @@ public final class MusicModel {
         }
     }
 
-    func read<T: Sendable>(_ body: @escaping @Sendable (Database, Int64) throws -> T) async throws -> T {
+    func read<T: Sendable>(_ body: @escaping @Sendable (Database, UID) throws -> T) async throws -> T {
         let profile = profileId
         return try await call { try await replica.read { try body($0, profile) } }
     }

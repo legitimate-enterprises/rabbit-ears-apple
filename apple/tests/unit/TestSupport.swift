@@ -4,6 +4,24 @@ import OpenAPIRuntime
 import RabbitEarsAPI
 import RabbitEarsKit
 
+extension UID {
+    /// The server's test id uid.N(n): 00000000-0000-7000-8000-<n as 12 hex digits>, 0 <= n < 2^48.
+    static func n(_ number: Int) -> UID {
+        precondition((0..<(1 << 48)).contains(number), "uid.N takes 0 <= n < 2^48")
+        return UID(String(format: "00000000-0000-7000-8000-%012llx", number))!
+    }
+}
+
+// swift-format-ignore: AvoidRetroactiveConformances
+/// So a test writes `item(1, ...)` for uid.N(1). Test bundles only: an app
+/// that took an integer for an id would send what the server refuses.
+extension UID: @retroactive ExpressibleByIntegerLiteral {
+    public init(integerLiteral number: Int) { self = .n(number) }
+}
+
+/// UID.n(n) as an SQL BLOB literal, for SQL text that names an id.
+func sqlID(_ number: Int) -> String { String(format: "x'00000000000070008000%012llx'", number) }
+
 final class MemoryCredentialStore: CredentialStore {
     var server: URL?
     var serverName: String?
@@ -93,34 +111,35 @@ enum Fixtures {
         #"{"code":"\#(code)","message":"\#(message)"}"#
     }
 
-    static func account(_ id: Int64, _ name: String, kind: String = "adult", hasPin: Bool = false) -> String {
-        #"{"id":\#(id),"kind":"\#(kind)","name":"\#(name)","isAdmin":false,"hasPin":\#(hasPin),"#
-            + #""pinLocked":false,"pending":false,"filterMode":"ratings","householdId":1,"#
-            + #""createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00.332Z"}"#
+    static func account(_ id: UID, _ name: String, kind: String = "adult", hasPin: Bool = false) -> String {
+        #"{"id":"\#(id)","kind":"\#(kind)","name":"\#(name)","isAdmin":false,"hasPin":\#(hasPin),"#
+            + #""pinLocked":false,"pending":false,"filterMode":"ratings","householdId":"\#(UID.n(1))","#
+            + #""createdAt":"2026-01-01T00:00:00Z","modifiedAt":"2026-01-01T00:00:00.332Z"}"#
     }
 
     static let adult = account(1, "Avery")
     static let kid = account(2, "Robin", kind: "kid", hasPin: true)
 
     static let me =
-        #"{"device":{"id":9,"accountId":1,"householdId":1,"name":"Mac","platform":"macos","#
-        + #""createdAt":"2026-01-01T00:00:00.680927Z","updatedAt":"2026-01-01T00:00:00Z"},"#
-        + #""account":\#(adult),"activeProfileId":1,"#
-        + #""household":{"id":1,"name":"Avery","adultId":1,"createdAt":"2026-01-01T00:00:00Z"},"#
+        #"{"device":{"id":"\#(UID.n(9))","accountId":"\#(UID.n(1))","householdId":"\#(UID.n(1))","name":"Mac","#
+        + #""platform":"macos","createdAt":"2026-01-01T00:00:00.680927Z","modifiedAt":"2026-01-01T00:00:00Z"},"#
+        + #""account":\#(adult),"activeProfileId":"\#(UID.n(1))","#
+        + #""household":{"id":"\#(UID.n(1))","name":"Avery","adultId":"\#(UID.n(1))","#
+        + #""createdAt":"2026-01-01T00:00:00Z","modifiedAt":"2026-01-01T00:00:00Z"},"#
         + #""profiles":[\#(adult),\#(kid)]}"#
 
     static let signedIn = #"{"token":"tok-1","me":\#(me)}"#
 
     static func item(
-        _ id: Int64, _ kind: String, _ title: String, parent: Int64? = nil, season: Int? = nil,
+        _ id: UID, _ kind: String, _ title: String, parent: UID? = nil, season: Int? = nil,
         episode: Int? = nil, added: String = "2026-01-01T00:00:00Z", runtime: Int? = nil, rating: String? = nil,
-        year: Int? = nil, genres: [(Int64, String)] = [], kids: Bool? = nil
+        year: Int? = nil, genres: [(UID, String)] = [], kids: Bool? = nil
     ) -> String {
         var fields = [
-            #""id":\#(id)"#, #""libraryId":1"#, #""kind":"\#(kind)""#, #""parsedTitle":"\#(title)""#,
-            #""addedAt":"\#(added)""#, #""updatedAt":"\#(added)""#,
+            #""id":"\#(id)""#, #""libraryId":"\#(UID.n(1))""#, #""kind":"\#(kind)""#, #""parsedTitle":"\#(title)""#,
+            #""addedAt":"\#(added)""#, #""createdAt":"\#(added)""#, #""modifiedAt":"\#(added)""#,
         ]
-        if let parent { fields.append(#""parentId":\#(parent)"#) }
+        if let parent { fields.append(#""parentId":"\#(parent)""#) }
         if let season { fields.append(#""seasonNumber":\#(season)"#) }
         if let episode { fields.append(#""episodeNumber":\#(episode)"#) }
         if let year { fields.append(#""parsedYear":\#(year)"#) }
@@ -129,7 +148,7 @@ enum Fixtures {
         if let runtime { meta.append(#""runtimeMinutes":\#(runtime)"#) }
         if let rating { meta.append(#""contentRating":"\#(rating)""#) }
         fields.append(#""metadata":{\#(meta.joined(separator: ","))}"#)
-        let genreList = genres.map { #"{"id":\#($0.0),"name":"\#($0.1)"}"# }.joined(separator: ",")
+        let genreList = genres.map { #"{"id":"\#($0.0)","name":"\#($0.1)"}"# }.joined(separator: ",")
         fields.append(#""genres":[\#(genreList)]"#)
         return "{\(fields.joined(separator: ","))}"
     }
@@ -140,21 +159,22 @@ enum Fixtures {
     }
 
     static func watch(
-        _ item: Int64, position: Int64 = 0, watched: Bool = false, played: String? = nil, edition: Int64? = nil
+        _ item: UID, position: Int64 = 0, watched: Bool = false, played: String? = nil, edition: UID? = nil
     ) -> String {
         let last = played.map { #","lastPlayedAt":"\#($0)""# } ?? ""
-        let cut = edition.map { #","editionId":\#($0)"# } ?? ""
-        return #"{"itemId":\#(item),"positionMs":\#(position),"watched":\#(watched),"playCount":0,"#
-            + #""updatedAt":"2026-01-01T00:00:00Z"\#(last)\#(cut)}"#
+        let cut = edition.map { #","editionId":"\#($0)""# } ?? ""
+        return #"{"itemId":"\#(item)","positionMs":\#(position),"watched":\#(watched),"playCount":0,"#
+            + #""changedAt":"2026-01-01T00:00:00Z"\#(last)\#(cut)}"#
     }
 
-    /// An edition whose copies carry these quality labels, tallest first.
+    /// Edition `UID.n(id)`, whose copies carry these quality labels, tallest
+    /// first, in media files `UID.n(id * 10 + i)`.
     static func edition(
-        _ id: Int64, _ name: String, isDefault: Bool = false, runtimeMs: Int64? = nil, qualities: [String] = ["1080p"]
+        _ id: Int, _ name: String, isDefault: Bool = false, runtimeMs: Int64? = nil, qualities: [String] = ["1080p"]
     ) -> String {
         let runtime = runtimeMs.map { #","runtimeMs":\#($0)"# } ?? ""
-        let copies = qualities.enumerated().map { #"{"mediaFileId":\#(id * 10 + Int64($0)),"quality":"\#($1)"}"# }
-        return #"{"id":\#(id),"name":"\#(name)","isDefault":\#(isDefault)\#(runtime),"#
+        let copies = qualities.enumerated().map { #"{"mediaFileId":"\#(UID.n(id * 10 + $0))","quality":"\#($1)"}"# }
+        return #"{"id":"\#(UID.n(id))","name":"\#(name)","isDefault":\#(isDefault)\#(runtime),"#
             + #""copies":[\#(copies.joined(separator: ","))]}"#
     }
 
@@ -168,12 +188,12 @@ enum Fixtures {
         + #"{"width":1920,"height":1080,"bitrate":8000000,"verdict":"video_transcode"}]"#
 
     static func stream(
-        session: Int64 = 7, url: String = "/api/v1/streams/k1/0/file", position: Int64 = 0,
+        session: UID = 7, url: String = "/api/v2/streams/k1/0/file", position: Int64 = 0,
         verdict: String = "direct_play", sidecars: String = "", rungs: String = ladder, extra: String = ""
     ) -> String {
-        #"{"sessionId":\#(session),"entry":{"position":0,"verdict":"\#(verdict)","videoAction":"copy","#
+        #"{"sessionId":"\#(session)","entry":{"position":0,"verdict":"\#(verdict)","videoAction":"copy","#
             + #""audioAction":"copy","subtitleAction":"none","bad":false},"streamUrl":"\#(url)","#
-            + #""mediaFileId":1,"streamKind":"file","positionMs":\#(position),"#
+            + #""mediaFileId":"\#(UID.n(1))","streamKind":"file","positionMs":\#(position),"#
             + #""negotiated":{"verdict":"\#(verdict)","width":3840,"height":2160,"hdrFormat":"hdr10","#
             + #""bitrate":38000000},"rungs":\#(rungs),"#
             + #""sidecars":[\#(sidecars)]\#(extra)}"#
@@ -181,7 +201,7 @@ enum Fixtures {
 
     static let autoExtra =
         #","away":true,"auto":true,"previews":{"intervalMs":10000,"count":100,"width":320,"height":180,"#
-        + #""frameUrl":"/api/v1/streams/k1/0/previews/{n}.jpg","bifUrl":"/api/v1/streams/k1/0/previews.bif"}"#
+        + #""frameUrl":"/api/v2/streams/k1/0/previews/{n}.jpg","bifUrl":"/api/v2/streams/k1/0/previews.bif"}"#
 
     static func update(_ action: String, _ stream: String) -> String {
         #"{"action":"\#(action)","stream":\#(stream)}"#
@@ -205,14 +225,14 @@ enum Fixtures {
 
 extension CatalogModel {
     /// Over a replica with no snapshot, for what reads nothing from it.
-    convenience init(client: Client, profileId: Int64, hidingKids: Bool = false) {
+    convenience init(client: Client, profileId: UID, hidingKids: Bool = false) {
         self.init(
             client: client, replica: Replica(directory: Fixtures.replicas), profileId: profileId,
             hidingKids: hidingKids)
     }
 
     /// Over `replica`, with a queue on it that sends through `client`.
-    convenience init(client: Client, replica: Replica, profileId: Int64, hidingKids: Bool = false) {
+    convenience init(client: Client, replica: Replica, profileId: UID, hidingKids: Bool = false) {
         self.init(
             client: client, replica: replica, queue: ActionQueue(replica: replica, client: client),
             profileId: profileId,

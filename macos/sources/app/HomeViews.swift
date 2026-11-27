@@ -171,7 +171,7 @@ struct RowPlaceholder: View {
                     ForEach(Array(slot.wide.enumerated()), id: \.offset) { index, wide in
                         let onNow = slot.row == .onNow
                         VStack(alignment: .leading, spacing: onNow ? 4 : 6) {
-                            ArtPalette.color(Int64(index))
+                            Color(hex: ArtPalette.colors[index % ArtPalette.colors.count])
                                 .aspectRatio(wide ? 16 / 9 : onNow ? 1 : 2 / 3, contentMode: .fit)
                                 .clipShape(.rect(cornerRadius: 6))
                                 .padding(.bottom, onNow ? 2 : 0)

@@ -7,8 +7,8 @@ import UniformTypeIdentifiers
 
 /// What a custom image is set on: a playlist under its owner's profile, or a station.
 public enum ImageTarget: Hashable, Sendable {
-    case playlist(profileId: Int64, playlistId: Int64)
-    case station(Int64)
+    case playlist(profileId: UID, playlistId: UID)
+    case station(UID)
 }
 
 /// How the owner gives a custom image.
@@ -16,14 +16,14 @@ public enum ImageSource: Sendable {
     /// A file or photo from the device, in any format the system reads.
     case file(Data)
     /// One of the playlist's titles' artwork.
-    case artwork(itemId: Int64, kind: ArtworkStore.Kind)
+    case artwork(itemId: UID, kind: ArtworkStore.Kind)
     /// A link the server fetches once.
     case link(String)
 }
 
 /// One choice of "Pick a title's artwork".
 public struct ArtChoice: Hashable, Sendable, Identifiable {
-    public let itemId: Int64
+    public let itemId: UID
     public let kind: ArtworkStore.Kind
     public let label: String
     public var id: String { "\(itemId)/\(kind.rawValue)" }
@@ -32,11 +32,11 @@ public struct ArtChoice: Hashable, Sendable, Identifiable {
 /// An owner's Set image request: where it goes, and the playlist whose titles it may pick from.
 public struct ImageRequest: Identifiable, Sendable {
     public let target: ImageTarget
-    public let playlistId: Int64
+    public let playlistId: UID
     public let hasImage: Bool
     public var id: ImageTarget { target }
 
-    public init(playlist: Playlist, profileId: Int64) {
+    public init(playlist: Playlist, profileId: UID) {
         target = .playlist(profileId: profileId, playlistId: playlist.id)
         playlistId = playlist.id
         hasImage = playlist.imageUrl != nil
@@ -50,18 +50,18 @@ public struct ImageRequest: Identifiable, Sendable {
 }
 
 public enum CustomImage {
-    /// The route an imageUrl names and its version; nil for any other address.
-    public static func route(_ url: String) -> (target: ImageTarget, version: Int64)? {
+    /// The route an imageUrl names and its version, the cover's id; nil for any other address.
+    public static func route(_ url: String) -> (target: ImageTarget, version: String)? {
         guard let parts = URLComponents(string: url),
-            let version = parts.queryItems?.first(where: { $0.name == "v" })?.value.flatMap(Int64.init)
+            let version = parts.queryItems?.first(where: { $0.name == "v" })?.value, !version.isEmpty
         else { return nil }
         let path = parts.path.split(separator: "/").map(String.init)
-        if path.count == 7, path[0...2] == ["api", "v1", "profiles"], path[4] == "playlists", path[6] == "image",
-            let profile = Int64(path[3]), let playlist = Int64(path[5])
+        if path.count == 7, path[0...2] == ["api", "v2", "profiles"], path[4] == "playlists", path[6] == "image",
+            let profile = UID(path[3]), let playlist = UID(path[5])
         {
             return (.playlist(profileId: profile, playlistId: playlist), version)
         }
-        if path.count == 5, path[0...2] == ["api", "v1", "stations"], path[4] == "image", let station = Int64(path[3]) {
+        if path.count == 5, path[0...2] == ["api", "v2", "stations"], path[4] == "image", let station = UID(path[3]) {
             return (.station(station), version)
         }
         return nil
@@ -70,7 +70,7 @@ public enum CustomImage {
     /// The artwork the entries offer, each title once: a poster, and a backdrop for movies and
     /// TV; music has only covers, and a collection offers none.
     public static func choices(_ entries: [PlaylistEntry]) -> [ArtChoice] {
-        var seen = Set<Int64>()
+        var seen = Set<UID>()
         return entries.flatMap { entry -> [ArtChoice] in
             guard let id = entry.itemId, seen.insert(id).inserted else { return [] }
             let name = PlaylistText.title(entry)

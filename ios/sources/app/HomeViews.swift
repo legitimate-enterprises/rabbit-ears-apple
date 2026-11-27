@@ -76,7 +76,7 @@ struct RowPlaceholder: View {
                 HStack(alignment: .top, spacing: 12) {
                     ForEach(Array(slot.wide.enumerated()), id: \.offset) { index, wide in
                         VStack(alignment: .leading, spacing: 5) {
-                            ArtPalette.color(Int64(index))
+                            Color(hex: ArtPalette.colors[index % ArtPalette.colors.count])
                                 .aspectRatio(wide ? 16 / 9 : slot.row == .onNow ? 1 : 2 / 3, contentMode: .fit)
                                 .clipShape(.rect(cornerRadius: 8))
                             VStack(alignment: .leading, spacing: 1) {

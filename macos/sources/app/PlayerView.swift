@@ -9,7 +9,7 @@ struct PlayerScreen: View {
     let request: PlayRequest
     let client: Client
     let endpoint: ServerEndpoint
-    let profileId: Int64
+    let profileId: UID
     let capabilities: SystemCapabilities
     let close: () -> Void
     @State private var model: PlayerModel?

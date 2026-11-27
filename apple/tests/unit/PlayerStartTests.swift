@@ -16,8 +16,8 @@ final class PlayerStartTests: XCTestCase {
             output: output, capabilities: FakeCapabilities())
         await model.start(PlayRequest(item: item, audioTrackId: 3, editionId: 6, positionMs: 90_000))
         let body = try XCTUnwrap(transport.json(.post, "/playback/sessions"))
-        XCTAssertEqual(body["audioTrackId"] as? Int, 3)
-        XCTAssertEqual(body["editionId"] as? Int, 6)
+        XCTAssertEqual(body["audioTrackId"] as? String, "\(UID.n(3))")
+        XCTAssertEqual(body["editionId"] as? String, "\(UID.n(6))")
         XCTAssertEqual(body["positionMs"] as? Int, 90_000)
         XCTAssertEqual(output.loaded.count, 1)
     }

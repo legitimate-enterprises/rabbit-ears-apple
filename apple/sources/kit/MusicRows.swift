@@ -8,10 +8,10 @@ import RabbitEarsAPI
 enum MusicRows {
     /// item.MusicFilter: nil is no constraint, and `sort` nil is the listing's default.
     struct Filter {
-        var artistId: Int64?
-        var albumId: Int64?
-        var genreId: Int64?
-        var id: Int64?
+        var artistId: UID?
+        var albumId: UID?
+        var genreId: UID?
+        var id: UID?
         var letter: String?
         var query: String?
         var sort: String?
@@ -21,7 +21,7 @@ enum MusicRows {
         static let all = Int.max - 1
 
         /// Those of `sql`'s named parameters, as SQLite takes no others.
-        func arguments(_ profile: Int64, for sql: String) -> StatementArguments {
+        func arguments(_ profile: UID, for sql: String) -> StatementArguments {
             let all: [String: (any DatabaseValueConvertible)?] = [
                 "me": profile, "artist": artistId, "album": albumId, "genre": genreId, "id": id, "letter": letter,
                 "q": query, "limit": limit, "offset": offset,
@@ -30,7 +30,7 @@ enum MusicRows {
         }
     }
 
-    static func artists(_ db: Database, _ profile: Int64, _ filter: Filter) throws -> ([MusicArtist], Int?) {
+    static func artists(_ db: Database, _ profile: UID, _ filter: Filter) throws -> ([MusicArtist], Int?) {
         let by = "\(sortKey("a")), a.id"
         let rows = try page(
             db, profile, filter,
@@ -53,12 +53,12 @@ enum MusicRows {
             genres: extras?.genres ?? [], musicBrainzId: extras?.mbid, addedAt: ReplicaRows.instant(row["added_at"]))
     }
 
-    static func countArtists(_ db: Database, _ profile: Int64, _ filter: Filter) throws -> Int {
+    static func countArtists(_ db: Database, _ profile: UID, _ filter: Filter) throws -> Int {
         try count(db, profile, filter, artistsFrom(filter))
     }
 
     /// Without `lastPlayedAt`: the profile's plays are not in the replica.
-    static func albums(_ db: Database, _ profile: Int64, _ filter: Filter) throws -> ([MusicAlbum], Int?) {
+    static func albums(_ db: Database, _ profile: UID, _ filter: Filter) throws -> ([MusicAlbum], Int?) {
         let by =
             [
                 "artist": "\(sortKey("ar")), al.parsed_year, \(sortKey("al")), al.id",
@@ -86,13 +86,13 @@ enum MusicRows {
             genres: extras?.genres ?? [], musicBrainzId: extras?.mbid, addedAt: ReplicaRows.instant(row["added_at"]))
     }
 
-    static func countAlbums(_ db: Database, _ profile: Int64, _ filter: Filter) throws -> Int {
+    static func countAlbums(_ db: Database, _ profile: UID, _ filter: Filter) throws -> Int {
         try count(db, profile, filter, albumsFrom(filter))
     }
 
     /// With an album and no sort, in disc then track order. "popular" reads
     /// plays the replica does not hold, and is not served here.
-    static func songs(_ db: Database, _ profile: Int64, _ filter: Filter) throws -> ([MusicSong], Int?) {
+    static func songs(_ db: Database, _ profile: UID, _ filter: Filter) throws -> ([MusicSong], Int?) {
         let track = "COALESCE(s.disc_number, 1), s.track_number IS NULL, s.track_number, \(sortKey("s")), s.id"
         let by =
             [
@@ -125,12 +125,12 @@ enum MusicRows {
             unavailable: (row["unavailable"] as Bool) ? true : nil)
     }
 
-    static func countSongs(_ db: Database, _ profile: Int64, _ filter: Filter) throws -> Int {
+    static func countSongs(_ db: Database, _ profile: UID, _ filter: Filter) throws -> Int {
         try count(db, profile, filter, songsFrom(filter))
     }
 
     /// How many albums or artists (`kind`) the profile hears under each letter, A to Z then #.
-    static func letters(_ db: Database, _ profile: Int64, kind: String) throws -> [MusicLetterCount] {
+    static func letters(_ db: Database, _ profile: UID, kind: String) throws -> [MusicLetterCount] {
         try Row.fetchAll(
             db,
             sql: """
@@ -143,7 +143,7 @@ enum MusicRows {
     }
 
     /// The genres the profile hears something of in a music library, as listGenres answers each library's.
-    static func genres(_ db: Database, _ profile: Int64) throws -> [Genre] {
+    static func genres(_ db: Database, _ profile: UID) throws -> [Genre] {
         try Row.fetchAll(
             db,
             sql: """
@@ -210,7 +210,7 @@ enum MusicRows {
     }
 
     /// One page, and where the next starts when there is more.
-    private static func page(_ db: Database, _ profile: Int64, _ filter: Filter, _ query: String) throws -> (
+    private static func page(_ db: Database, _ profile: UID, _ filter: Filter, _ query: String) throws -> (
         [Row], Int?
     ) {
         var asked = filter
@@ -221,7 +221,7 @@ enum MusicRows {
         return (Array(rows.prefix(filter.limit)), filter.offset + filter.limit)
     }
 
-    private static func count(_ db: Database, _ profile: Int64, _ filter: Filter, _ from: String) throws -> Int {
+    private static func count(_ db: Database, _ profile: UID, _ filter: Filter, _ from: String) throws -> Int {
         let sql = "SELECT COUNT(*) \(from)"
         return try Int.fetchOne(db, sql: sql, arguments: filter.arguments(profile, for: sql)) ?? 0
     }
@@ -233,14 +233,14 @@ enum MusicRows {
     }
 
     /// The provider facts and genres the server adds to artists and albums, by item.
-    static func extras(_ db: Database, _ rows: [Row]) throws -> [Int64: Extras] {
-        let ids = "[\(rows.map { String($0["id"] as Int64) }.joined(separator: ","))]"
-        var out: [Int64: Extras] = [:]
+    static func extras(_ db: Database, _ rows: [Row]) throws -> [UID: Extras] {
+        let ids = ReplicaRows.json(rows.map { $0["id"] as UID })
+        var out: [UID: Extras] = [:]
         for row in try Row.fetchAll(
             db,
             sql: """
                 SELECT item_id, overview, status, external_id FROM item_shown
-                WHERE item_id IN (SELECT value FROM json_each(?))
+                WHERE item_id IN (SELECT unhex(value, '-') FROM json_each(?))
                 """, arguments: [ids])
         {
             let overview: String? = row["overview"]
@@ -253,7 +253,7 @@ enum MusicRows {
             db,
             sql: """
                 SELECT ig.item_id, g.id, g.name, g.tmdb_id FROM genre g JOIN item_genre_shown ig ON ig.genre_id = g.id
-                WHERE ig.item_id IN (SELECT value FROM json_each(?)) ORDER BY g.name
+                WHERE ig.item_id IN (SELECT unhex(value, '-') FROM json_each(?)) ORDER BY g.name
                 """, arguments: [ids])
         {
             out[row["item_id"], default: Extras()].genres.append(

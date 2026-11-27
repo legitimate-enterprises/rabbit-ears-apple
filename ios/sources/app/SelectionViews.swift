@@ -16,13 +16,13 @@ extension View {
     }
 
     /// While selecting, a tap toggles the tile; otherwise its long-press menu offers Select.
-    func selectable(_ id: Int64) -> some View { modifier(Selectable(id: id)) }
+    func selectable(_ id: UID) -> some View { modifier(Selectable(id: id)) }
 }
 
 /// Select for a tile's long-press menu; nothing outside a library screen that selects.
 struct SelectMenuItem: View {
     @Environment(Selection.self) private var selection: Selection?
-    let id: Int64
+    let id: UID
 
     var body: some View {
         if let selection, !selection.active {
@@ -48,7 +48,7 @@ private struct SelectsAll<Token: Equatable>: ViewModifier {
 
 private struct Selectable: ViewModifier {
     @Environment(Selection.self) private var selection: Selection?
-    let id: Int64
+    let id: UID
 
     func body(content: Content) -> some View {
         if let selection, selection.active {
@@ -166,7 +166,7 @@ private struct SelectionBar: View {
         }
     }
 
-    private func watched(_ watched: Bool, _ ids: [Int64]) async {
+    private func watched(_ watched: Bool, _ ids: [UID]) async {
         if kind.youtube {
             try? await services.youtube.setWatched(watched, items: ids)
         } else {
@@ -174,7 +174,7 @@ private struct SelectionBar: View {
         }
     }
 
-    private func kids(_ on: Bool, _ ids: [Int64]) async {
+    private func kids(_ on: Bool, _ ids: [UID]) async {
         if kind.youtube {
             try? await services.youtube.setForKids(on, channels: ids)
         } else {

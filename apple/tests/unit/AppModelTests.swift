@@ -16,8 +16,8 @@ final class AppModelTests: XCTestCase {
         transport = RoutingTransport([
             "POST /auth/sign-in": (.created, Fixtures.signedIn),
             "GET /me": (.ok, Fixtures.me),
-            "POST /profiles/1/unlock": (.noContent, ""),
-            "POST /profiles/2/unlock": (.noContent, ""),
+            "POST /profiles/\(UID.n(1))/unlock": (.noContent, ""),
+            "POST /profiles/\(UID.n(2))/unlock": (.noContent, ""),
         ])
         model = AppModel(
             store: store, deviceName: "Test Mac", transport: transport, replicaDirectory: Fixtures.replicas)
@@ -151,7 +151,7 @@ final class AppModelTests: XCTestCase {
         try await model.choose(kid, pin: "1234")
         XCTAssertEqual(model.phase, .browsing)
         XCTAssertEqual(model.activeProfile?.id, 2)
-        XCTAssertEqual(transport.json(.post, "/profiles/2/unlock")?["pin"] as? String, "1234")
+        XCTAssertEqual(transport.json(.post, "/profiles/\(UID.n(2))/unlock")?["pin"] as? String, "1234")
     }
 
     /// What one profile may not see the next may: art missing for a kid is asked for again as an adult.
@@ -161,7 +161,7 @@ final class AppModelTests: XCTestCase {
         let kid = try XCTUnwrap(model.profiles.last)
         try await model.choose(kid, pin: "1234")
         let art = try XCTUnwrap(model.artwork)
-        let asked = { self.transport.paths(.get).filter { $0 == "/items/7/artwork/poster" }.count }
+        let asked = { self.transport.paths(.get).filter { $0 == "/items/\(UID.n(7))/artwork/poster" }.count }
         _ = await art.data(7, .poster)
         _ = await art.data(7, .poster)
         XCTAssertEqual(asked(), 1)
@@ -173,9 +173,9 @@ final class AppModelTests: XCTestCase {
     func testPinErrorsMapToTheirMessages() async throws {
         try await model.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
         let kid = try XCTUnwrap(model.profiles.last)
-        transport.routes["POST /profiles/2/unlock"] = (.forbidden, Fixtures.error("forbidden"))
+        transport.routes["POST /profiles/\(UID.n(2))/unlock"] = (.forbidden, Fixtures.error("forbidden"))
         await assertThrows(.wrongPin) { try await self.model.choose(kid, pin: "0000") }
-        transport.routes["POST /profiles/2/unlock"] = (.forbidden, Fixtures.error("pin_locked"))
+        transport.routes["POST /profiles/\(UID.n(2))/unlock"] = (.forbidden, Fixtures.error("pin_locked"))
         await assertThrows(.pinLocked) { try await self.model.choose(kid, pin: "0000") }
         XCTAssertEqual(model.phase, .choosingProfile)
     }
@@ -220,8 +220,9 @@ final class AppModelTests: XCTestCase {
     func testTheOwnerAddsAnAdultAndGetsTheCodeToHandOver() async throws {
         let bea = Fixtures.account(3, "Bea").replacingOccurrences(of: #""pending":false"#, with: #""pending":true"#)
         let code =
-            #"{"id":1,"code":"7KQ4-MNP2","link":"/join/7KQ4-MNP2","accountId":3,"#
-            + #""expiresAt":"2026-01-08T00:00:00Z","createdAt":"2026-01-01T00:00:00.5Z"}"#
+            #"{"id":"\#(UID.n(1))","code":"7KQ4-MNP2","link":"/join/7KQ4-MNP2","accountId":"\#(UID.n(3))","#
+            + #""expiresAt":"2026-01-08T00:00:00Z","createdAt":"2026-01-01T00:00:00.5Z","#
+            + #""modifiedAt":"2026-01-01T00:00:00.5Z"}"#
         transport.routes["POST /household/adults"] = (.created, #"{"account":\#(bea),"joinCode":\#(code)}"#)
         try await model.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
         XCTAssertTrue(model.isOwner)
@@ -238,7 +239,7 @@ final class AppModelTests: XCTestCase {
     func testInvitedAdultsAreNotChoosableAndOnlyTheOwnerAddsAdults() async throws {
         let pending = Fixtures.account(3, "Cy").replacingOccurrences(of: #""pending":false"#, with: #""pending":true"#)
         let other = Fixtures.me.replacingOccurrences(
-            of: #""activeProfileId":1"#, with: #""activeProfileId":4"#
+            of: #""activeProfileId":"\#(UID.n(1))""#, with: #""activeProfileId":"\#(UID.n(4))""#
         ).replacingOccurrences(
             of: #"\#(Fixtures.kid)]"#, with: #"\#(Fixtures.kid),\#(pending),\#(Fixtures.account(4, "Bea"))]"#)
         transport.routes["POST /auth/sign-in"] = (.created, #"{"token":"tok-1","me":\#(other)}"#)
@@ -249,7 +250,7 @@ final class AppModelTests: XCTestCase {
 
     func testAddingAKidWithAPinSetsItAfterCreating() async throws {
         transport.routes["POST /profiles"] = (.created, Fixtures.account(3, "Sam", kind: "kid"))
-        transport.routes["PUT /profiles/3/pin"] = (.noContent, "")
+        transport.routes["PUT /profiles/\(UID.n(3))/pin"] = (.noContent, "")
         try await model.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
         var form = AddKidForm(today: Date(timeIntervalSince1970: 1_780_000_000))
         form.name = "Sam"
@@ -258,14 +259,14 @@ final class AppModelTests: XCTestCase {
         form.pinConfirmation = "4321"
         try await model.addKid(form) { form.editing = $0 }
         XCTAssertEqual(transport.paths(.post).filter { $0 == "/profiles" }.count, 1)
-        XCTAssertEqual(transport.json(.put, "/profiles/3/pin")?["pin"] as? String, "4321")
+        XCTAssertEqual(transport.json(.put, "/profiles/\(UID.n(3))/pin")?["pin"] as? String, "4321")
         XCTAssertEqual(transport.paths(.get).filter { $0 == "/me" }.count, 1)
     }
 
     func testAPinThatFailsAfterTheKidIsCreatedIsRetriedOnThatKid() async throws {
         transport.routes["POST /profiles"] = (.created, Fixtures.account(3, "Sam", kind: "kid"))
-        transport.routes["PUT /profiles/3"] = (.ok, Fixtures.account(3, "Sammy", kind: "kid"))
-        transport.routes["PUT /profiles/3/pin"] = (.internalServerError, Fixtures.error("internal"))
+        transport.routes["PUT /profiles/\(UID.n(3))"] = (.ok, Fixtures.account(3, "Sammy", kind: "kid"))
+        transport.routes["PUT /profiles/\(UID.n(3))/pin"] = (.internalServerError, Fixtures.error("internal"))
         try await model.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
         var form = AddKidForm(today: Date(timeIntervalSince1970: 1_780_000_000))
         form.name = "Sam"
@@ -274,12 +275,12 @@ final class AppModelTests: XCTestCase {
         form.pinConfirmation = "4321"
         await assertThrows(.server("nope")) { try await self.model.addKid(form) { form.editing = $0 } }
 
-        transport.routes["PUT /profiles/3/pin"] = (.noContent, "")
+        transport.routes["PUT /profiles/\(UID.n(3))/pin"] = (.noContent, "")
         form.name = "Sammy"
         try await model.addKid(form) { form.editing = $0 }
         XCTAssertEqual(transport.paths(.post).filter { $0 == "/profiles" }.count, 1)
-        XCTAssertEqual(transport.json(.put, "/profiles/3")?["name"] as? String, "Sammy")
-        XCTAssertEqual(transport.json(.put, "/profiles/3/pin")?["pin"] as? String, "4321")
+        XCTAssertEqual(transport.json(.put, "/profiles/\(UID.n(3))")?["name"] as? String, "Sammy")
+        XCTAssertEqual(transport.json(.put, "/profiles/\(UID.n(3))/pin")?["pin"] as? String, "4321")
         XCTAssertEqual(form.submitTitle, "Save")
     }
 
@@ -334,6 +335,15 @@ final class KeychainCredentialStoreTests: XCTestCase {
         KeychainCredentialStore(defaults: defaults).profileMemories["a 1"] = memory
         XCTAssertEqual(KeychainCredentialStore(defaults: defaults).profileMemories, ["a 1": memory])
     }
+
+    func testProfileMemoryKeptWithANumericIdIsForgottenNotACrash() throws {
+        let suite = "profile-memory-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(
+            Data(#"{"a 1":{"remember":true,"skipPin":true,"lastProfileId":2}}"#.utf8), forKey: "profileMemories")
+        XCTAssertEqual(KeychainCredentialStore(defaults: defaults).profileMemories, [:])
+    }
 }
 
 extension AppModelTests {
@@ -341,7 +351,7 @@ extension AppModelTests {
         let directory = Fixtures.replicas
         defer { try? FileManager.default.removeItem(at: directory) }
         model = AppModel(store: store, deviceName: "Test Mac", transport: transport, replicaDirectory: directory)
-        let request = URLRequest(url: URL(string: "http://rabbit.local:8477/api/v1/items/20/artwork/poster")!)
+        let request = URLRequest(url: URL(string: "http://rabbit.local:8477/api/v2/items/\(UID.n(20))/artwork/poster")!)
         func keep() throws {
             XCTAssertTrue(FileManager.default.fileExists(atPath: directory.path(percentEncoded: false)), "opened")
             let response = try XCTUnwrap(

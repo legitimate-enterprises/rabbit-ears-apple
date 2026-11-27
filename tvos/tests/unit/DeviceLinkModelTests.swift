@@ -10,7 +10,7 @@ final class DeviceLinkModelTests: XCTestCase {
     let server = ServerEndpoint(userInput: "rabbit.local")!
 
     static let created =
-        #"{"id":5,"code":"7KQ4-MNP2","link":"/link?code=7KQ4-MNP2","expiresAt":"2026-01-01T00:10:00Z","#
+        #"{"id":"\#(UID.n(5))","code":"7KQ4-MNP2","link":"/link?code=7KQ4-MNP2","expiresAt":"2026-01-01T00:10:00Z","#
         + #""pollToken":"poll-secret"}"#
 
     static func poll(_ status: String, signIn: Bool = false) -> String {
@@ -23,7 +23,7 @@ final class DeviceLinkModelTests: XCTestCase {
         let transport = RoutingTransport(["POST /device-links": (.created, Self.created)])
         var remaining = polls
         transport.respond = { sent in
-            guard sent.method == .get, sent.path == "/device-links/5" else { return nil }
+            guard sent.method == .get, sent.path == "/device-links/\(UID.n(5))" else { return nil }
             return remaining.count > 1 ? remaining.removeFirst() : remaining[0]
         }
         return transport
@@ -51,7 +51,8 @@ final class DeviceLinkModelTests: XCTestCase {
         let request = Fixtures.decode(input, as: Components.Schemas.DeviceLinkInput.self)
         XCTAssertEqual(request.platform, .tvos)
         XCTAssertEqual(request.deviceName, "Living Room")
-        XCTAssertEqual(transport.queries(.get, "/device-links/5"), ["token=poll-secret", "token=poll-secret"])
+        XCTAssertEqual(
+            transport.queries(.get, "/device-links/\(UID.n(5))"), ["token=poll-secret", "token=poll-secret"])
     }
 
     func testADeniedCodeSaysSo() async {
@@ -76,7 +77,7 @@ final class DeviceLinkModelTests: XCTestCase {
         let (_, link) = model(transport)
         await link.run()
         XCTAssertEqual(link.state, .expired)
-        XCTAssertEqual(transport.paths(.get).filter { $0 == "/device-links/5" }.count, 3)
+        XCTAssertEqual(transport.paths(.get).filter { $0 == "/device-links/\(UID.n(5))" }.count, 3)
     }
 
     func testTheServerGivingACodeIsNamedBeforeSignIn() async {
@@ -106,7 +107,7 @@ final class DeviceLinkModelTests: XCTestCase {
         await link.run()
         XCTAssertEqual(link.address, "rabbit.local:8477/link")
         XCTAssertEqual(
-            link.qrURL?.absoluteString, "http://rabbit.local:8477/api/v1/device-links/5/qr?token=poll-secret")
+            link.qrURL?.absoluteString, "http://rabbit.local:8477/api/v2/device-links/\(UID.n(5))/qr?token=poll-secret")
         let expires = ISO8601DateFormatter().date(from: "2026-01-01T00:10:00Z")!
         XCTAssertEqual(link.countdown(at: expires.addingTimeInterval(-581)), "9:41")
         XCTAssertNil(link.countdown(at: expires))

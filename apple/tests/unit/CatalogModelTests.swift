@@ -36,17 +36,17 @@ final class CatalogModelTests: XCTestCase {
         }
     }
 
-    private let titles: [Int64] = [1, 2, 10, 11, 12, 20, 30, 31, 32]
+    private let titles: [UID] = [1, 2, 10, 11, 12, 20, 30, 31, 32]
 
     private func model(
-        _ replica: Replica, _ profile: Int64, transport: RoutingTransport = RoutingTransport()
+        _ replica: Replica, _ profile: UID, transport: RoutingTransport = RoutingTransport()
     ) -> CatalogModel {
         CatalogModel(
             client: ServerEndpoint.default.client(token: "t", transport: transport), replica: replica,
             profileId: profile)
     }
 
-    private func loaded(_ replica: Replica, _ profile: Int64) async -> CatalogModel {
+    private func loaded(_ replica: Replica, _ profile: UID) async -> CatalogModel {
         let model = model(replica, profile)
         await model.load()
         return model
@@ -101,7 +101,11 @@ final class CatalogModelTests: XCTestCase {
             try String.fetchAll($0, sql: "SELECT operation_id || ' ' || path FROM queue.action ORDER BY seq")
         }
         XCTAssertEqual(
-            queued, ["putWatchState /profiles/1/watch-state/20", "putWatchState /profiles/1/watch-state/12"])
+            queued,
+            [
+                "putWatchState /profiles/\(UID.n(1))/watch-state/\(UID.n(20))",
+                "putWatchState /profiles/\(UID.n(1))/watch-state/\(UID.n(12))",
+            ])
 
         let empty = ReplicaFixture()
         defer { empty.remove() }
@@ -115,7 +119,7 @@ final class CatalogModelTests: XCTestCase {
         let model = await loaded(replica, 1)
         XCTAssertTrue(model.catalog.isInProgress(20))
         try await replica.write {
-            try $0.execute(sql: "UPDATE watch_state SET position_ms = 0, watched = 1 WHERE account_id = 1")
+            try $0.execute(sql: "UPDATE watch_state SET position_ms = 0, watched = 1 WHERE account_id = \(sqlID(1))")
         }
         await model.refreshWatchState(20)
         XCTAssertTrue(model.catalog.isWatched(20))
@@ -132,7 +136,7 @@ final class CatalogModelTests: XCTestCase {
         }
         let model = await loaded(replica, 1)
         try await replica.write { db in
-            try db.execute(sql: "DELETE FROM watch_state WHERE item_id = 20")
+            try db.execute(sql: "DELETE FROM watch_state WHERE item_id = \(sqlID(20))")
             try db.watch(1, for: 1, watched: true)
             try db.watch(2, for: 2, watched: true)
         }
@@ -149,8 +153,9 @@ final class CatalogModelTests: XCTestCase {
     }
 
     func testPlayabilitySendsThePlayersSnapshotAndReadsTheVerdict() async throws {
+        let playability = "POST /items/\(UID.n(20))/playability"
         let transport = RoutingTransport([
-            "POST /items/20/playability": (
+            playability: (
                 .ok,
                 #"{"verdict":"video_transcode","negotiated":{"verdict":"video_transcode","width":1920,"#
                     + #""height":1080,"bitrate":8000000,"encoder":"hardware"}}"#
@@ -163,9 +168,9 @@ final class CatalogModelTests: XCTestCase {
         XCTAssertEqual(Format.playability(try XCTUnwrap(result?.verdict)), "Transcode on this device")
         XCTAssertEqual(Format.playability(.directPlay), "Direct play on this device")
         let sent = Fixtures.decode(
-            try XCTUnwrap(transport.body(.post, "/items/20/playability")), as: CapabilitySnapshot.self)
+            try XCTUnwrap(transport.body(.post, "/items/\(UID.n(20))/playability")), as: CapabilitySnapshot.self)
         XCTAssertEqual(sent, CapabilitySnapshotBuilder.snapshot(facts, server: .default, maxBitrate: nil))
-        transport.routes["POST /items/20/playability"] = (.conflict, Fixtures.error("conflict"))
+        transport.routes[playability] = (.conflict, Fixtures.error("conflict"))
         let none = await model.playability(20, facts: facts, server: .default)
         XCTAssertNil(none)
     }
@@ -177,10 +182,12 @@ final class CatalogModelTests: XCTestCase {
             try db.item(33, "show", "Dune Show", rating: "TV-Y")
             try db.execute(
                 sql: """
-                    UPDATE item_metadata SET title = 'Dune Day' WHERE item_id = 32;
-                    INSERT INTO person VALUES (5, 99, 'Denis Dune', NULL), (6, 98, 'Dune Extra', '/x.jpg'),
-                        (7, NULL, 'Dune Local', NULL);
-                    INSERT INTO credit(id, item_id, person_id, kind) VALUES (1, 20, 5, 'crew'), (2, 30, 6, 'cast');
+                    UPDATE item_metadata SET title = 'Dune Day' WHERE item_id = \(sqlID(32));
+                    INSERT INTO person(id, tmdb_id, name, profile_path) VALUES (\(sqlID(5)), 99, 'Denis Dune', NULL),
+                        (\(sqlID(6)), 98, 'Dune Extra', '/x.jpg'), (\(sqlID(7)), NULL, 'Dune Local', NULL);
+                    INSERT INTO credit(id, item_id, person_id, kind)
+                        VALUES (\(sqlID(1)), \(sqlID(20)), \(sqlID(5)), 'crew'),
+                            (\(sqlID(2)), \(sqlID(30)), \(sqlID(6)), 'cast');
                     """)
             try db.library(3, "music")
             try db.library(4, "youtube")
@@ -246,7 +253,9 @@ final class CatalogModelTests: XCTestCase {
         let queued = try await replica.read {
             try String.fetchAll($0, sql: "SELECT operation_id || ' ' || path FROM queue.action ORDER BY seq")
         }
-        XCTAssertEqual(queued, ["setKidsContent /items/20/kids-content", "clearKidsContent /items/20/kids-content"])
+        XCTAssertEqual(
+            queued,
+            ["setKidsContent /items/\(UID.n(20))/kids-content", "clearKidsContent /items/\(UID.n(20))/kids-content"])
     }
 
     func testCreditsAndAPersonsTitlesAsTheProfileSeesThem() async throws {
@@ -283,9 +292,10 @@ final class CatalogModelTests: XCTestCase {
 
     func testCrewLinesNameEachJobOnceInCreditOrder() {
         let credits = Fixtures.decode(
-            #"{"cast":[],"crew":[{"personId":1,"name":"Ann","job":"Writer"},"#
-                + #"{"personId":2,"name":"Bo","job":"Director"},{"personId":3,"name":"Cy","job":"Writer"},"#
-                + #"{"personId":4,"name":"Di"}]}"#, as: Credits.self)
+            #"{"cast":[],"crew":[{"personId":"\#(UID.n(1))","name":"Ann","job":"Writer"},"#
+                + #"{"personId":"\#(UID.n(2))","name":"Bo","job":"Director"},"#
+                + #"{"personId":"\#(UID.n(3))","name":"Cy","job":"Writer"},{"personId":"\#(UID.n(4))","name":"Di"}]}"#,
+            as: Credits.self)
         let lines = credits.crewLines
         XCTAssertEqual(lines.map(\.0), ["Writer", "Director", "Crew"])
         XCTAssertEqual(lines.map(\.1), ["Ann, Cy", "Bo", "Di"])

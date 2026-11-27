@@ -11,12 +11,13 @@ extension Fixtures {
     }
 
     static func playing(
-        _ id: Int64 = 9, device: String = "Living Room", thisDevice: Bool = false, position: Int64 = 2_472_000,
+        _ id: UID = 9, device: String = "Living Room", thisDevice: Bool = false, position: Int64 = 2_472_000,
         movedTo: String? = nil
     ) -> String {
         let moved = movedTo.map { #","endedAt":"2026-11-14T20:01:00Z","movedToDeviceName":"\#($0)""# } ?? ""
-        return #"{"id":\#(id),"itemId":20,"deviceId":4,"deviceName":"\#(device)","platform":"roku","#
-            + #""thisDevice":\#(thisDevice),"positionMs":\#(position),"updatedAt":"2026-11-14T20:00:00Z"\#(moved)}"#
+        return #"{"id":"\#(id)","itemId":"\#(UID.n(20))","deviceId":"\#(UID.n(4))","deviceName":"\#(device)","#
+            + #""platform":"roku","thisDevice":\#(thisDevice),"positionMs":\#(position),"#
+            + #""createdAt":"2026-11-14T20:00:00Z","modifiedAt":"2026-11-14T20:00:00Z"\#(moved)}"#
     }
 }
 
@@ -56,7 +57,7 @@ final class LiveFeedTests: XCTestCase {
         await Task.yield()
         await follow([
             (.ok, Fixtures.events("c0")),
-            (.ok, Fixtures.events("c1", [#"{"kind":"playback","change":"moved","sessionId":7}"#])),
+            (.ok, Fixtures.events("c1", [#"{"kind":"playback","change":"moved","sessionId":"\#(UID.n(7))"}"#])),
             (.ok, Fixtures.events("c2")),
             (.ok, Fixtures.events("c3", [#"{"kind":"watch_together","change":"opened"}"#, #"{"kind":"playlist"}"#])),
         ])
@@ -94,7 +95,7 @@ final class LiveFeedTests: XCTestCase {
         try await sync.replica.write { try $0.watch(20, for: 1, position: 5) }
         await app.until { live.watched > before[1] }
         try await sync.replica.write {
-            try $0.execute(sql: "INSERT INTO playlist(id, account_id, name) VALUES (1, 1, 'Road')")
+            try $0.execute(sql: "INSERT INTO playlist(id, account_id, name) VALUES (\(sqlID(1)), \(sqlID(1)), 'Road')")
         }
         await app.until { live.playlists > before[2] }
         try await sync.replica.write { try $0.account(9, "Sam") }
@@ -125,7 +126,7 @@ final class HandoffTests: XCTestCase {
     func testATitlePlayingOnAnotherDeviceIsAskedAbout() async throws {
         let found = await Handoff.elsewhere(PlayRequest(item: item), client: client)
         let there = try XCTUnwrap(found)
-        XCTAssertEqual(transport.queries(.get, "/playback/sessions"), ["itemId=20"])
+        XCTAssertEqual(transport.queries(.get, "/playback/sessions"), ["itemId=\(UID.n(20))"])
         XCTAssertEqual(there.id, 9)
         XCTAssertEqual(Handoff.title(there), "Playing on Living Room at 41:12")
     }
@@ -162,7 +163,7 @@ final class HandoffTests: XCTestCase {
     }
 
     func testMoveHereEndsItThereAndPlaysHereWhereItWas() async throws {
-        transport.routes["POST /playback/sessions/9/move"] = (.ok, Fixtures.playing(position: 2_480_000))
+        transport.routes["POST /playback/sessions/\(UID.n(9))/move"] = (.ok, Fixtures.playing(position: 2_480_000))
         let there = Fixtures.decode(Fixtures.playing(), as: PlaybackSession.self)
         let request = try await Handoff.move(there, PlayRequest(item: item, editionId: 6), client: client)
         XCTAssertEqual(request.positionMs, 2_480_000)
@@ -176,15 +177,15 @@ final class HandoffTests: XCTestCase {
         let there = Fixtures.decode(Fixtures.playing(), as: PlaybackSession.self)
         let request = try await Handoff.together(there, PlayRequest(item: item), client: client, profileId: 1)
         let body = try XCTUnwrap(transport.json(.post, "/watch-together"))
-        XCTAssertEqual(body["itemId"] as? Int, 20)
-        XCTAssertEqual(body["fromSessionId"] as? Int, 9)
+        XCTAssertEqual(body["itemId"] as? String, "\(UID.n(20))")
+        XCTAssertEqual(body["fromSessionId"] as? String, "\(UID.n(9))")
         XCTAssertEqual(request.positionMs, 2_472_000)
         XCTAssertEqual(request.together?.current?.id, 5)
     }
 
     private func player() async -> PlayerModel {
         transport.routes["POST /playback/sessions"] = (.created, Fixtures.stream())
-        transport.routes["DELETE /playback/sessions/7"] = (.noContent, "")
+        transport.routes["DELETE /playback/sessions/\(UID.n(7))"] = (.noContent, "")
         let model = PlayerModel(
             client: client, endpoint: server, profileId: 1, item: item, output: output,
             capabilities: FakeCapabilities())
@@ -195,38 +196,42 @@ final class HandoffTests: XCTestCase {
 
     func testAPlayerWhoseSessionAnotherDeviceTookStopsAndSaysWhereItWent() async {
         let model = await player()
-        transport.routes["GET /playback/sessions/7"] = (.ok, Fixtures.playing(7, movedTo: "Kitchen iPad"))
-        let other = #"{"kind":"playback","change":"moved","sessionId":8,"itemId":20}"#
+        transport.routes["GET /playback/sessions/\(UID.n(7))"] = (.ok, Fixtures.playing(7, movedTo: "Kitchen iPad"))
+        let other = #"{"kind":"playback","change":"moved","sessionId":"\#(UID.n(8))","itemId":"\#(UID.n(20))"}"#
         await handoff.heard([Fixtures.decode(other, as: LiveEvent.self)])
         XCTAssertNil(handoff.movedTo)
-        let mine = #"{"kind":"playback","change":"moved","sessionId":7,"itemId":20}"#
+        let mine = #"{"kind":"playback","change":"moved","sessionId":"\#(UID.n(7))","itemId":"\#(UID.n(20))"}"#
         await handoff.heard([Fixtures.decode(mine, as: LiveEvent.self)])
         XCTAssertEqual(handoff.movedTo, "Kitchen iPad")
         XCTAssertNil(model.stream)
         await model.stop()
-        XCTAssertFalse(transport.paths(.delete).contains("/playback/sessions/7"), "the server already ended it")
+        XCTAssertFalse(
+            transport.paths(.delete).contains("/playback/sessions/\(UID.n(7))"), "the server already ended it")
     }
 
     func testAPlayerJoinsTheWatchTogetherAnotherDeviceOpenedFromItsSession() async throws {
         _ = await player()
         output.positionMs = 61_000
         let joined = Fixtures.together(status: "joined", host: (1, "Avery"), joined: true)
-        transport.routes["POST /watch-together/5/join"] = (.ok, joined)
-        transport.routes["PUT /watch-together/5/state"] = (.ok, joined)
-        let other = #"{"kind":"watch_together","change":"opened","watchTogetherId":4,"itemId":20}"#
+        transport.routes["POST /watch-together/\(UID.n(5))/join"] = (.ok, joined)
+        transport.routes["PUT /watch-together/\(UID.n(5))/state"] = (.ok, joined)
+        let other =
+            #"{"kind":"watch_together","change":"opened","watchTogetherId":"\#(UID.n(4))","itemId":"\#(UID.n(20))"}"#
         await handoff.heard([Fixtures.decode(other, as: LiveEvent.self)])
         XCTAssertNil(handoff.asked)
-        let mine = #"{"kind":"watch_together","change":"opened","watchTogetherId":5,"itemId":20,"sessionId":7}"#
+        let mine =
+            #"{"kind":"watch_together","change":"opened","watchTogetherId":"\#(UID.n(5))","itemId":"\#(UID.n(20))","#
+            + #""sessionId":"\#(UID.n(7))"}"#
         await handoff.heard([Fixtures.decode(mine, as: LiveEvent.self)])
         XCTAssertEqual(handoff.asked?.current?.id, 5)
-        let state = try XCTUnwrap(transport.json(.put, "/watch-together/5/state"))
+        let state = try XCTUnwrap(transport.json(.put, "/watch-together/\(UID.n(5))/state"))
         XCTAssertEqual(state["playing"] as? Bool, true)
         XCTAssertEqual(state["positionMs"] as? Int, 61_000)
     }
 
     func testOneProfileOnTwoDevicesIsInOnlyWhatThisDeviceJoinedAndNamesTheOtherDevice() async {
         let there =
-            #"{"accountId":1,"name":"Avery","role":"host","deviceName":"Living Room","platform":"roku","#
+            #"{"accountId":"\#(UID.n(1))","name":"Avery","role":"host","deviceName":"Living Room","platform":"roku","#
             + #""present":true,"joinedAt":"2026-11-14T20:00:00Z","thisDevice":false}"#
         let here = there.replacingOccurrences(of: "Living Room", with: "Mac").replacingOccurrences(
             of: #""thisDevice":false"#, with: #""thisDevice":true"#

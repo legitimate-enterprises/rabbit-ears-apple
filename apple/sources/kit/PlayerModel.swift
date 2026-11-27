@@ -32,7 +32,7 @@ public protocol VideoOutput: AnyObject {
 public final class PlayerModel {
     public enum SubtitleChoice: Hashable, Sendable {
         case off, forcedOnly
-        case track(Int64)
+        case track(UID)
     }
 
     /// The movie, episode or video started; nil for a station, whose program the server picks.
@@ -49,7 +49,7 @@ public final class PlayerModel {
     private var cueLoads = 0
     /// The file in play, read once for the tracks its menu lists.
     private var file: Components.Schemas.MediaFile?
-    var audioTrackId: Int64?
+    var audioTrackId: UID?
     private var reporter: Task<Void, Never>?
     /// Capability groups whose last send failed, which the next tick sends again.
     private var unsent: Set<CapabilityGroup> = []
@@ -65,17 +65,17 @@ public final class PlayerModel {
 
     private let client: Client
     private let endpoint: ServerEndpoint
-    private let profileId: Int64
+    private let profileId: UID
     /// The playlist whose play order this item is a row of.
-    private let playlistId: Int64?
+    private let playlistId: UID?
     private let capabilities: any CapabilitySource
     private let fetchText: @Sendable (URL) async throws -> String
     /// What this device is called in copy, as in "on this Mac".
     private let device: String
 
     public init(
-        client: Client, endpoint: ServerEndpoint, profileId: Int64, item: Item?, output: any VideoOutput,
-        capabilities: any CapabilitySource, device: String = "Mac", playlistId: Int64? = nil,
+        client: Client, endpoint: ServerEndpoint, profileId: UID, item: Item?, output: any VideoOutput,
+        capabilities: any CapabilitySource, device: String = "Mac", playlistId: UID? = nil,
         fetchText: @escaping @Sendable (URL) async throws -> String = { url in
             String(bytes: try await URLSession.shared.data(from: url).0, encoding: .utf8) ?? ""
         }
@@ -132,8 +132,12 @@ public final class PlayerModel {
     }
 
     /// Every subtitle track of the file in play, text or bitmap; the
-    /// stream's sidecars hold only the one being drawn.
-    public var subtitleTracks: [Track] { file.map { MediaSummary($0).subtitles } ?? [] }
+    /// stream's sidecars hold only the one being drawn. A file on the device
+    /// shows only the sidecars downloaded with it.
+    public var subtitleTracks: [Track] {
+        if let stream, stream.isOnDevice { return stream.sidecarTracks }
+        return file.map { MediaSummary($0).subtitles } ?? []
+    }
 
     public func cue(at seconds: Double) -> String? {
         subtitleChoice == .off ? nil : cues.text(at: seconds)
@@ -141,11 +145,12 @@ public final class PlayerModel {
 
     /// A nil edition plays the default; a nil position resumes from the
     /// profile's watch state when it belongs to the edition played.
-    public func start(audioTrackId: Int64? = nil, editionId: Int64? = nil, positionMs: Int64? = nil) async {
+    public func start(audioTrackId: UID? = nil, editionId: UID? = nil, positionMs: Int64? = nil) async {
         self.audioTrackId = audioTrackId
         await begin { [client, profileId, item, playlistId] snapshot in
+            guard let item else { return nil }
             let request = Components.Schemas.PlaybackRequest(
-                profileId: profileId, itemId: item?.id ?? 0, editionId: editionId, audioTrackId: audioTrackId,
+                profileId: profileId, itemId: item.id, editionId: editionId, audioTrackId: audioTrackId,
                 positionMs: positionMs, playlistId: playlistId, snapshot: snapshot)
             return try await client.startPlayback(body: .json(request)).created.body.json
         }
@@ -245,7 +250,7 @@ public final class PlayerModel {
         // A stream fetched at home fails when home is left.
         await endpoint.confirmHome(using: client, on: capabilities.facts().path, force: endpoint.atHome)
         let event = Components.Schemas.PlaybackEvent(
-            kind: .clientFailure, positionMs: output.positionMs, reason: String(reason.prefix(500)))
+            kind: .clientFailure, positionMs: output.positionMs, reason: reason.prefix(scalars: 500))
         await update { client in
             try await client.reportPlaybackEvent(path: .init(sessionId: session), body: .json(event)).ok.body.json
         }
@@ -352,7 +357,7 @@ public final class PlayerModel {
         output.load(stream, from: endpoint.resolveStream(stream.streamUrl))
         if !paused { output.play() }
         await loadCues()
-        if stream.mediaFileId != file?.id {
+        if !stream.isOnDevice, stream.mediaFileId != file?.id {
             file = try? await client.getMediaFile(path: .init(mediaFileId: stream.mediaFileId)).ok.body.json
         }
     }

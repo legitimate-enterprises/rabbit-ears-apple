@@ -16,22 +16,22 @@ final class OfflineBrowseTests: XCTestCase {
     override func setUp() async throws {
         harness = DownloadHarness()
         let objects = [
-            "GET /music/albums/50": Fixtures.album(50, "In Rainbows"),
-            "GET /music/artists/40": Fixtures.artist,
-            "GET /youtube/channels/60": Fixtures.channel(60, "Workbench Weekly"),
+            "GET /music/albums/\(UID.n(50))": Fixtures.album(50, "In Rainbows"),
+            "GET /music/artists/\(UID.n(40))": Fixtures.artist,
+            "GET /youtube/channels/\(UID.n(60))": Fixtures.channel(60, "Workbench Weekly"),
             "GET /me": Fixtures.me,
         ]
         for (route, json) in objects { harness.objects[route] = json }
         try await harness.replica.write { try $0.downloadedTitles() }
-        harness.transport.routes["GET /items/20/artwork/poster"] = (.ok, "jpeg")
+        harness.transport.routes["GET /items/\(UID.n(20))/artwork/poster"] = (.ok, "jpeg")
         harness.transport.headers[.eTag] = "\"a\""
         harness.transport.headers[.cacheControl] = "private, no-cache"
-        harness.resolves["item/10"] = [
+        harness.resolves["item/\(UID.n(10))"] = [
             Fixtures.downloadTitle(101, "episode", position: 60_000), Fixtures.downloadTitle(103, "episode"),
         ]
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie", watched: true)]
-        harness.resolves["item/5"] = [Fixtures.downloadTitle(5, "song", library: 3)]
-        harness.resolves["item/70"] = [Fixtures.downloadTitle(70, "video", library: 4)]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie", watched: true)]
+        harness.resolves["item/\(UID.n(5))"] = [Fixtures.downloadTitle(5, "song", library: 3)]
+        harness.resolves["item/\(UID.n(70))"] = [Fixtures.downloadTitle(70, "video", library: 4)]
         for target in [DownloadTarget.show(10), .title(20), .title(5), .title(70)] {
             try await harness.download(target)
         }
@@ -125,7 +125,8 @@ final class OfflineBrowseTests: XCTestCase {
             store.remove(target, profile: 1)
         }
         XCTAssertEqual(
-            try FileManager.default.contentsOfDirectory(atPath: art), ["item-20-poster"], "Dune still shows with it")
+            try FileManager.default.contentsOfDirectory(atPath: art), ["item-\(UID.n(20))-poster"],
+            "Dune still shows with it")
         store.remove(.title(20), profile: 1)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: art), [])
     }
@@ -140,7 +141,7 @@ final class OfflineBrowseTests: XCTestCase {
         harness.goOffline()
         let poster = await art.data(20, .poster)
         XCTAssertEqual(poster, Data("jpeg".utf8))
-        let custom = await art.data(imageUrl: "/api/v1/stations/5/image?v=9")
+        let custom = await art.data(imageUrl: "/api/v2/stations/\(UID.n(5))/image?v=\(UID.n(9))")
         XCTAssertNil(custom)
         XCTAssertEqual(generation.value, 3)
         XCTAssertEqual(store.titles[20]?.state, .onDevice)
@@ -164,7 +165,7 @@ final class OfflineBrowseTests: XCTestCase {
             try await app.choose(try XCTUnwrap(app.profiles.first { $0.id == 2 }), pin: "1234")
             XCTFail("a PIN can't be checked offline")
         } catch {}
-        try await harness.replica.write { try $0.execute(sql: "UPDATE account SET has_pin = 1 WHERE id = 1") }
+        try await harness.replica.write { try $0.execute(sql: "UPDATE account SET has_pin = 1 WHERE id = \(sqlID(1))") }
         do {
             try await app.unlock(try XCTUnwrap(app.profiles.first { $0.id == 1 }))
             XCTFail("a PIN set since the Me was kept is the server's to check")
@@ -197,7 +198,7 @@ final class OfflineBrowseTests: XCTestCase {
     func testAnotherProfileSeesTheReplicaAsItsVisibilityLetsIt() async throws {
         try await harness.replica.write { db in
             try db.account(2, "Robin", kind: "kid", movies: "PG")
-            try db.execute(sql: "UPDATE item_metadata SET content_rating = 'PG-13' WHERE item_id = 20")
+            try db.execute(sql: "UPDATE item_metadata SET content_rating = 'PG-13' WHERE item_id = \(sqlID(20))")
             try db.item(41, "movie", "Paddington", rating: "PG")
             try db.watch(41, for: 1, position: 90_000)
         }
@@ -310,7 +311,7 @@ final class OfflineBrowseTests: XCTestCase {
         let item = Fixtures.decode(Fixtures.item(20, "movie", "Dune"), as: Item.self)
         harness.transport.routes["POST /playback/sessions"] = (.created, Fixtures.stream())
         store.ledger.titles[20]?.editionId = 7
-        func play(edition: Int64) async -> URL? {
+        func play(edition: UID) async -> URL? {
             let output = FakeOutput()
             await PlayerModel(
                 client: harness.client, endpoint: harness.endpoint, profileId: 1, item: item, output: output,

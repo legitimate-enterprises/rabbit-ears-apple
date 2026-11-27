@@ -23,7 +23,7 @@ class OccasionCase: XCTestCase {
             try db.account(1, "Avery")
             try db.account(3, "Kit", kind: "kid", movies: "PG")
             // Titles run against ids, so title order shows.
-            for id in Int64(101)...125 { try db.item(id, "movie", "Elf \(226 - id)", rating: "PG") }
+            for id in 101...125 { try db.item(.n(id), "movie", "Elf \(226 - id)", rating: "PG") }
             try db.item(126, "movie", "Elf Gone", rating: "PG")
             try db.item(127, "movie", "A Keyworded Elf", rating: "PG")
             try db.item(200, "show", "Spooky", rating: "TV-MA")
@@ -31,12 +31,17 @@ class OccasionCase: XCTestCase {
             try db.holiday("christmas", on: ["2025-12-25", "2026-12-25", "2027-12-25"])
             try db.holiday("new-years-day", on: ["2026-01-01", "2027-01-01"])
             try db.occasion(
-                1, "Christmas", holiday: "christmas", before: 30, after: 5, members: Array(Int64(101)...126),
+                Self.christmas, "Christmas", holiday: "christmas", before: 30, after: 5,
+                members: (101...126).map(UID.n),
                 phrases: ["Ho, Ho, Ho!"], colors: ["#C8102E", "#00843D", "#FFD100"])
-            try db.execute(sql: "INSERT INTO occasion_exclusion VALUES (1, 126)")
-            try db.execute(sql: "INSERT INTO occasion_keyword VALUES (1, 9)")
-            try db.execute(sql: "INSERT INTO item_keyword VALUES (127, 9)")
-            try db.occasion(2, "Halloween  Nights", month: 10, day: 31, before: 30, after: 1, members: [200])
+            try db.execute(
+                sql: "INSERT INTO occasion_exclusion(occasion_id, item_id) VALUES (?, ?)",
+                arguments: [Self.christmas, UID.n(126)])
+            try db.execute(
+                sql: "INSERT INTO occasion_keyword(occasion_id, keyword_id) VALUES (?, 9)", arguments: [Self.christmas])
+            try db.execute(sql: "INSERT INTO item_keyword(item_id, keyword_id) VALUES (?, 9)", arguments: [UID.n(127)])
+            try db.occasion(
+                Self.halloween, "Halloween  Nights", month: 10, day: 31, before: 30, after: 1, members: [200])
             try db.occasion(3, "New Year", holiday: "new-years-day", before: 10, after: 0, members: [300])
             try db.occasion(4, "Leap Day", month: 2, day: 29, before: 0, after: 0, members: [300])
             try rows(db)
@@ -44,6 +49,10 @@ class OccasionCase: XCTestCase {
     }
 
     func at(_ instant: String) -> Date { ISO8601DateFormatter().date(from: instant)! }
+
+    /// The server seeds Christmas and Halloween under ids of their own, never small integers.
+    nonisolated static let christmas = UID("00000000-0000-7000-9000-000000000001")!
+    nonisolated static let halloween = UID("00000000-0000-7000-9000-000000000002")!
 }
 
 final class OccasionsModelTests: OccasionCase {
@@ -119,38 +128,44 @@ final class OccasionsModelTests: OccasionCase {
 final class OccasionRowTitleTests: XCTestCase {
     func testABlankHeadlineIsNoHeadline() {
         let blank = ActiveOccasion(
-            id: 1, name: "Christmas", headline: " ", anchorDate: "2026-12-25", firstDate: "2026-12-01",
+            id: OccasionCase.christmas, name: "Christmas", headline: " ", anchorDate: "2026-12-25",
+            firstDate: "2026-12-01",
             lastDate: "2026-12-31")
         XCTAssertEqual(blank.rowTitle, "Christmas")
     }
 }
 
 final class OccasionMembersTests: OccasionCase {
-    private func model(_ replica: Replica, _ profile: Int64 = 1) -> CatalogModel {
+    private func model(_ replica: Replica, _ profile: UID = 1) -> CatalogModel {
         CatalogModel(client: ServerEndpoint.default.client(token: "t"), replica: replica, profileId: profile)
     }
 
     func testTheOccasionScreenPagesEveryMemberTheProfileBrowses() async throws {
         let replica = try seasons { db in
-            for id in Int64(1000)...1200 { try db.item(id, "movie", "Gift \(id)", rating: "R") }
-            for id in Int64(1000)...1200 {
-                try db.execute(sql: "INSERT INTO occasion_item VALUES (1, ?)", arguments: [id])
+            for id in 1000...1200 { try db.item(.n(id), "movie", "Gift \(id)", rating: "R") }
+            for id in 1000...1200 {
+                try db.execute(
+                    sql: "INSERT INTO occasion_item(occasion_id, item_id) VALUES (?, ?)",
+                    arguments: [Self.christmas, UID.n(id)])
             }
         }
-        let pager = model(replica).occasionMembers(1)
+        let pager = model(replica).occasionMembers(Self.christmas)
         await pager.loadMore()
         XCTAssertEqual(pager.items.count, 200)
         XCTAssertFalse(pager.done)
         await pager.loadAll()
         XCTAssertEqual(pager.items.count, 227)
         XCTAssertEqual(pager.items.first?.id, 127)
-        let kid = model(replica, 3).occasionMembers(1)
+        let kid = model(replica, 3).occasionMembers(Self.christmas)
         await kid.loadAll()
         XCTAssertEqual(kid.items.count, 26, "not the R-rated gifts")
     }
 
     func testATitlesDetailsRowHoldsTheOtherMembersOfEachOccasionItIsIn() async throws {
-        let replica = try seasons { try $0.execute(sql: "INSERT INTO occasion_item VALUES (3, 125)") }
+        let replica = try seasons {
+            try $0.execute(
+                sql: "INSERT INTO occasion_item(occasion_id, item_id) VALUES (?, ?)", arguments: [UID.n(3), UID.n(125)])
+        }
         let rows = await model(replica).occasionRows(
             containing: 300, now: at("2026-12-24T12:00:00Z"), timeZone: utc)
         XCTAssertEqual(rows.map(\.name), ["New Year"])

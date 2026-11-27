@@ -18,7 +18,7 @@ struct YouTubeScreen: View {
     @AppStorage("youtube.tab") private var tab = YouTubeTab.videos
     @AppStorage("youtube.sort") private var sort = YouTubeVideoSort.newest
     @AppStorage("youtube.channelSort") private var channelSort = YouTubeChannelSort.title
-    @State private var channel: Int64?
+    @State private var channel: UID?
     @State private var channels: [YouTubeChannel] = []
     @State private var videos: Pager<YouTubeVideo>?
     @State private var selection = Selection()
@@ -49,7 +49,7 @@ struct YouTubeScreen: View {
                         }
                         .fixedSize()
                         Picker("Channel", selection: $channel) {
-                            Text("Any").tag(Int64?.none)
+                            Text("Any").tag(UID?.none)
                             ForEach(channels, id: \.id) { Text($0.title).tag(Optional($0.id)) }
                         }
                         .fixedSize()
@@ -72,7 +72,7 @@ struct YouTubeScreen: View {
         .task(id: "\(channelSort.rawValue)/\(browser.revision)") {
             channels = (try? await app.youtubeModel?.channels(sort: channelSort)) ?? []
         }
-        .task(id: "\(shown.rawValue)/\(sort.rawValue)/\(channel ?? 0)/\(search)") { await load() }
+        .task(id: "\(shown.rawValue)/\(sort.rawValue)/\(channel?.description ?? "")/\(search)") { await load() }
         // A watch-state change refreshes the rows in place; the scroll position stays.
         .task(id: browser.revision) { await videos?.refresh() }
     }

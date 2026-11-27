@@ -56,7 +56,7 @@ struct MusicScreen: View {
         .selectionBar(selection, selectKind ?? .album, order: order)
         .onChange(of: tab) { selection.end() }
         .navigationSubtitle(subtitle)
-        .task(id: "\(tab.rawValue)/\(sort.rawValue)/\(genre ?? 0)") {
+        .task(id: "\(tab.rawValue)/\(sort.rawValue)/\(genre?.description ?? "")") {
             guard let music = app.musicModel else { return }
             let board = board ?? MusicBoard(music: music)
             if self.board == nil {
@@ -92,7 +92,7 @@ struct MusicScreen: View {
         }
     }
 
-    private var order: [Int64] {
+    private var order: [UID] {
         switch tab {
         case .albums: (albums?.items ?? []).map(\.id)
         case .artists: (artists?.items ?? []).map(\.id)
@@ -193,7 +193,7 @@ struct SongRow: View {
     let queue: [MusicSong]
     let index: Int
     let source: String
-    var playlistId: Int64?
+    var playlistId: UID?
     /// Disc track numbers lead an album's rows; artist and album lead the others.
     var numbered = false
     /// Artist's Popular numbers its rows by rank rather than by track.

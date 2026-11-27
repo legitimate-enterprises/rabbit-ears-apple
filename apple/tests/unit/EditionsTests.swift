@@ -11,7 +11,7 @@ final class EditionsTests: XCTestCase {
     ]
     .map { Fixtures.decode($0, as: Edition.self) }
 
-    private func watch(position: Int64 = 600_000, watched: Bool = false, edition: Int64?) -> WatchState {
+    private func watch(position: Int64 = 600_000, watched: Bool = false, edition: UID?) -> WatchState {
         Fixtures.decode(Fixtures.watch(20, position: position, watched: watched, edition: edition))
     }
 
@@ -129,9 +129,10 @@ final class EditionsTests: XCTestCase {
 
     @MainActor
     func testDetailsReadTheEditionsPreselectAndDescribeTheChosenCopy() async throws {
-        func file(_ id: Int64) -> String {
-            #"{"id":\#(id),"itemId":20,"path":"/media/f\#(id).mkv","sizeBytes":1,"modifiedAt":"2026-01-01T00:00:00Z","#
-                + #""chapters":[],"tracks":[]}"#
+        func file(_ id: UID) -> String {
+            #"{"id":"\#(id)","itemId":"\#(UID.n(20))","path":"/media/f\#(id).mkv","sizeBytes":1,"#
+                + #""fileModifiedAt":"2026-01-01T00:00:00Z","createdAt":"2026-01-01T00:00:00Z","#
+                + #""modifiedAt":"2026-01-01T00:00:00Z","chapters":[],"tracks":[]}"#
         }
         let transport = RoutingTransport(["GET /media-files": (.ok, Fixtures.page([file(50), file(60)]))])
         let replica = try dune()

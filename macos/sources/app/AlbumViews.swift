@@ -9,7 +9,7 @@ struct Heading: View {
 
 /// Play, Shuffle, Add to playlist, Add to station and Download under an album's or artist's name.
 struct PlayShuffle: View {
-    let itemId: Int64
+    let itemId: UID
     let download: DownloadTarget
     let play: () -> Void
     let shuffle: () -> Void
@@ -45,7 +45,7 @@ struct AlbumScreen: View {
     @Environment(AppModel.self) private var app
     @Environment(Browser.self) private var browser
     @Environment(MusicPlayer.self) private var player
-    let id: Int64
+    let id: UID
     @State private var detail: AlbumDetail?
     @State private var failed = false
 
@@ -126,7 +126,7 @@ struct AlbumScreen: View {
 struct ArtistScreen: View {
     @Environment(AppModel.self) private var app
     @Environment(MusicPlayer.self) private var player
-    let id: Int64
+    let id: UID
     @State private var detail: ArtistDetail?
     @State private var failed = false
 

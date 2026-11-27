@@ -2,9 +2,87 @@ import Foundation
 import GRDB
 import RabbitEarsAPI
 
-/// The playlist writes this device makes on rows the server already has.
+/// The playlist writes this device makes. A create carries its client ids,
+/// and `apply` writes the rows and audit cells the server will.
 extension ActionQueue {
-    func renamePlaylist(as profile: Int64, _ id: Int64, name: String, kind: PlaylistKind) async throws {
+    /// The profile's new playlist under the client id `id`.
+    func createPlaylist(as profile: UID, _ id: UID, name: String, kind: PlaylistKind) async throws {
+        try await act(
+            as: profile, touching: [try .row("playlist", id)],
+            call: { client, _ in
+                _ = try await client.createPlaylist(
+                    path: .init(profileId: profile), body: .json(.init(id: id, name: name, kind: kind)))
+            },
+            apply: { db, at in
+                try db.execute(
+                    sql: """
+                        INSERT INTO playlist(id, account_id, name, kind, station_owned, created_at, modified_at,
+                            created_by, modified_by)
+                        VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5, ?2, ?2)
+                        """, arguments: [id, profile, name, kind.rawValue, Self.ms(at)])
+            })
+    }
+
+    /// One entry, named in `entry` with its client id, rank and edition exactly as the server is to write it.
+    func addEntry(as profile: UID, to playlist: UID, _ entry: PlaylistEntryInput) async throws {
+        try await act(
+            as: profile, touching: try Self.touched([entry]),
+            call: { client, _ in
+                _ = try await client.addPlaylistEntry(
+                    path: .init(profileId: profile, playlistId: playlist), body: .json(entry))
+            },
+            apply: { db, at in try Self.insert(db, [entry], in: playlist, by: profile, at) })
+    }
+
+    /// PlaylistEntriesInput's entries maxItems; ActionRecorderTests holds it to openapi.yaml.
+    static let entriesLimit = 2000
+
+    /// Entries appended in consecutive calls of at most `entriesLimit`, as
+    /// addEntry names each; the server ranks each call's itself, after its
+    /// last entry, as `entries` already are. More than `touchedLimit` go as one call.
+    func addEntries(as profile: UID, to playlist: UID, _ entries: [PlaylistEntryInput]) async throws {
+        let size = entries.count > Self.touchedLimit ? entries.count : Self.entriesLimit
+        for start in stride(from: 0, to: entries.count, by: size) {
+            try await addBatch(as: profile, to: playlist, Array(entries[start..<min(start + size, entries.count)]))
+        }
+    }
+
+    private func addBatch(as profile: UID, to playlist: UID, _ entries: [PlaylistEntryInput]) async throws {
+        let sent = entries.map { entry in
+            var entry = entry
+            entry.rank = nil
+            return entry
+        }
+        try await act(
+            as: profile, touching: try Self.touched(entries),
+            call: { client, _ in
+                _ = try await client.addPlaylistEntries(
+                    path: .init(profileId: profile, playlistId: playlist), body: .json(.init(entries: sent)))
+            },
+            apply: { db, at in try Self.insert(db, entries, in: playlist, by: profile, at) })
+    }
+
+    private static func touched(_ entries: [PlaylistEntryInput]) throws -> [Components.Schemas.SyncTouched] {
+        try entries.compactMap(\.id).map { try .row("playlist_entry", $0) }
+    }
+
+    private static func insert(
+        _ db: Database, _ entries: [PlaylistEntryInput], in playlist: UID, by profile: UID, _ at: Date
+    ) throws {
+        for entry in entries {
+            try db.execute(
+                sql: """
+                    INSERT INTO playlist_entry(id, playlist_id, item_id, collection_id, edition_id, rank, added_at,
+                        created_at, modified_at, created_by, modified_by)
+                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?7, ?8, ?8)
+                    """,
+                arguments: [
+                    entry.id, playlist, entry.itemId, entry.collectionId, entry.editionId, entry.rank, ms(at), profile,
+                ])
+        }
+    }
+
+    func renamePlaylist(as profile: UID, _ id: UID, name: String, kind: PlaylistKind) async throws {
         try await act(
             as: profile, touching: [try .row("playlist", id)],
             call: { client, _ in
@@ -13,8 +91,8 @@ extension ActionQueue {
             },
             apply: { db, at in
                 try db.execute(
-                    sql: "UPDATE playlist SET name = ?, kind = ?, updated_at = ? WHERE id = ?",
-                    arguments: [name, kind.rawValue, Self.ms(at), id])
+                    sql: "UPDATE playlist SET name = ?, kind = ?, modified_at = ?, modified_by = ? WHERE id = ?",
+                    arguments: [name, kind.rawValue, Self.ms(at), profile, id])
             })
     }
 
@@ -22,7 +100,7 @@ extension ActionQueue {
     /// server refuses. Its entries, shares and cover stay until the server's
     /// tombstones arrive: nothing reads them without their playlist, and a
     /// rejection restores the playlist with them.
-    func deletePlaylist(as profile: Int64, _ id: Int64) async throws {
+    func deletePlaylist(as profile: UID, _ id: UID) async throws {
         try await act(
             as: profile, touching: [try .row("playlist", id)],
             call: { client, _ in
@@ -43,7 +121,7 @@ extension ActionQueue {
     }
 
     /// Gives the entry `rank`, which places it among the others.
-    func rankEntry(as profile: Int64, _ entry: PlaylistEntry, rank: String) async throws {
+    func rankEntry(as profile: UID, _ entry: PlaylistEntry, rank: String) async throws {
         try await act(
             as: profile, touching: [try .row("playlist_entry", entry.id)],
             call: { client, _ in
@@ -51,12 +129,14 @@ extension ActionQueue {
                     path: .init(profileId: profile, playlistId: entry.playlistId, entryId: entry.id),
                     body: .json(.init(itemId: entry.itemId, collectionId: entry.collectionId, rank: rank)))
             },
-            apply: { db, _ in
-                try db.execute(sql: "UPDATE playlist_entry SET rank = ? WHERE id = ?", arguments: [rank, entry.id])
+            apply: { db, at in
+                try db.execute(
+                    sql: "UPDATE playlist_entry SET rank = ?, modified_at = ?, modified_by = ? WHERE id = ?",
+                    arguments: [rank, Self.ms(at), profile, entry.id])
             })
     }
 
-    func removeEntry(as profile: Int64, _ entry: PlaylistEntry) async throws {
+    func removeEntry(as profile: UID, _ entry: PlaylistEntry) async throws {
         try await act(
             as: profile, touching: [try .row("playlist_entry", entry.id)],
             call: { client, _ in
@@ -68,7 +148,7 @@ extension ActionQueue {
 
     /// Creates, replaces or deletes the playlist's share with a profile, as `from` and `to` differ; nil is none.
     func share(
-        as profile: Int64, _ playlist: Int64, with account: Int64, from: PlaylistShareAccess?, to: PlaylistShareAccess?
+        as profile: UID, _ playlist: UID, with account: UID, from: PlaylistShareAccess?, to: PlaylistShareAccess?
     ) async throws {
         try await act(
             as: profile, touching: [try .row("playlist_share", playlist, account)],
@@ -95,7 +175,7 @@ extension ActionQueue {
 
     /// share(as:_:with:from:to:) for everyone in a household.
     func share(
-        as profile: Int64, _ playlist: Int64, withHousehold household: Int64, from: PlaylistShareAccess?,
+        as profile: UID, _ playlist: UID, withHousehold household: UID, from: PlaylistShareAccess?,
         to: PlaylistShareAccess?
     ) async throws {
         try await act(
@@ -123,7 +203,7 @@ extension ActionQueue {
 
     /// `share` names the table and the column of whom it reaches.
     private static func share(
-        _ db: Database, _ share: (table: String, column: String), _ key: (playlist: Int64, whom: Int64),
+        _ db: Database, _ share: (table: String, column: String), _ key: (playlist: UID, whom: UID),
         _ access: PlaylistShareAccess?, _ at: Date
     ) throws {
         guard let access else {
@@ -140,20 +220,13 @@ extension ActionQueue {
     }
 }
 
-extension Components.Schemas.SyncTouched {
-    /// A replica row by its integer key parts, in primary-key order.
-    static func row(_ table: String, _ key: Int64...) throws -> Self {
-        .init(table: table, key: try key.map { try .init(unvalidatedValue: Int($0)) })
-    }
-}
-
 extension PlaylistRows {
     /// A rank for position `at` among the playlist's entries other than
     /// `except`, as the server's rankAt: past the end is last, and no key
     /// sorts between two equal ranks, so a place between them lands after both.
-    static func rank(_ db: Database, playlist: Int64, except: Int64, at position: Int) throws -> String {
+    static func rank(_ db: Database, playlist: UID, except: UID?, at position: Int) throws -> String {
         let ranks = try String.fetchAll(
-            db, sql: "SELECT rank FROM playlist_entry WHERE playlist_id = ? AND id != ? ORDER BY rank, id",
+            db, sql: "SELECT rank FROM playlist_entry WHERE playlist_id = ? AND id IS NOT ? ORDER BY rank, id",
             arguments: [playlist, except])
         let at = min(max(0, position), ranks.count)
         let lower = at > 0 ? ranks[at - 1] : nil

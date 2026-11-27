@@ -8,21 +8,23 @@ struct OfflineShelf: Codable, Sendable {
     var art: Set<String> = []
 }
 
-/// An artwork file's name: `item-12-poster` or `collection-3-backdrop`.
+/// An artwork file's name: `item-<id>-poster` or `collection-<id>-backdrop`.
 struct ArtKey: Equatable {
-    let id: Int64
+    let id: UID
     let kind: ArtworkStore.Kind
     let collection: Bool
 
-    init(id: Int64, kind: ArtworkStore.Kind, collection: Bool = false) {
+    init(id: UID, kind: ArtworkStore.Kind, collection: Bool = false) {
         self.id = id
         self.kind = kind
         self.collection = collection
     }
 
     init?(file: String) {
+        // The id's own four dashes split it in five.
         let parts = file.split(separator: "-")
-        guard parts.count == 3, let id = Int64(parts[1]), let kind = ArtworkStore.Kind(rawValue: String(parts[2]))
+        guard parts.count == 7, let id = UID(parts[1...5].joined(separator: "-")),
+            let kind = ArtworkStore.Kind(rawValue: String(parts[6]))
         else { return nil }
         self.init(id: id, kind: kind, collection: parts[0] == "collection")
     }

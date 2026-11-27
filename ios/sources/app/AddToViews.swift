@@ -5,12 +5,12 @@ import SwiftUI
 /// What an Add to playlist or Add to station sheet adds, and of which kind.
 struct PlaylistTarget: Identifiable {
     let id = UUID()
-    let itemIds: [Int64]
+    let itemIds: [UID]
     let kind: PlaylistKind
     /// The edition chosen on details; nil asks the server, which may ask the adult.
-    var editionId: Int64?
+    var editionId: UID?
     /// A collection, added as one entry of a movies playlist or station.
-    var collectionId: Int64?
+    var collectionId: UID?
     /// Into one of the profile's stations of `kind`, whose playlist holds what it plays.
     var station = false
 }
@@ -25,10 +25,10 @@ extension View {
 struct AddToButtons: View {
     @Environment(AppModel.self) private var app
     @Binding var target: PlaylistTarget?
-    let itemIds: [Int64]
+    let itemIds: [UID]
     let kind: PlaylistKind
-    var editionId: Int64?
-    var collectionId: Int64?
+    var editionId: UID?
+    var collectionId: UID?
 
     var body: some View {
         if app.activeProfile?.kind == .adult {
@@ -141,7 +141,7 @@ struct AddToPlaylistSheet: View {
 
     /// Whether everything went in; a title of several editions without one
     /// chosen stops here for the question.
-    private func add(to playlistId: Int64) async -> Bool {
+    private func add(to playlistId: UID) async -> Bool {
         // A selection goes in one request, each title of several editions as its default.
         if target.itemIds.count > 1 {
             return await services.playlists.add(target.itemIds, to: playlistId)

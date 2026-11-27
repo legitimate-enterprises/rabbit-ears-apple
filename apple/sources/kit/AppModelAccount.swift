@@ -43,7 +43,7 @@ extension AppModel {
                     literal: "SELECT id, color, hide_kids_content, no_autoplay FROM account WHERE id IN \(ids)"
                 ).fetchAll(db).map {
                     (
-                        id: $0["id"] as Int64, color: $0["color"] as String?,
+                        id: $0["id"] as UID, color: $0["color"] as String?,
                         hide: $0["hide_kids_content"] as Bool? ?? false,
                         stopped: $0["no_autoplay"] as Bool? ?? false
                     )
@@ -55,8 +55,7 @@ extension AppModel {
             guard let row = settings[profile.id] else { return }
             // As the server's ShownColor: none of its own wears the palette's for its id.
             profile.color =
-                row.color.flatMap { $0.isEmpty ? nil : $0 }
-                ?? ProfilePalette.colors[Int(profile.id % Int64(ProfilePalette.colors.count))]
+                row.color.flatMap { $0.isEmpty ? nil : $0 } ?? ProfilePalette.color(for: profile.id)
             profile.autoplay = !row.stopped
             if profile.kind == .adult { profile.hideKidsContent = row.hide }
         }

@@ -1,4 +1,5 @@
 import GRDB
+import RabbitEarsAPI
 
 /// Search over the replica as the server's search matches: a case-insensitive
 /// substring of a movie's or show's parsed or shown title, or of an
@@ -10,9 +11,11 @@ import GRDB
 public enum ReplicaSearch {
     /// Trigrams match any substring of three characters or more.
     private static let shortest = 3
+    /// Changed ids re-indexed per statement: each scans the unindexed id column once.
+    private static let chunk = 500
 
     private static let indexItems = """
-        INSERT INTO fts_item(rowid, parsed_title, title)
+        INSERT INTO fts_item(item_id, parsed_title, title)
         SELECT i.id, i.parsed_title, s.title FROM item i LEFT JOIN item_shown s ON s.item_id = i.id
         WHERE i.kind IN ('movie', 'show', 'episode')
         """
@@ -20,12 +23,12 @@ public enum ReplicaSearch {
     public static func build(in db: Database) throws {
         try db.execute(
             sql: """
-                CREATE VIRTUAL TABLE fts_item USING fts5(parsed_title, title, tokenize = 'trigram',
-                    content = '', contentless_delete = 1);
-                CREATE VIRTUAL TABLE fts_person USING fts5(name, tokenize = 'trigram',
-                    content = '', contentless_delete = 1);
+                CREATE VIRTUAL TABLE fts_item USING fts5(item_id UNINDEXED, parsed_title, title,
+                    tokenize = 'trigram', content = '', contentless_delete = 1, contentless_unindexed = 1);
+                CREATE VIRTUAL TABLE fts_person USING fts5(person_id UNINDEXED, name,
+                    tokenize = 'trigram', content = '', contentless_delete = 1, contentless_unindexed = 1);
                 \(indexItems);
-                INSERT INTO fts_person(rowid, name) SELECT id, name FROM person;
+                \(indexPeople);
                 """)
     }
 
@@ -36,25 +39,33 @@ public enum ReplicaSearch {
         if changed["server_info"] != nil {
             try db.execute(sql: "DELETE FROM fts_item; \(indexItems)")
         } else {
-            for id in Set((changed["item"] ?? []) + (changed["item_metadata"] ?? [])) {
-                try db.execute(sql: "DELETE FROM fts_item WHERE rowid = ?", arguments: [id])
-                try db.execute(sql: "\(indexItems) AND i.id = ?", arguments: [id])
+            for ids in chunks(Set((changed["item"] ?? []) + (changed["item_metadata"] ?? []))) {
+                let list = databaseQuestionMarks(count: ids.count)
+                try db.execute(sql: "DELETE FROM fts_item WHERE item_id IN (\(list))", arguments: .init(ids))
+                try db.execute(sql: "\(indexItems) AND i.id IN (\(list))", arguments: .init(ids))
             }
         }
-        for id in Set(changed["person"] ?? []) {
-            try db.execute(sql: "DELETE FROM fts_person WHERE rowid = ?", arguments: [id])
-            try db.execute(
-                sql: "INSERT INTO fts_person(rowid, name) SELECT id, name FROM person WHERE id = ?", arguments: [id])
+        for ids in chunks(Set(changed["person"] ?? [])) {
+            let list = databaseQuestionMarks(count: ids.count)
+            try db.execute(sql: "DELETE FROM fts_person WHERE person_id IN (\(list))", arguments: .init(ids))
+            try db.execute(sql: "\(indexPeople) WHERE id IN (\(list))", arguments: .init(ids))
         }
     }
 
+    private static let indexPeople = "INSERT INTO fts_person(person_id, name) SELECT id, name FROM person"
+
+    private static func chunks(_ ids: Set<DatabaseValue>) -> [[DatabaseValue]] {
+        let ids = Array(ids)
+        return stride(from: 0, to: ids.count, by: chunk).map { Array(ids[$0..<min($0 + chunk, ids.count)]) }
+    }
+
     /// Movies, shows and episodes, in the server's order for search.
-    public static func items(matching query: String, in db: Database) throws -> [Int64] {
-        try Int64.fetchAll(
+    public static func items(matching query: String, in db: Database) throws -> [UID] {
+        try UID.fetchAll(
             db,
             sql: """
                 SELECT i.id FROM item i LEFT JOIN item_shown s ON s.item_id = i.id
-                WHERE \(candidates("fts_item", "i.id", query)) (:q = ''
+                WHERE \(candidates("fts_item", "item_id", "i.id", query)) (:q = ''
                     OR i.kind IN ('movie', 'show') AND instr(lower(i.parsed_title), lower(:q)) > 0
                     OR i.kind IN ('movie', 'show', 'episode') AND instr(lower(s.title), lower(:q)) > 0)
                 ORDER BY NOT (instr(lower(i.parsed_title), lower(:q)) = 1
@@ -63,20 +74,20 @@ public enum ReplicaSearch {
                 """, arguments: arguments(query))
     }
 
-    public static func people(matching query: String, in db: Database) throws -> [Int64] {
-        try Int64.fetchAll(
+    public static func people(matching query: String, in db: Database) throws -> [UID] {
+        try UID.fetchAll(
             db,
             sql: """
                 SELECT p.id FROM person p
-                WHERE \(candidates("fts_person", "p.id", query)) instr(lower(p.name), lower(:q)) > 0
+                WHERE \(candidates("fts_person", "person_id", "p.id", query)) instr(lower(p.name), lower(:q)) > 0
                 ORDER BY instr(lower(p.name), lower(:q)) != 1, p.name COLLATE NOCASE, p.id
                 """, arguments: arguments(query))
     }
 
     /// The rows `table` finds for the query, as a condition on `id`; none
     /// for a query too short to hold a trigram, which every row then meets.
-    private static func candidates(_ table: String, _ id: String, _ query: String) -> String {
-        query.count < shortest ? "" : "\(id) IN (SELECT rowid FROM \(table) WHERE \(table) MATCH :match) AND"
+    private static func candidates(_ table: String, _ key: String, _ id: String, _ query: String) -> String {
+        query.count < shortest ? "" : "\(id) IN (SELECT \(key) FROM \(table) WHERE \(table) MATCH :match) AND"
     }
 
     /// The query, and as `match` one FTS5 string, which a trigram table reads as a substring.

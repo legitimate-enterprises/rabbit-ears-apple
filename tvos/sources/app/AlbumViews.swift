@@ -6,7 +6,7 @@ import SwiftUI
 struct ArtistView: View {
     @Environment(AppModel.self) private var app
     @Environment(MusicPlayer.self) private var player
-    let id: Int64
+    let id: UID
     @State private var detail: ArtistDetail?
     @State private var loaded = false
 
@@ -118,7 +118,7 @@ struct AlbumView: View {
     @Environment(AppModel.self) private var app
     @Environment(Browser.self) private var browser
     @Environment(MusicPlayer.self) private var player
-    let id: Int64
+    let id: UID
     @State private var detail: AlbumDetail?
     @State private var loaded = false
 

@@ -54,7 +54,7 @@ struct PlaylistView: View {
     @Environment(PlaylistsModel.self) private var playlists
     @Environment(Browser.self) private var browser
     @Environment(MusicPlayer.self) private var player
-    let id: Int64
+    let id: UID
     @State private var entries: [PlaylistEntry]?
 
     var body: some View {

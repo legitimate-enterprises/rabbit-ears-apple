@@ -204,9 +204,10 @@ public final class SyncEngine {
         var changed: [String: [DatabaseValue]] = [:]
         for table in page.tables ?? [] {
             let (columns, key) = try shape(table.name, in: db)
-            guard Set(table.columns).isSubset(of: columns), let first = table.columns.firstIndex(of: key[0]),
+            guard Set(table.columns).isSubset(of: columns.keys), let first = table.columns.firstIndex(of: key[0]),
                 Set(key).isSubset(of: table.columns)
             else { throw Failure.malformed("columns \(table.columns) of \(table.name)") }
+            let declared = table.columns.compactMap { columns[$0] }
             let rest = table.columns.filter { !key.contains($0) }
             let update =
                 rest.isEmpty
@@ -218,19 +219,22 @@ public final class SyncEngine {
                     + "ON CONFLICT (\(key.map(quote).joined(separator: ", "))) DO \(update)")
             for row in table.rows {
                 guard row.count == table.columns.count else { throw Failure.malformed("a row of \(table.name)") }
-                try statement.execute(arguments: StatementArguments(try row.map { try $0.databaseValue() }))
-                changed[table.name, default: []].append(try row[first].databaseValue())
+                let values = try zip(row, declared).map { try $0.databaseValue(declared: $1) }
+                try statement.execute(arguments: StatementArguments(values))
+                changed[table.name, default: []].append(values[first])
             }
         }
         for tombstones in page.tombstones ?? [] {
-            let (_, key) = try shape(tombstones.table, in: db)
+            let (columns, key) = try shape(tombstones.table, in: db)
+            let declared = key.compactMap { columns[$0] }
             let statement = try db.cachedStatement(
                 sql: "DELETE FROM \(quote(tombstones.table)) WHERE "
                     + key.map { "\(quote($0)) = ?" }.joined(separator: " AND "))
             for parts in tombstones.keys {
                 guard parts.count == key.count else { throw Failure.malformed("a key of \(tombstones.table)") }
-                try statement.execute(arguments: StatementArguments(try parts.map { try $0.databaseValue() }))
-                changed[tombstones.table, default: []].append(try parts[0].databaseValue())
+                let values = try zip(parts, declared).map { try $0.databaseValue(declared: $1) }
+                try statement.execute(arguments: StatementArguments(values))
+                changed[tombstones.table, default: []].append(values[0])
             }
         }
         try ReplicaSearch.update(in: db, changed: changed)
@@ -238,15 +242,17 @@ public final class SyncEngine {
         return true
     }
 
-    /// A synced table's columns and its primary key in key order, as the
-    /// replica file declares them. Views, the queue's tables and the
-    /// replica's own bookkeeping have no key here, so a page cannot write them.
-    nonisolated private static func shape(_ table: String, in db: Database) throws -> (Set<String>, [String]) {
-        let columns = try Row.fetchAll(db, sql: "SELECT name, pk FROM pragma_table_info(?, 'main')", arguments: [table])
-            .map { (name: $0["name"] as String, pk: $0["pk"] as Int) }
+    /// A synced table's columns with their declared types, and its primary
+    /// key in key order, as the replica file declares them. Views, the
+    /// queue's tables and the replica's own bookkeeping have no key here, so
+    /// a page cannot write them.
+    nonisolated private static func shape(_ table: String, in db: Database) throws -> ([String: String], [String]) {
+        let columns = try Row.fetchAll(
+            db, sql: "SELECT name, pk, type FROM pragma_table_info(?, 'main')", arguments: [table]
+        ).map { (name: $0["name"] as String, pk: $0["pk"] as Int, type: $0["type"] as String) }
         let key = columns.filter { $0.pk > 0 }.sorted { $0.pk < $1.pk }.map(\.name)
         guard !key.isEmpty else { throw Failure.malformed("table \(table)") }
-        return (Set(columns.map(\.name)), key)
+        return (Dictionary(uniqueKeysWithValues: columns.map { ($0.name, $0.type) }), key)
     }
 
     nonisolated private static func quote(_ name: String) -> String {
@@ -255,6 +261,20 @@ public final class SyncEngine {
 }
 
 extension Components.Schemas.SyncScalar {
+    /// The SQLite value of a cell of a column declared `declared`. Every
+    /// BLOB column holds an id, which arrives as its string and is stored
+    /// as its 16 bytes: a text id there would match no join.
+    func databaseValue(declared: String) throws -> DatabaseValue {
+        guard declared.caseInsensitiveCompare("BLOB") == .orderedSame else { return try databaseValue() }
+        switch value {
+        case nil: return .null
+        case let text as String:
+            guard let id = UID(text) else { throw SyncEngine.Failure.malformed("an id \(text)") }
+            return id.databaseValue
+        default: throw SyncEngine.Failure.malformed("an id that is not a string")
+        }
+    }
+
     /// The SQLite value of a JSON cell: an integer, a real, text or null.
     /// The decoder tries Bool before Int, so a boolean arrives as one and is refused.
     func databaseValue() throws -> DatabaseValue {

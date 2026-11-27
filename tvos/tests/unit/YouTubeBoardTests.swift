@@ -19,8 +19,10 @@ final class YouTubeBoardTests: XCTestCase {
             try db.account(1, "Avery")
             try db.channel(60, "Workbench Weekly")
             try db.channel(61, "Clockwork Corner")
-            for id in Int64(100)...200 {
-                try db.video(id, "Video \(id)", channel: 60, durationMs: id * 1000, added: "2026-01-01T00:00:00Z")
+            for index in 100...200 {
+                try db.video(
+                    .n(index), "Video \(index)", channel: 60, durationMs: Int64(index) * 1000,
+                    added: "2026-01-01T00:00:00Z")
             }
             try db.video(300, "Gears", channel: 61, published: "2026-11-12T00:00:00Z")
             try db.watch(300, for: 1, watched: true)

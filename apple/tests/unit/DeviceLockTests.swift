@@ -17,8 +17,8 @@ final class DeviceLockTests: XCTestCase {
             "POST /auth/sign-in": (.created, Fixtures.signedIn),
             "GET /me": (.ok, Fixtures.me),
             "POST /me/lock": (.noContent, ""),
-            "POST /profiles/1/unlock": (.noContent, ""),
-            "POST /profiles/2/unlock": (.noContent, ""),
+            "POST /profiles/\(UID.n(1))/unlock": (.noContent, ""),
+            "POST /profiles/\(UID.n(2))/unlock": (.noContent, ""),
         ])
         model = AppModel(
             store: store, deviceName: "Test Mac", transport: transport, replicaDirectory: Fixtures.replicas)
@@ -94,13 +94,13 @@ final class DeviceLockTests: XCTestCase {
         try await model.choose(try XCTUnwrap(model.profiles.first))
         XCTAssertEqual(model.phase, .browsing)
         XCTAssertFalse(model.locked)
-        XCTAssertNil(transport.json(.post, "/profiles/1/unlock")?["pin"])
+        XCTAssertNil(transport.json(.post, "/profiles/\(UID.n(1))/unlock")?["pin"])
         await model.switchProfile()
         try await model.choose(try XCTUnwrap(model.profiles.last), pin: "1234")
         XCTAssertEqual(model.phase, .browsing)
         XCTAssertEqual(model.activeProfile?.id, 2)
         XCTAssertFalse(model.locked)
-        XCTAssertEqual(transport.json(.post, "/profiles/2/unlock")?["pin"] as? String, "1234")
+        XCTAssertEqual(transport.json(.post, "/profiles/\(UID.n(2))/unlock")?["pin"] as? String, "1234")
     }
 
     func testAddKidAtALockedPickerUnlocksTheAdultFirstAndLocksAgainOnClose() async throws {
@@ -112,9 +112,9 @@ final class DeviceLockTests: XCTestCase {
         try await model.unlock(adult, pin: "1234")
         XCTAssertFalse(model.locked)
         XCTAssertEqual(model.phase, .choosingProfile)
-        XCTAssertEqual(transport.json(.post, "/profiles/1/unlock")?["pin"] as? String, "1234")
+        XCTAssertEqual(transport.json(.post, "/profiles/\(UID.n(1))/unlock")?["pin"] as? String, "1234")
         await model.lock()
         XCTAssertTrue(model.locked)
-        XCTAssertEqual(transport.paths(.post), ["/profiles/1/unlock", "/me/lock"])
+        XCTAssertEqual(transport.paths(.post), ["/profiles/\(UID.n(1))/unlock", "/me/lock"])
     }
 }

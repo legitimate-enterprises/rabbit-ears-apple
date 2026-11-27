@@ -10,7 +10,7 @@ public final class AVAudioOutput: AudioOutput {
     public var onPlayingChange: (() -> Void)?
     private var statusObservation: NSKeyValueObservation?
     private var endObserver: (any NSObjectProtocol)?
-    private var sessionObservers: [any NSObjectProtocol] = []
+    private let sessionObservers = ObserverTokens()
     private var playingObservation: NSKeyValueObservation?
     /// Where a seek in flight lands; see `AVPlayerOutput.seekingToMs`.
     private var seekingToMs: Int64?
@@ -23,7 +23,7 @@ public final class AVAudioOutput: AudioOutput {
             let center = NotificationCenter.default
             guard #available(iOS 27, tvOS 27, *) else {
                 // Posted only for the system's interruptions, never for the app's own deactivation.
-                sessionObservers.append(
+                sessionObservers.tokens.append(
                     center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) {
                         [weak self] note in
                         let info = note.userInfo ?? [:]
@@ -42,7 +42,7 @@ public final class AVAudioOutput: AudioOutput {
                 return
             }
             // The system deactivates the session to interrupt it; the app's own deactivation is no interruption.
-            sessionObservers.append(
+            sessionObservers.tokens.append(
                 center.addObserver(forName: AVAudioSession.didBecomeInactiveNotification, object: nil, queue: .main) {
                     [weak self] note in
                     let context =
@@ -50,7 +50,7 @@ public final class AVAudioOutput: AudioOutput {
                     guard context?.source == .system else { return }
                     MainActor.assumeIsolated { self?.onInterruption?(.began) }
                 })
-            sessionObservers.append(
+            sessionObservers.tokens.append(
                 center.addObserver(
                     forName: AVAudioSession.resumptionRecommendationNotification, object: nil, queue: .main
                 ) { [weak self] note in
@@ -60,10 +60,6 @@ public final class AVAudioOutput: AudioOutput {
                     MainActor.assumeIsolated { self?.onInterruption?(.ended(shouldResume: resume)) }
                 })
         #endif
-    }
-
-    isolated deinit {
-        sessionObservers.forEach(NotificationCenter.default.removeObserver)
     }
 
     public func load(_ url: URL) {
@@ -111,4 +107,11 @@ public final class AVAudioOutput: AudioOutput {
 
     public var isPaused: Bool { player.timeControlStatus == .paused }
     public var isPlaying: Bool { player.timeControlStatus == .playing }
+}
+
+/// Removes its notification observers when released, so an owner needs no
+/// `isolated deinit`: that aborts in swift_task_deinitOnExecutor on tvOS 26.0.
+final class ObserverTokens {
+    var tokens: [any NSObjectProtocol] = []
+    deinit { tokens.forEach(NotificationCenter.default.removeObserver) }
 }

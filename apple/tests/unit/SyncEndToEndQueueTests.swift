@@ -22,8 +22,7 @@ extension SyncEndToEndTests {
         let queue = device.queue
         let playlists = PlaylistsModel(
             client: rest, replica: device.replica, queue: queue, engine: device.engine, profileId: adult.id)
-        let collections = CollectionsModel(
-            client: rest, replica: device.replica, queue: queue, engine: device.engine, profileId: adult.id)
+        let collections = CollectionsModel(replica: device.replica, queue: queue, profileId: adult.id)
         try await queue.putWatchState(true, item: watched, as: adult.id)
         try await queue.putWatchStates(true, items: [show], as: adult.id, in: device.replica)
         try await queue.setProfilePreferences(adult.id, color: nil, hideKidsContent: nil, autoplay: false, as: adult.id)
@@ -70,11 +69,11 @@ extension SyncEndToEndTests {
     /// The replica shows the watched movie and the show's episodes watched,
     /// autoplay off and the shelf holding only `kept`; answers the episodes.
     private func assertShownAtOnce(
-        _ device: SyncDevice, watched: Int64, show: Int64, shelf: Int64, kept: Int64
-    ) async throws -> [Int64] {
+        _ device: SyncDevice, watched: UID, show: UID, shelf: UID, kept: UID
+    ) async throws -> [UID] {
         let adult = server.adult.id
         let episodes = try await device.replica.read { db in
-            try Int64.fetchAll(
+            try UID.fetchAll(
                 db, sql: "SELECT e.id FROM item e JOIN item s ON s.id = e.parent_id WHERE s.parent_id = ?",
                 arguments: [show])
         }
@@ -84,10 +83,10 @@ extension SyncEndToEndTests {
                 try Bool.fetchAll(
                     db,
                     sql: "SELECT watched FROM watch_state WHERE account_id = ? "
-                        + "AND item_id IN (SELECT value FROM json_each(?))",
-                    arguments: [adult, "\([watched] + episodes)"]),
+                        + "AND item_id IN (SELECT unhex(value, '-') FROM json_each(?))",
+                    arguments: [adult, ReplicaRows.json([watched] + episodes)]),
                 try Bool.fetchOne(db, sql: "SELECT no_autoplay FROM account WHERE id = ?", arguments: [adult]),
-                try Int64.fetchAll(
+                try UID.fetchAll(
                     db, sql: "SELECT item_id FROM collection_movie WHERE collection_id = ?", arguments: [shelf])
             )
         }
@@ -98,7 +97,7 @@ extension SyncEndToEndTests {
     }
 
     /// A playlist of four movies and a collection of one, made online.
-    private func queuedLists() async throws -> (playlist: Int64, collection: Int64) {
+    private func queuedLists() async throws -> (playlist: UID, collection: UID) {
         let (adult, rest) = (server.adult.id, server.adult.rest)
         let playlist = try await rest.createPlaylist(
             path: .init(profileId: adult), body: .json(.init(name: "Queued", kind: .movies))
@@ -117,7 +116,7 @@ extension SyncEndToEndTests {
     }
 
     /// The adult's watch states read are the server's, `watched` among them watched.
-    private func assertWatchStates(_ device: SyncDevice, watched: [Int64]) async throws {
+    private func assertWatchStates(_ device: SyncDevice, watched: [UID]) async throws {
         let adult = server.adult
         let states = try await Served.watchStates(adult.rest, adult.id)
         let mine = try await device.replica.read { db in
@@ -126,6 +125,88 @@ extension SyncEndToEndTests {
         }
         Parity.list(mine.sorted { $0.itemId < $1.itemId }, states.sorted { $0.itemId < $1.itemId }, "watch states")
         for id in watched { XCTAssertEqual(states.first { $0.itemId == id }?.watched, true) }
+    }
+
+    // MARK: 4a. Creates queued offline
+
+    /// A playlist with entries, a collection, and a station made and then
+    /// replaced, all while the models reach no server: each shows at once
+    /// under the id made here, and the server keeps every id it is sent.
+    func testCreatesQueuedOfflineKeepTheIdsMadeOnTheDevice() async throws {
+        let device = try device()
+        try await device.engine.catchUp()
+        let (adult, rest) = (server.adult, server.adult.rest)
+        let offline = try Client.connect(to: XCTUnwrap(URL(string: "http://127.0.0.1:1")), token: nil)
+        let (replica, queue, engine) = (device.replica, device.queue, device.engine)
+        let playlists = PlaylistsModel(
+            client: offline, replica: replica, queue: queue, engine: engine, profileId: adult.id)
+        let collections = CollectionsModel(replica: replica, queue: queue, profileId: adult.id)
+        let stations = StationsModel(client: offline, replica: replica, queue: queue, profileId: adult.id)
+
+        let made = await playlists.create(name: "Made offline", kind: .movies)
+        let playlist = try XCTUnwrap(made, "createPlaylist")
+        let titles = [try server.movie("Aurora"), try server.movie("Golden Hour")]
+        let added = await playlists.add(titles, to: playlist.id)
+        XCTAssertTrue(added, "addPlaylistEntries")
+        let read = await playlists.entries(of: playlist.id)
+        let entries = try XCTUnwrap(read)
+        XCTAssertEqual(entries.map(\.itemId), titles)
+        let shelf = await collections.create(name: "Shelf made offline")
+        let collection = try XCTUnwrap(shelf, "createCollection")
+        var form = StationForm(kind: .movies)
+        (form.name, form.schedule, form.days) = ("Offline evenings", .chosen, [.monday, .friday])
+        form.times = [.init(from: "18:00", to: "20:00")]
+        let first = await stations.save(form)
+        let station = try XCTUnwrap(first, "createStation")
+        form = StationForm(station)
+        form.name = "Offline late evenings"
+        form.times = station.times + [.init(from: "21:00", to: "23:00")]
+        let second = await stations.save(form, as: station.id)
+        let replaced = try XCTUnwrap(second, "replaceStation")
+        XCTAssertNil(playlists.error)
+        XCTAssertNil(collections.error)
+        XCTAssertEqual(replaced.id, station.id)
+        XCTAssertEqual(replaced.playlistId, station.playlistId, "the station keeps its own playlist")
+        XCTAssertEqual(replaced.times.first?.id, station.times.first?.id, "an unchanged range keeps its id")
+        let times = replaced.times.compactMap(\.id)
+        XCTAssertEqual(Set(times).count, 2, "every range has an id of its own")
+        let unsent = try await device.queued()
+        XCTAssertEqual(unsent, 5, "nothing sent")
+
+        let flushed = await queue.flush()
+        XCTAssertEqual(flushed, .done)
+        XCTAssertEqual(device.notices.all, [], "the server took every create")
+        try await engine.catchUp()
+
+        let servedPlaylist = try await rest.getPlaylist(path: .init(profileId: adult.id, playlistId: playlist.id))
+            .ok.body.json
+        await playlists.load()
+        Parity.value(playlists.playlists.first { $0.id == playlist.id }, Optional(servedPlaylist), "the playlist")
+        let servedEntries = try await rest.listPlaylistEntries(
+            path: .init(profileId: adult.id, playlistId: playlist.id)
+        ).ok.body.json.items
+        XCTAssertEqual(servedEntries.map(\.id), entries.map(\.id), "the entries' ids")
+        Parity.list(await playlists.entries(of: playlist.id) ?? [], servedEntries, "the entries")
+        let servedCollection = try await rest.getCollection(path: .init(collectionId: collection.id)).ok.body.json
+        await collections.load()
+        Parity.value(
+            collections.collections.first { $0.id == collection.id }, Optional(servedCollection), "the collection")
+        try await assertStationServed(station, times: times, in: stations)
+        let left = try await device.queued()
+        XCTAssertEqual(left, 0)
+    }
+
+    /// The replaced station the server serves is the one read here, under the ids made on the device.
+    private func assertStationServed(_ station: Station, times: [UID], in stations: StationsModel) async throws {
+        var servedStation = try await server.adult.rest.getStation(path: .init(stationId: station.id)).ok.body.json
+        XCTAssertEqual(servedStation.name, "Offline late evenings")
+        XCTAssertEqual(servedStation.playlistId, station.playlistId, "the own playlist's id")
+        XCTAssertEqual(servedStation.times.compactMap(\.id), times, "the ranges' ids")
+        let listed = await stations.list()
+        var readStation = try XCTUnwrap(listed?.first { $0.id == station.id })
+        // The live position is each answer's own instant's.
+        (readStation.onAir.positionMs, servedStation.onAir.positionMs) = (nil, nil)
+        Parity.value(readStation, servedStation, "the station")
     }
 
     // MARK: 5. A rejection heals

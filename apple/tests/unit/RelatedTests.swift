@@ -39,7 +39,7 @@ final class RelatedTests: XCTestCase {
         }
     }
 
-    private func model(_ replica: Replica, _ profile: Int64 = 1) -> CatalogModel {
+    private func model(_ replica: Replica, _ profile: UID = 1) -> CatalogModel {
         CatalogModel(client: ServerEndpoint.default.client(token: "t"), replica: replica, profileId: profile)
     }
 
@@ -73,16 +73,16 @@ final class RelatedTests: XCTestCase {
     }
 
     func testACollectionOfMoreThanTenListsTheTenNearestTheFilm() async throws {
-        let movies = Array(Int64(100)...114)
+        let movies = (100...114).map(UID.n)
         let replica = try library { db in
-            for id in movies { try db.item(id, "movie", "Film \(id)", rating: "PG") }
+            for number in 100...114 { try db.item(.n(number), "movie", "Film \(number)", rating: "PG") }
             try db.collection(9, "Marathon", movies: movies, positions: true)
         }
         let early = await model(replica).related(102)
-        XCTAssertEqual(early?.collections.first?.items.map(\.id), [100, 101] + Array(Int64(103)...110))
+        XCTAssertEqual(early?.collections.first?.items.map(\.id), [100, 101] + (103...110).map(UID.n))
         XCTAssertEqual(early?.collections.first?.collection.customOrder, true)
         let late = await model(replica).related(113)
-        XCTAssertEqual(late?.collections.first?.items.map(\.id), Array(Int64(104)...112) + [114])
+        XCTAssertEqual(late?.collections.first?.items.map(\.id), (104...112).map(UID.n) + [114])
     }
 
     func testAnEpisodesNeighborsAreItsCodesInPlayOrderAndItHasNoCollections() async throws {

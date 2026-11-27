@@ -1,3 +1,4 @@
+import RabbitEarsAPI
 import RabbitEarsKit
 import SwiftUI
 
@@ -18,7 +19,11 @@ enum Theme {
     static let safeArea = EdgeInsets(top: 60, leading: 80, bottom: 60, trailing: 80)
 
     /// A person without a headshot, in one of the profile colors.
-    static func placeholder(_ id: Int64) -> Color { Color(hex: ProfilePalette.placeholder(id)) }
+    static func placeholder(_ id: UID) -> Color { Color(hex: ProfilePalette.placeholder(id)) }
+    /// Someone known only by name, coloured by `count`.
+    static func placeholder(_ count: Int) -> Color {
+        Color(hex: ProfilePalette.rgb(ProfilePalette.colors[count % ProfilePalette.colors.count]) ?? 0)
+    }
 }
 
 /// The canvas focus treatment in place of the system's.
@@ -192,7 +197,7 @@ struct Avatar: View {
 
 /// Wide tiles show a movie's or show's backdrop and an episode's still.
 struct ArtBlock: View {
-    let id: Int64
+    let id: UID
     let kind: ArtworkStore.Kind
     let aspect: CGFloat
     let radius: CGFloat
@@ -210,7 +215,7 @@ struct ArtBlock: View {
 
     /// Music and YouTube art is always the poster.
     init(
-        id: Int64, aspect: CGFloat = 1, radius: CGFloat = 12, kind: ArtworkStore.Kind = .poster,
+        id: UID, aspect: CGFloat = 1, radius: CGFloat = 12, kind: ArtworkStore.Kind = .poster,
         collection: Bool = false, url: String? = nil, placeholder: PlaceholderKind? = nil
     ) {
         self.id = id

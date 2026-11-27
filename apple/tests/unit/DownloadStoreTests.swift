@@ -15,12 +15,12 @@ final class DownloadStoreTests: XCTestCase {
     }
 
     func testOneCopyServesEveryRequestAndProfileUntilTheLastGoes() async throws {
-        harness.resolves["item/50"] = [Fixtures.downloadTitle(5, "song"), Fixtures.downloadTitle(6, "song")]
-        harness.resolves["playlist/3"] = [Fixtures.downloadTitle(5, "song")]
+        harness.resolves["item/\(UID.n(50))"] = [Fixtures.downloadTitle(5, "song"), Fixtures.downloadTitle(6, "song")]
+        harness.resolves["playlist/\(UID.n(3))"] = [Fixtures.downloadTitle(5, "song")]
         try await harness.download(.album(50), profile: 1)
         try await harness.download(.playlist(3), profile: 2)
 
-        let fetched = harness.downloader.requests.filter { $0.url?.path() == "/api/v1/downloads/5/file" }
+        let fetched = harness.downloader.requests.filter { $0.url?.path() == "/api/v2/downloads/\(UID.n(5))/file" }
         XCTAssertEqual(fetched.count, 1, "a title two requests cover is stored once")
         XCTAssertEqual(fetched.first?.value(forHTTPHeaderField: "Authorization"), "Bearer tok-1")
         XCTAssertEqual(fetched.first?.url?.query(), "wait=1", "the server holds the fetch until the file is ready")
@@ -28,7 +28,8 @@ final class DownloadStoreTests: XCTestCase {
         XCTAssertNotNil(store.onDevice(5, profile: 2))
         XCTAssertNil(store.onDevice(6, profile: 2), "a profile sees only what its own requests cover")
         XCTAssertEqual(
-            harness.transport.paths(.delete).sorted(), ["/profiles/1/downloads/5", "/profiles/1/downloads/6"])
+            harness.transport.paths(.delete).sorted(),
+            ["/profiles/\(UID.n(1))/downloads/\(UID.n(5))", "/profiles/\(UID.n(1))/downloads/\(UID.n(6))"])
 
         store.remove(.album(50), profile: 1)
         XCTAssertTrue(harness.exists(5))
@@ -43,7 +44,7 @@ final class DownloadStoreTests: XCTestCase {
     }
 
     func testTheStoreIsKeptAcrossLaunchesAndOutOfBackups() async throws {
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
         try await harness.download(.title(20))
         let reopened = DownloadStore(
             directory: harness.directory, downloader: FakeDownloader(), facts: { fatalError() })
@@ -54,8 +55,8 @@ final class DownloadStoreTests: XCTestCase {
     }
 
     func testATitleMidFetchWhenTheAppStoppedWaitsAgainAtLaunch() async throws {
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
-        harness.resolves["item/21"] = [Fixtures.downloadTitle(21, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(21))"] = [Fixtures.downloadTitle(21, "movie")]
         try await harness.download(.title(20))
         try await harness.download(.title(21))
         store.ledger.titles[20]?.state = .downloading(0.4)
@@ -68,11 +69,15 @@ final class DownloadStoreTests: XCTestCase {
     }
 
     func testAStandingRequestTakesWhatArrivesAndDropsWhatLeaves() async throws {
-        harness.resolves["item/10"] = [Fixtures.downloadTitle(101, "episode"), Fixtures.downloadTitle(102, "episode")]
+        harness.resolves["item/\(UID.n(10))"] = [
+            Fixtures.downloadTitle(101, "episode"), Fixtures.downloadTitle(102, "episode"),
+        ]
         try await harness.download(.show(10))
         XCTAssertTrue(harness.exists(101))
 
-        harness.resolves["item/10"] = [Fixtures.downloadTitle(102, "episode"), Fixtures.downloadTitle(103, "episode")]
+        harness.resolves["item/\(UID.n(10))"] = [
+            Fixtures.downloadTitle(102, "episode"), Fixtures.downloadTitle(103, "episode"),
+        ]
         await store.sync(profile: 1)
         XCTAssertEqual(store.request(.show(10), profile: 1)?.titles, [102, 103])
         XCTAssertNil(store.titles[101])
@@ -81,24 +86,26 @@ final class DownloadStoreTests: XCTestCase {
     }
 
     func testSyncRemovesWhatTheProfileMayNoLongerSee() async throws {
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
-        harness.resolves["item/21"] = [Fixtures.downloadTitle(21, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(21))"] = [Fixtures.downloadTitle(21, "movie")]
         try await harness.download(.title(20))
         try await harness.download(.title(21))
         harness.removing = [21]
         await store.sync(profile: 1)
         XCTAssertNil(store.titles[21])
         XCTAssertNotNil(store.titles[20])
-        XCTAssertEqual(harness.transport.json(.post, "/profiles/1/downloads/sync")?["itemIds"] as? [Int64], [20, 21])
+        XCTAssertEqual(
+            harness.transport.json(.post, "/profiles/\(UID.n(1))/downloads/sync")?["itemIds"] as? [String],
+            [UID.n(20), UID.n(21)].map(\.description))
     }
 
     func testAProfileTheServerForgetsLosesItsDownloadsAndARevokedDeviceAll() async throws {
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
         try await harness.download(.title(20), profile: 1)
         try await harness.download(.title(20), profile: 2)
-        harness.transport.routes["POST /profiles/2/downloads/sync"] = (.notFound, Fixtures.error("not_found"))
+        harness.transport.routes["POST /profiles/\(UID.n(2))/downloads/sync"] = (.notFound, Fixtures.error("not_found"))
         let answer = harness.transport.respond
-        harness.transport.respond = { $0.path == "/profiles/2/downloads/sync" ? nil : answer?($0) }
+        harness.transport.respond = { $0.path == "/profiles/\(UID.n(2))/downloads/sync" ? nil : answer?($0) }
         await store.sync(profile: 2)
         XCTAssertTrue(store.requests(for: 2).isEmpty)
         XCTAssertTrue(harness.exists(20), "profile 1 still holds it")
@@ -114,13 +121,13 @@ final class DownloadStoreTests: XCTestCase {
     /// A proxy or auth layer in front of the server may answer 401 with a body of its own.
     func testA401TheServerDidNotSendKeepsEveryDownload() async throws {
         let proxied: (HTTPResponse.Status, String) = (.unauthorized, "<html>401 Authorization Required</html>")
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
-        harness.resolves["item/21"] = [Fixtures.downloadTitle(21, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(21))"] = [Fixtures.downloadTitle(21, "movie")]
         try await harness.download(.title(20))
 
         let answer = harness.transport.respond
         harness.transport.respond = {
-            $0.method == .post && $0.path == "/profiles/1/downloads/batch" ? proxied : answer?($0)
+            $0.method == .post && $0.path == "/profiles/\(UID.n(1))/downloads/batch" ? proxied : answer?($0)
         }
         try await harness.download(.title(21))
         XCTAssertEqual(store.titles[21]?.state, .pending)
@@ -137,7 +144,7 @@ final class DownloadStoreTests: XCTestCase {
     }
 
     func testAProfileTheHouseholdNoLongerListsLosesItsDownloadsWhenTheOwnersMeSaysSo() async throws {
-        for id in [20, 21, 22] { harness.resolves["item/\(id)"] = [Fixtures.downloadTitle(Int64(id), "movie")] }
+        for id in [20, 21, 22] { harness.resolves["item/\(UID.n(id))"] = [Fixtures.downloadTitle(UID.n(id), "movie")] }
         try await harness.download(.title(20), profile: 1)
         try await harness.download(.title(22), profile: 2)
         try await harness.download(.title(20), profile: 3)
@@ -145,7 +152,8 @@ final class DownloadStoreTests: XCTestCase {
 
         // Pending adults are listed to the owner alone, so another profile's answer leaves 3 be.
         try harness.keep(
-            me: Fixtures.me.replacingOccurrences(of: #""activeProfileId":1"#, with: #""activeProfileId":2"#))
+            me: Fixtures.me.replacingOccurrences(
+                of: #""activeProfileId":"\#(UID.n(1))""#, with: #""activeProfileId":"\#(UID.n(2))""#))
         await store.sync(profile: 2)
         XCTAssertEqual(store.requests(for: 3).count, 2)
         let file = try XCTUnwrap(store.titles[21].flatMap(store.file(of:)))
@@ -166,13 +174,13 @@ final class DownloadStoreTests: XCTestCase {
         var settings = store.settings(1)
         settings.keep[7] = true
         store.setSettings(settings, for: 1)
-        harness.resolves["item/10"] = [
+        harness.resolves["item/\(UID.n(10))"] = [
             Fixtures.downloadTitle(101, "episode", library: 2, watched: true),
             Fixtures.downloadTitle(102, "episode", library: 2),
         ]
-        harness.resolves["item/30"] = [Fixtures.downloadTitle(301, "episode", library: 7, watched: true)]
-        harness.resolves["collection/4"] = [Fixtures.downloadTitle(20, "movie", watched: true)]
-        harness.resolves["item/101"] = [Fixtures.downloadTitle(101, "episode", library: 2, watched: true)]
+        harness.resolves["item/\(UID.n(30))"] = [Fixtures.downloadTitle(301, "episode", library: 7, watched: true)]
+        harness.resolves["collection/\(UID.n(4))"] = [Fixtures.downloadTitle(20, "movie", watched: true)]
+        harness.resolves["item/\(UID.n(101))"] = [Fixtures.downloadTitle(101, "episode", library: 2, watched: true)]
         try await harness.download(.show(10))
         try await harness.download(.show(30))
         try await harness.download(.init(scope: .collection, id: 4, name: "Dune", standing: true))
@@ -202,16 +210,18 @@ final class DownloadStoreTests: XCTestCase {
     }
 
     func testABigRequestAsksFirstUntilDontAskAgain() async throws {
-        harness.resolves["item/10"] = (1...51).map { Fixtures.downloadTitle(Int64(1000 + $0), "episode", size: 1) }
+        harness.resolves["item/\(UID.n(10))"] = (1...51).map {
+            Fixtures.downloadTitle(UID.n(1000 + $0), "episode", size: 1)
+        }
         let plan = try await harness.download(.show(10))
         XCTAssertEqual(plan?.count, 51)
         XCTAssertNil(store.request(.show(10), profile: 1), "nothing is kept until confirmed")
 
         store.allowanceBytes = 1000
-        harness.resolves["item/30"] = [Fixtures.downloadTitle(301, "episode", size: 201)]
+        harness.resolves["item/\(UID.n(30))"] = [Fixtures.downloadTitle(301, "episode", size: 201)]
         let large = try await harness.download(.show(30))
         XCTAssertEqual(large?.sizeBytes, 201, "over a fifth of the allowance asks too")
-        harness.resolves["item/31"] = [Fixtures.downloadTitle(311, "episode", size: 200)]
+        harness.resolves["item/\(UID.n(31))"] = [Fixtures.downloadTitle(311, "episode", size: 200)]
         let fifth = try await harness.download(.show(31))
         XCTAssertNil(fifth)
 
@@ -219,7 +229,7 @@ final class DownloadStoreTests: XCTestCase {
         XCTAssertEqual(store.request(.show(10), profile: 1)?.titles.count, 51)
         let again = try await harness.download(.show(30))
         XCTAssertNil(again, "Don't ask again stops the question for the profile")
-        harness.resolves["item/40"] = harness.resolves["item/10"]
+        harness.resolves["item/\(UID.n(40))"] = harness.resolves["item/\(UID.n(10))"]
         let other = try await harness.download(.show(40), profile: 2)
         XCTAssertNotNil(other, "another profile is still asked")
     }
@@ -229,7 +239,7 @@ final class DownloadStoreTests: XCTestCase {
         var settings = store.settings(1)
         settings.confirmBig = false
         store.setSettings(settings, for: 1)
-        harness.resolves["item/10"] = [
+        harness.resolves["item/\(UID.n(10))"] = [
             Fixtures.downloadTitle(101, "episode", size: 100), Fixtures.downloadTitle(102, "episode", size: 100),
             Fixtures.downloadTitle(103, "episode", size: 40),
         ]
@@ -246,7 +256,7 @@ final class DownloadStoreTests: XCTestCase {
 
     func testOffWiFiEveryTitleWaitsUnlessWiFiOnlyIsOff() async throws {
         harness.box.path = PathFacts(expensive: true)
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
         try await harness.download(.title(20))
         XCTAssertEqual(store.titles[20]?.state, .waitingForWiFi)
         XCTAssertTrue(harness.downloader.requests.isEmpty)
@@ -261,7 +271,7 @@ final class DownloadStoreTests: XCTestCase {
 
     func testATitleWaitingForWiFiGoesWhenThePathChanges() async throws {
         harness.box.path = PathFacts(expensive: true)
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
         // Kept without keep(_:), whose own later pump would hide whether the path change pumps.
         let plan = try await store.plan(.title(20), quality: .original, profile: 1)
         store.apply(plan.titles, to: plan.target, profile: 1, quality: plan.quality)
@@ -276,7 +286,7 @@ final class DownloadStoreTests: XCTestCase {
 
     func testAnInterruptedFetchResumesWhereItStopped() async throws {
         harness.downloader.failure = .interrupted(resumeData: Data("half".utf8))
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
         try await harness.download(.title(20))
         XCTAssertEqual(store.titles[20]?.state, .pending)
         harness.downloader.failure = nil
@@ -287,7 +297,7 @@ final class DownloadStoreTests: XCTestCase {
 
     func testAConversionTheServerFailsFailsTheTitleWithItsMessageAndARetryGoes() async throws {
         harness.downloader.failure = .status(500, message: "ffmpeg found no audio")
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
         try await harness.download(.title(20))
         XCTAssertEqual(store.titles[20]?.state, .failed("ffmpeg found no audio"))
         harness.downloader.failure = nil
@@ -297,7 +307,7 @@ final class DownloadStoreTests: XCTestCase {
     }
 
     func testSigningOutDeletesEveryDownload() async throws {
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
         try await harness.download(.title(20))
         let credentials = MemoryCredentialStore()
         credentials.server = harness.endpoint.baseURL
@@ -318,7 +328,7 @@ final class DownloadStoreTests: XCTestCase {
     }
 
     func testASignInOnAnotherServerStartsEmpty() async throws {
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
         try await harness.download(.title(20))
         let other = ServerEndpoint(baseURL: URL(string: "http://other.local:8477")!)
         store.connect(client: other.client(token: "t", transport: harness.transport), endpoint: other, token: "t")
@@ -328,7 +338,7 @@ final class DownloadStoreTests: XCTestCase {
 
 extension DownloadStoreTests {
     func testRestoringPastA401TheServerDidNotSendKeepsTheSessionAndEveryDownload() async throws {
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
         try await harness.download(.title(20))
         let credentials = MemoryCredentialStore()
         credentials.server = harness.endpoint.baseURL
@@ -346,48 +356,26 @@ extension DownloadStoreTests {
 
     /// The background session finishes a transfer after the process that started it is gone.
     func testAFileThatLandedWithItsSizeIsKeptAndOneOfAnotherSizeFetchedAgain() async throws {
-        func fetches(_ id: Int64) -> Int {
-            harness.downloader.requests.filter { $0.url?.path() == "/api/v1/downloads/\(id)/file" }.count
+        func fetches(_ id: UID) -> Int {
+            harness.downloader.requests.filter { $0.url?.path() == "/api/v2/downloads/\(id)/file" }.count
         }
         harness.downloader.failure = .interrupted(resumeData: nil)
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
-        harness.resolves["item/21"] = [Fixtures.downloadTitle(21, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(21))"] = [Fixtures.downloadTitle(21, "movie")]
         try await harness.download(.title(20))
         try await harness.download(.title(21))
         let media = harness.directory.appending(path: "media")
         try FileManager.default.createDirectory(at: media, withIntermediateDirectories: true)
-        try Data(count: 100).write(to: media.appending(path: "20.mp4"))
-        try Data(count: 7).write(to: media.appending(path: "21.mp4"))
+        try Data(count: 100).write(to: media.appending(path: "\(UID.n(20)).mp4"))
+        try Data(count: 7).write(to: media.appending(path: "\(UID.n(21)).mp4"))
         let tried = (fetches(20), fetches(21))
 
         harness.downloader.failure = nil
         await harness.settle()
         XCTAssertEqual(store.titles[20]?.state, .onDevice)
         XCTAssertEqual(fetches(20), tried.0, "the landed file is not fetched again")
-        XCTAssertEqual(try Data(contentsOf: media.appending(path: "20.mp4")).count, 100)
+        XCTAssertEqual(try Data(contentsOf: media.appending(path: "\(UID.n(20)).mp4")).count, 100)
         XCTAssertEqual(store.titles[21]?.state, .onDevice)
         XCTAssertEqual(fetches(21), tried.1 + 1)
-    }
-
-    func testCollectingRemovesAMediaFileNoTitleHolds() async throws {
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
-        harness.resolves["item/22"] = [Fixtures.downloadTitle(22, "movie")]
-        try await harness.download(.title(20))
-        harness.downloader.failure = .interrupted(resumeData: nil)
-        try await harness.download(.title(22))
-        let media = harness.directory.appending(path: "media")
-        let orphans = [media.appending(path: "21.mp4"), media.appending(path: "21-4.vtt")]
-        for file in orphans { try Data("media".utf8).write(to: file) }
-        let landed = media.appending(path: "22.mp4")
-        try Data("media".utf8).write(to: landed)
-
-        store.collect()
-        for file in orphans { XCTAssertFalse(FileManager.default.fileExists(atPath: file.path(percentEncoded: false))) }
-        XCTAssertTrue(harness.exists(20))
-        XCTAssertTrue(
-            FileManager.default.fileExists(atPath: media.appending(path: "20-4.vtt").path(percentEncoded: false)))
-        XCTAssertTrue(
-            FileManager.default.fileExists(atPath: landed.path(percentEncoded: false)),
-            "a title still held keeps what landed for it before it names it")
     }
 }

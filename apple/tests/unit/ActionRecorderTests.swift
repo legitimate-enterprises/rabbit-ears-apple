@@ -62,7 +62,7 @@ final class ActionRecorderTests: ActionQueueCase {
         for (operation, call) in calls {
             try? await call(real, Self.now)
             let sent = try XCTUnwrap(transport.sent.last)
-            try await queue.act(as: 2, touching: [.init(table: "account", key: [2])], call: call, apply: { _, _ in })
+            try await queue.act(as: 2, touching: [try .row("account", 2)], call: call, apply: { _, _ in })
 
             let row = try await replica.read { db in
                 try Row.fetchOne(
@@ -83,6 +83,33 @@ final class ActionRecorderTests: ActionQueueCase {
         XCTAssertTrue(bodies.contains(rank))
     }
 
+    func testIdsInPathsQueriesAndBodiesAreLowercase() async throws {
+        let (profile, item, parent) = (UID.new(), UID.new(), UID.new())
+        let client = Client.connect(to: ServerEndpoint.default.baseURL, token: nil, transport: ActionRecorder())
+        func recorded(_ call: (Client) async throws -> Void) async throws -> ActionRecorder.Recorded {
+            do {
+                try await call(client)
+            } catch let error as ClientError {
+                return try XCTUnwrap(error.underlyingError as? ActionRecorder.Recorded)
+            }
+            throw ActionQueue.Failure.unsendable("no call made")
+        }
+
+        let entry = try await recorded {
+            _ = try await $0.addPlaylistEntry(
+                path: .init(profileId: profile, playlistId: item), body: .json(.init(id: parent, itemId: item)))
+        }
+        let list = try await recorded {
+            _ = try await $0.listWatchStates(path: .init(profileId: profile), query: .init(parentId: parent))
+        }
+
+        XCTAssertEqual(entry.path, "/profiles/\(profile)/playlists/\(item)/entries")
+        XCTAssertEqual(list.path, "/profiles/\(profile)/watch-state?parentId=\(parent)")
+        let body = try XCTUnwrap(
+            entry.body.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: String])
+        XCTAssertEqual(body, ["id": parent.description, "itemId": item.description])
+    }
+
     static let spec = URL(filePath: #filePath).deletingLastPathComponent().appending(path: "../../../openapi.yaml")
 
     func testTheApiVersionIsTheSpecs() throws {
@@ -97,5 +124,13 @@ final class ActionRecorderTests: ActionQueueCase {
         let touched = try XCTUnwrap(text.range(of: "\n        touched:\n", range: schema.upperBound..<text.endIndex))
         let limit = try XCTUnwrap(text[touched.upperBound...].firstMatch(of: /\n          maxItems: (\d+)\n/)?.1)
         XCTAssertEqual(ActionQueue.touchedLimit, Int(limit))
+    }
+
+    func testTheEntriesLimitIsTheSpecs() throws {
+        let text = try String(contentsOf: Self.spec, encoding: .utf8)
+        let schema = try XCTUnwrap(text.range(of: "\n    PlaylistEntriesInput:\n"))
+        let entries = try XCTUnwrap(text.range(of: "\n        entries:\n", range: schema.upperBound..<text.endIndex))
+        let limit = try XCTUnwrap(text[entries.upperBound...].firstMatch(of: /\n          maxItems: (\d+)\n/)?.1)
+        XCTAssertEqual(ActionQueue.entriesLimit, Int(limit))
     }
 }

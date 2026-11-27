@@ -5,16 +5,16 @@ import RabbitEarsAPI
 public struct PlayRequest: Identifiable {
     public var id: UUID
     public let item: Item
-    public var audioTrackId: Int64?
+    public var audioTrackId: UID?
     /// Nil plays the default edition.
-    public var editionId: Int64?
+    public var editionId: UID?
     public var positionMs: Int64?
     public var together: WatchTogetherModel?
     /// The movies or tv playlist this is a row of; its end plays the next row.
     public var queue: VideoQueue?
 
     public init(
-        id: UUID = UUID(), item: Item, audioTrackId: Int64? = nil, editionId: Int64? = nil, positionMs: Int64? = nil,
+        id: UUID = UUID(), item: Item, audioTrackId: UID? = nil, editionId: UID? = nil, positionMs: Int64? = nil,
         together: WatchTogetherModel? = nil, queue: VideoQueue? = nil
     ) {
         self.id = id
@@ -43,7 +43,7 @@ extension VideoBrowser {
     /// Plays a movie or episode; a show or season plays its resume target.
     /// Without `edition` it resumes the edition the position belongs to.
     public func play(
-        _ item: Item, in catalog: Catalog, audioTrackId: Int64? = nil, edition: Int64?? = .none,
+        _ item: Item, in catalog: Catalog, audioTrackId: UID? = nil, edition: UID?? = .none,
         from positionMs: Int64? = nil, together: WatchTogetherModel? = nil
     ) {
         let target = item.kind == .show || item.kind == .season ? catalog.resumeTarget(for: item.id) : item

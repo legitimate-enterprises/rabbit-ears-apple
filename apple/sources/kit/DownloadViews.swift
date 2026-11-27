@@ -1,3 +1,4 @@
+import RabbitEarsAPI
 import SwiftUI
 
 /// A More menu's Download, as a choice of quality with the profile's
@@ -30,7 +31,7 @@ public struct DownloadMenu: View {
 /// one row whose rightmost is Downloaded, with Shared to its left and, for a
 /// collection in a hand-made order, In your order leftmost.
 public struct StatusBadges: View {
-    let id: Int64
+    let id: UID
     let scope: DownloadTarget.Scope
     let overBar: Bool
     let handOrdered: Bool
@@ -38,7 +39,7 @@ public struct StatusBadges: View {
 
     /// `overBar` lifts the row clear of a progress bar inset along the artwork's bottom.
     public init(
-        id: Int64, scope: DownloadTarget.Scope = .item, overBar: Bool = false, handOrdered: Bool = false,
+        id: UID, scope: DownloadTarget.Scope = .item, overBar: Bool = false, handOrdered: Bool = false,
         shared: Bool = false
     ) {
         self.id = id
@@ -76,7 +77,7 @@ public struct StatusBadges: View {
 /// The mark while a title, or a container's own request, is on this device for the active profile.
 struct DownloadBadge: View {
     @Environment(AppModel.self) private var app
-    let id: Int64
+    let id: UID
     let scope: DownloadTarget.Scope
 
     var body: some View {

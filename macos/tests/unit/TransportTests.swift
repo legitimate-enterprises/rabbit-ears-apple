@@ -12,7 +12,7 @@ final class TransportTests: XCTestCase {
         let transport = RoutingTransport([
             "POST /auth/sign-in": (.created, Fixtures.signedIn),
             "GET /me": (.ok, Fixtures.me),
-            "POST /profiles/1/unlock": (.noContent, ""),
+            "POST /profiles/\(UID.n(1))/unlock": (.noContent, ""),
             "GET /playback/sessions": (.ok, Fixtures.page([])),
             "POST /playback/sessions": (.created, Fixtures.audioStream(1)),
         ])
@@ -41,7 +41,8 @@ final class TransportTests: XCTestCase {
         try await settle()
         XCTAssertNil(center.onCommand, "Play on a media key must not start the album over a movie")
         XCTAssertEqual(
-            transport.queries(.get, "/playback/sessions"), ["itemId=20"], "the shared handoff gate is mounted")
+            transport.queries(.get, "/playback/sessions"), ["itemId=\(UID.n(20))"], "the shared handoff gate is mounted"
+        )
 
         browser.playing = nil
         try await settle()

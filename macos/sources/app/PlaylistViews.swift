@@ -6,12 +6,12 @@ import SwiftUI
 struct PlaylistNameRequest: Identifiable {
     let id = UUID()
     var kind = PlaylistKind.music
-    var itemId: Int64?
+    var itemId: UID?
     /// The edition chosen on details; nil asks the server, which may ask the adult.
-    var editionId: Int64?
-    var collectionId: Int64?
+    var editionId: UID?
+    var collectionId: UID?
     /// A library selection to add, in place of itemId.
-    var itemIds: [Int64] = []
+    var itemIds: [UID] = []
     var renaming: Playlist?
 }
 
@@ -61,10 +61,10 @@ struct PlaylistNameSheet: View {
 struct PlaylistMenu: View {
     @Environment(PlaylistsModel.self) private var playlists: PlaylistsModel?
     @Environment(Browser.self) private var browser
-    var itemId: Int64?
+    var itemId: UID?
     /// The edition chosen on details, added without another question.
-    var editionId: Int64?
-    var collectionId: Int64?
+    var editionId: UID?
+    var collectionId: UID?
     let kind: PlaylistKind
     /// A bordered button beside Play on a details page; a plain menu item elsewhere.
     var asButton = false
@@ -105,7 +105,7 @@ extension PlaylistsModel {
     /// Adds the item, or else the collection as one entry, to a playlist or a station's own.
     /// Whether it went in; a title of several editions without one chosen stops for the question.
     @discardableResult
-    func add(item: Int64?, edition: Int64?, collection: Int64?, to playlistId: Int64) async -> Bool {
+    func add(item: UID?, edition: UID?, collection: UID?, to playlistId: UID) async -> Bool {
         if let collection { return await add(collection: collection, to: playlistId) }
         if let item { return await add(item, to: playlistId, edition: edition) }
         return false
@@ -214,7 +214,7 @@ struct PlaylistScreen: View {
     @Environment(PlaylistsModel.self) private var playlists
     @Environment(MusicPlayer.self) private var player: MusicPlayer?
     @Environment(Browser.self) private var browser
-    let id: Int64
+    let id: UID
     @State private var entries: [PlaylistEntry]?
 
     var body: some View {
@@ -308,7 +308,7 @@ struct PlaylistScreen: View {
 /// when editable; a show, album or collection is one row.
 struct PlaylistEntryList: View {
     @Environment(PlaylistsModel.self) private var playlists
-    let playlistId: Int64
+    let playlistId: UID
     @Binding var entries: [PlaylistEntry]
     var editable = true
     /// What a row's tap plays; a station's rows play nothing.

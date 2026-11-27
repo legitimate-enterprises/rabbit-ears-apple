@@ -6,7 +6,7 @@ import SwiftUI
 /// on screen, wherever the player is.
 struct TogetherPolling: ViewModifier {
     @Environment(AppModel.self) private var app
-    let itemId: Int64
+    let itemId: UID
     @Binding var together: WatchTogetherModel?
     /// Opens the player at the shared position when the other member starts it.
     let start: (Int64, WatchTogetherModel) -> Void
@@ -24,7 +24,7 @@ struct TogetherPolling: ViewModifier {
 
 extension View {
     func watchTogether(
-        itemId: Int64, model: Binding<WatchTogetherModel?>, start: @escaping (Int64, WatchTogetherModel) -> Void
+        itemId: UID, model: Binding<WatchTogetherModel?>, start: @escaping (Int64, WatchTogetherModel) -> Void
     ) -> some View {
         modifier(TogetherPolling(itemId: itemId, together: model, start: start))
     }

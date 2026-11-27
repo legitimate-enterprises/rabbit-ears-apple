@@ -34,7 +34,7 @@ final class ServerEndpointTests: XCTestCase {
     func testResolvesServerRelativeStreamPaths() {
         let endpoint = ServerEndpoint(userInput: "https://media.example.test:9000")!
         XCTAssertEqual(
-            endpoint.resolve("/api/v1/streams/k/0/master.m3u8").absoluteString,
-            "https://media.example.test:9000/api/v1/streams/k/0/master.m3u8")
+            endpoint.resolve("/api/v2/streams/k/0/master.m3u8").absoluteString,
+            "https://media.example.test:9000/api/v2/streams/k/0/master.m3u8")
     }
 }

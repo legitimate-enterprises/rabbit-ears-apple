@@ -6,10 +6,11 @@ import XCTest
 @testable import RabbitEarsKit
 
 extension Fixtures {
-    static func collection(_ id: Int64, _ name: String, source: String = "custom", count: Int = 0) -> String {
-        let owner = source == "custom" ? #""householdId":1,"# : #""tmdbId":\#(id * 100),"overview":"Three of them.","#
-        return #"{"id":\#(id),"source":"\#(source)","name":"\#(name)","movieCount":\#(count),\#(owner)"#
-            + #""customOrder":false,"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}"#
+    static func collection(_ id: UID, _ name: String, source: String = "custom", count: Int = 0) -> String {
+        let owner =
+            source == "custom" ? #""householdId":"\#(UID.n(1))","# : #""tmdbId":600,"overview":"Three of them.","#
+        return #"{"id":"\#(id)","source":"\#(source)","name":"\#(name)","movieCount":\#(count),\#(owner)"#
+            + #""customOrder":false,"createdAt":"2026-01-01T00:00:00Z","modifiedAt":"2026-01-01T00:00:00Z"}"#
     }
 
     /// The same collection with its movies in a hand-made order.
@@ -39,7 +40,7 @@ final class CollectionsModelTests: XCTestCase {
             try db.collection(7, "Movie night")
             try db.collection(8, "Rainy days")
             try db.collection(9, "Elsewhere", household: 8)
-            for movie: Int64 in [10, 11, 12] { try db.collect(movie, in: 6) }
+            for movie: UID in [10, 11, 12] { try db.collect(movie, in: 6) }
             try db.collect(13, in: 5)
             try db.collect(13, in: 8)
             try db.collect(10, in: 9)
@@ -47,6 +48,25 @@ final class CollectionsModelTests: XCTestCase {
         addTeardownBlock { [synced] in await synced?.remove() }
         model = synced.collections()
         await model.load()
+    }
+
+    /// The spec's maxLength counts code points, so a collection's, a
+    /// playlist's and a station's name is cut to 100 of them between characters.
+    func testANameIsCutToTheServersLengthInWholeCharacters() async throws {
+        let family = "👨‍👩‍👧‍👦"
+        let name = String(repeating: family, count: 100)
+        let cut = String(repeating: family, count: 14)
+        XCTAssertEqual(family.unicodeScalars.count, 7)
+        XCTAssertEqual(name.prefix(scalars: 100), cut)
+        XCTAssertEqual("ab".prefix(scalars: 100), "ab")
+
+        let collection = await model.create(name: name)
+        XCTAssertEqual(collection?.name, cut)
+        let playlist = await synced.playlists().create(name: name, kind: .movies)
+        XCTAssertEqual(playlist?.name, cut)
+        var station = StationForm(kind: .movies)
+        station.name = name
+        XCTAssertEqual(station.input?.name, cut)
     }
 
     func testLoadsWhatTheHouseholdAndProfileMaySeeByName() async {
@@ -82,14 +102,32 @@ final class CollectionsModelTests: XCTestCase {
         XCTAssertEqual(fresh.collections.map(\.name), ["Rainy days"])
     }
 
-    func testCreateGoesToTheServerThenCatchesUp() async throws {
-        synced.transport.routes["POST /collections"] = (.created, Fixtures.collection(20, "Snow days"))
+    /// Offline, a new collection is the household's at once under the id
+    /// this device gave it, and the queued call names the same id.
+    func testACreateShowsAtOnceOfflineUnderItsClientId() async throws {
+        synced.transport.failure = URLError(.notConnectedToInternet)
         let blank = await model.create(name: "  ")
         XCTAssertNil(blank)
-        let made = await model.create(name: " Snow days ")
-        XCTAssertEqual(made?.id, 20)
-        XCTAssertEqual(synced.transport.json(.post, "/collections")?["name"] as? String, "Snow days")
-        XCTAssertTrue(synced.caughtUp)
+        let made = try await unwrapped(await model.create(name: " Snow days "))
+        XCTAssertEqual(made.name, "Snow days")
+        XCTAssertEqual(made.source, .custom)
+        XCTAssertEqual(made.householdId, 7, "the device's household")
+        XCTAssertNil(made.tmdbId)
+        XCTAssertNil(made.overview)
+        XCTAssertEqual(made.createdBy, 1)
+        XCTAssertEqual(made.modifiedBy, 1)
+        XCTAssertEqual(made.createdAt, made.modifiedAt)
+        XCTAssertEqual(model.custom.map(\.name), ["Movie night", "Rainy days", "Snow days"])
+        let stored: [UID] = try await synced.read(
+            "SELECT id FROM collection WHERE typeof(id) = 'blob' AND length(id) = 16 AND name = 'Snow days'")
+        XCTAssertEqual(stored, [made.id])
+        XCTAssertEqual(try synced.queued(), ["createCollection POST /collections"])
+        let body = try XCTUnwrap(try synced.lastBody())
+        XCTAssertEqual(body["id"] as? String, "\(made.id)")
+        XCTAssertEqual(body["name"] as? String, "Snow days")
+        XCTAssertEqual(try synced.lastTouched(), ["collection \(made.id)"])
+        XCTAssertTrue(synced.transport.sent.isEmpty, "nothing is sent until the queue flushes")
+        XCTAssertNil(model.error)
     }
 
     func testRenameAndDeleteAreQueuedAndDeleteTakesTheEntriesHoldingIt() async throws {
@@ -105,11 +143,15 @@ final class CollectionsModelTests: XCTestCase {
 
         await model.delete(rainy)
         XCTAssertEqual(model.collections.map(\.id), [6, 7])
-        XCTAssertEqual(try synced.lastTouched(), ["collection 8", "playlist_entry 30"])
-        let entries: [Int64] = try await synced.read("SELECT id FROM playlist_entry")
+        XCTAssertEqual(try synced.lastTouched(), ["collection \(UID.n(8))", "playlist_entry \(UID.n(30))"])
+        let entries: [UID] = try await synced.read("SELECT id FROM playlist_entry")
         XCTAssertEqual(entries, [31])
         let queued = try synced.queued()
-        XCTAssertEqual(queued, ["replaceCollection PUT /collections/8", "deleteCollection DELETE /collections/8"])
+        XCTAssertEqual(
+            queued,
+            [
+                "replaceCollection PUT /collections/\(UID.n(8))", "deleteCollection DELETE /collections/\(UID.n(8))",
+            ])
         XCTAssertNil(model.error)
     }
 
@@ -117,15 +159,15 @@ final class CollectionsModelTests: XCTestCase {
         let added = await model.add(movie: 10, to: 7)
         XCTAssertTrue(added)
         XCTAssertEqual(model.collections.first { $0.id == 7 }?.movieCount, 1)
-        XCTAssertEqual(try synced.lastTouched(), ["collection_movie 7 10"])
+        XCTAssertEqual(try synced.lastTouched(), ["collection_movie \(UID.n(7)) \(UID.n(10))"])
         await model.remove(movie: 10, from: 7)
         XCTAssertEqual(model.collections.first { $0.id == 7 }?.movieCount, 0)
         let queued = try synced.queued()
         XCTAssertEqual(
             queued,
             [
-                "addCollectionMovie PUT /collections/7/movies/10",
-                "removeCollectionMovie DELETE /collections/7/movies/10",
+                "addCollectionMovie PUT /collections/\(UID.n(7))/movies/\(UID.n(10))",
+                "removeCollectionMovie DELETE /collections/\(UID.n(7))/movies/\(UID.n(10))",
             ])
         XCTAssertNil(model.error)
     }
@@ -155,7 +197,7 @@ final class CollectionsModelTests: XCTestCase {
 
     func testMovingNumbersEveryMovieAndTheFlagFollowsThenAResetClearsIt() async throws {
         try await synced.replica.write { db in
-            for movie: Int64 in [10, 11, 12] { try db.collect(movie, in: 7) }
+            for movie: UID in [10, 11, 12] { try db.collect(movie, in: 7) }
         }
         await model.load()
         XCTAssertEqual(model.collections.first { $0.id == 7 }?.isHandOrdered, false)
@@ -164,9 +206,9 @@ final class CollectionsModelTests: XCTestCase {
         XCTAssertEqual(model.collections.first { $0.id == 7 }?.isHandOrdered, true)
         XCTAssertEqual(try synced.lastBody()?["position"] as? Int, 2)
         XCTAssertEqual(
-            try synced.lastTouched(), ["collection_movie 7 12", "collection_movie 7 10", "collection_movie 7 11"])
+            try synced.lastTouched(), [12, 10, 11].map { "collection_movie \(UID.n(7)) \(UID.n($0))" })
         let positions: [Int64] = try await synced.read(
-            "SELECT position FROM collection_movie WHERE collection_id = 7 ORDER BY item_id")
+            "SELECT position FROM collection_movie WHERE collection_id = \(sqlID(7)) ORDER BY item_id")
         XCTAssertEqual(positions, [0, 1, 2])
 
         let reset = await model.restoreReleaseOrder(of: 7)
@@ -176,8 +218,8 @@ final class CollectionsModelTests: XCTestCase {
         XCTAssertEqual(
             queued,
             [
-                "replaceCollectionMoviePosition PUT /collections/7/movies/12/position",
-                "resetCollectionOrder DELETE /collections/7/order",
+                "replaceCollectionMoviePosition PUT /collections/\(UID.n(7))/movies/\(UID.n(12))/position",
+                "resetCollectionOrder DELETE /collections/\(UID.n(7))/order",
             ])
         XCTAssertNil(model.error)
     }

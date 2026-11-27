@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import RabbitEarsAPI
 import XCTest
 
 @testable import RabbitEarsKit
@@ -7,7 +8,7 @@ import XCTest
 extension Database {
     /// `account` as a profile of `household`, its member there, with `color` as the server stores it.
     func member(
-        _ id: Int64, _ name: String, kind: String = "adult", filter: String = "ratings", household: Int64 = 7,
+        _ id: UID, _ name: String, kind: String = "adult", filter: String = "ratings", household: UID = 7,
         pin: Bool = false, color: String? = nil
     ) throws {
         try account(id, name, kind: kind, filter: filter)

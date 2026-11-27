@@ -18,7 +18,7 @@ extension ActiveOccasion {
 public struct OccasionShelf: Identifiable, Sendable {
     public let occasion: ActiveOccasion
     public let items: [Item]
-    public var id: Int64 { occasion.id }
+    public var id: UID { occasion.id }
     /// What the occasion is called on its own screen and in labels.
     public var name: String { occasion.name }
     /// What titles the row on Home.
@@ -38,7 +38,7 @@ public final class OccasionsModel {
     public init() {}
 
     /// A replica that cannot be read keeps what shows.
-    public func load(replica: Replica, profileId: Int64, now: Date = Date(), timeZone: TimeZone = .current) async {
+    public func load(replica: Replica, profileId: UID, now: Date = Date(), timeZone: TimeZone = .current) async {
         let day = Self.day(now, in: timeZone)
         let loaded = try? await replica.read { db in
             try Self.shelves(of: try Self.active(on: day, profileId, db), profileId, db)
@@ -51,7 +51,7 @@ public final class OccasionsModel {
     /// The first titles of each occasion the profile browses, in the order
     /// given; one left with no title but `excluding` is left out.
     nonisolated static func shelves(
-        of active: [ActiveOccasion], _ profile: Int64, _ db: Database, excluding itemId: Int64? = nil
+        of active: [ActiveOccasion], _ profile: UID, _ db: Database, excluding itemId: UID? = nil
     ) throws -> [OccasionShelf] {
         try active.map { occasion in
             // One more than a row shows, so leaving the title out still fills it.
@@ -64,7 +64,7 @@ public final class OccasionsModel {
 
     /// An occasion's titles the profile browses, as listItems pages them by title.
     nonisolated static func members(
-        _ occasion: Int64, _ profile: Int64, _ db: Database, limit: Int, offset: Int
+        _ occasion: UID, _ profile: UID, _ db: Database, limit: Int, offset: Int
     ) throws -> [Item] {
         try ReplicaRows.items(
             db,
@@ -76,20 +76,20 @@ public final class OccasionsModel {
     /// title the profile browses, `itemId` among them when given, nearest
     /// their anchor first, then by name, each titled by a random phrase.
     nonisolated static func active(
-        on day: String, _ profile: Int64, _ db: Database, holding itemId: Int64? = nil
+        on day: String, _ profile: UID, _ db: Database, holding itemId: UID? = nil
     ) throws -> [ActiveOccasion] {
         guard let date = calendarDay(day) else { return [] }
         var holidays: [String: [Date]] = [:]
         for row in try Row.fetchAll(db, sql: "SELECT key, day FROM holiday_date") {
             if let date = calendarDay(row["day"]) { holidays[row["key"], default: []].append(date) }
         }
-        var phrases: [Int64: [String]] = [:]
+        var phrases: [UID: [String]] = [:]
         for row in try Row.fetchAll(db, sql: "SELECT occasion_id, phrase FROM occasion_phrase") {
             phrases[row["occasion_id"], default: []].append(row["phrase"])
         }
         var found: [(ActiveOccasion, Int)] = []
         for row in try Row.fetchAll(db, sql: "SELECT * FROM occasion ORDER BY name, id") {
-            let id: Int64 = row["id"]
+            let id: UID = row["id"]
             let holiday = (row["holiday"] as String?).flatMap { $0.isEmpty ? nil : holidays[$0, default: []] }
             let (month, monthDay): (Int, Int) = (row["month"] ?? 0, row["day"] ?? 0)
             guard
@@ -176,7 +176,7 @@ public final class OccasionsModel {
 
 extension CatalogModel {
     /// Every title the profile browses in an occasion, a page at a time, for its own screen.
-    public func occasionMembers(_ id: Int64) -> Pager<Item> {
+    public func occasionMembers(_ id: UID) -> Pager<Item> {
         Pager { [replica, profileId] offset in
             let start = offset ?? 0
             let page = try await replica.read {
@@ -188,7 +188,7 @@ extension CatalogModel {
 
     /// A details page's rows: each occasion in season the title is in, with its other titles.
     public func occasionRows(
-        containing itemId: Int64, now: Date = Date(), timeZone: TimeZone = .current
+        containing itemId: UID, now: Date = Date(), timeZone: TimeZone = .current
     ) async -> [OccasionShelf] {
         let day = OccasionsModel.day(now, in: timeZone)
         return

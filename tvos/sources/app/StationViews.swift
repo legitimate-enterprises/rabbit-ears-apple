@@ -28,13 +28,14 @@ struct StationGlyph: View {
 }
 
 struct StationIdentity: View {
+    let id: UID
     let name: String
     var aspect: CGFloat = 16 / 9
     var imageUrl: String?
 
     var body: some View {
         if let imageUrl {
-            ArtBlock(id: 0, aspect: aspect, url: imageUrl)
+            ArtBlock(id: id, aspect: aspect, url: imageUrl)
         } else {
             drawn
         }
@@ -60,13 +61,15 @@ struct StationArt: View {
     var body: some View {
         let program = StationText.art(station.onAir)
         if station.imageUrl != nil {
-            StationIdentity(name: station.name, aspect: station.kind == .music ? 1 : 16 / 9, imageUrl: station.imageUrl)
+            StationIdentity(
+                id: station.id, name: station.name, aspect: station.kind == .music ? 1 : 16 / 9,
+                imageUrl: station.imageUrl)
         } else if let song = program?.song {
             ArtBlock(id: song.albumId, placeholder: .album)
         } else if let item = program?.item {
             ArtBlock(item: item, aspect: 16 / 9)
         } else {
-            StationIdentity(name: station.name, aspect: station.kind == .music ? 1 : 16 / 9)
+            StationIdentity(id: station.id, name: station.name, aspect: station.kind == .music ? 1 : 16 / 9)
         }
     }
 }
@@ -208,7 +211,7 @@ struct StationNowPlaying: View {
                 if let song = player.current {
                     ArtBlock(id: song.albumId, radius: 20, placeholder: .album)
                 } else {
-                    StationIdentity(name: station.name, aspect: 1, imageUrl: station.imageUrl)
+                    StationIdentity(id: station.id, name: station.name, aspect: 1, imageUrl: station.imageUrl)
                 }
             }
             .frame(width: 500).shadow(color: .black.opacity(0.5), radius: 40, y: 20)

@@ -22,11 +22,11 @@ struct SelectButton: View {
 
 extension View {
     /// In selection mode a click toggles the tile and a Shift-click takes the range from the last click.
-    func selectable(_ selection: Selection, _ id: Int64, in order: [Int64]) -> some View {
+    func selectable(_ selection: Selection, _ id: UID, in order: [UID]) -> some View {
         modifier(Selectable(selection: selection, id: id, order: order))
     }
 
-    func selectionBar(_ selection: Selection, _ kind: SelectKind, order: [Int64]) -> some View {
+    func selectionBar(_ selection: Selection, _ kind: SelectKind, order: [UID]) -> some View {
         safeAreaInset(edge: .bottom) {
             if selection.active { SelectionBar(selection: selection, kind: kind, order: order).padding(12) }
         }
@@ -35,8 +35,8 @@ extension View {
 
 private struct Selectable: ViewModifier {
     let selection: Selection
-    let id: Int64
-    let order: [Int64]
+    let id: UID
+    let order: [UID]
 
     func body(content: Content) -> some View {
         if selection.active {
@@ -76,7 +76,7 @@ private struct SelectionBar: View {
     @Environment(Browser.self) private var browser
     let selection: Selection
     let kind: SelectKind
-    let order: [Int64]
+    let order: [UID]
 
     var body: some View {
         let ids = selection.ordered(order)
@@ -136,7 +136,7 @@ private struct SelectionBar: View {
         }
     }
 
-    private func watched(_ watched: Bool, _ ids: [Int64]) async {
+    private func watched(_ watched: Bool, _ ids: [UID]) async {
         switch kind {
         case .channel, .video:
             do { try await app.youtubeModel?.setWatched(watched, items: ids) } catch {
@@ -146,7 +146,7 @@ private struct SelectionBar: View {
         }
     }
 
-    private func kids(_ on: Bool, _ ids: [Int64]) async {
+    private func kids(_ on: Bool, _ ids: [UID]) async {
         switch kind {
         case .channel:
             do { try await app.youtubeModel?.setForKids(on, channels: ids) } catch {

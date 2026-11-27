@@ -21,7 +21,7 @@ public final class MusicPlayer {
 
     private let client: Client
     private let endpoint: ServerEndpoint
-    private let profileId: Int64
+    private let profileId: UID
     private let output: any AudioOutput
     private let capabilities: any CapabilitySource
     private let activateSession: @MainActor () -> Void
@@ -37,7 +37,7 @@ public final class MusicPlayer {
     var shuffleOrder: ([AudioQueue.Entry]) -> [AudioQueue.Entry] = { $0.shuffled() }
 
     public init(
-        client: Client, endpoint: ServerEndpoint, profileId: Int64, output: any AudioOutput,
+        client: Client, endpoint: ServerEndpoint, profileId: UID, output: any AudioOutput,
         capabilities: any CapabilitySource, activateSession: @escaping @MainActor () -> Void = AudioSession.activate
     ) {
         self.client = client
@@ -75,7 +75,7 @@ public final class MusicPlayer {
 
     /// Replaces the queue and plays from `start`. Shuffled, a song picked at random plays first.
     public func play(
-        _ songs: [MusicSong], from start: Int = 0, source: String, playlistId: Int64? = nil, shuffled: Bool = false
+        _ songs: [MusicSong], from start: Int = 0, source: String, playlistId: UID? = nil, shuffled: Bool = false
     ) async {
         var queue = AudioQueue(songs, start: start, source: source, playlistId: playlistId, shuffled: shuffled)
         queue.repeatMode = self.queue.repeatMode
@@ -227,7 +227,7 @@ public final class MusicPlayer {
         // A stream fetched at home fails when home is left.
         await endpoint.confirmHome(using: client, on: capabilities.facts().path, force: endpoint.atHome)
         let event = Components.Schemas.PlaybackEvent(
-            kind: .clientFailure, positionMs: output.positionMs, reason: String(reason.prefix(500)))
+            kind: .clientFailure, positionMs: output.positionMs, reason: reason.prefix(scalars: 500))
         do {
             let update = try await client.reportPlaybackEvent(path: .init(sessionId: session), body: .json(event))
                 .ok.body.json
@@ -323,7 +323,7 @@ public final class MusicPlayer {
         await end(session, at: position)
     }
 
-    private func end(_ session: Int64, at position: Int64) async {
+    private func end(_ session: UID, at position: Int64) async {
         _ = try? await client.endPlayback(path: .init(sessionId: session), query: .init(positionMs: position))
             .noContent
     }

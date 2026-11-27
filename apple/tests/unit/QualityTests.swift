@@ -27,9 +27,9 @@ final class QualityTests: XCTestCase {
         let stream = Fixtures.stream(verdict: "video_transcode", rungs: ladder, extra: extra)
         transport = RoutingTransport([
             "POST /playback/sessions": (.created, stream),
-            "PUT /playback/sessions/7/position": (.noContent, ""),
-            "PUT /playback/sessions/7/throughput": (.ok, Fixtures.update("continue", stream)),
-            "PUT /playback/sessions/7/network": (.ok, Fixtures.update("continue", stream)),
+            "PUT /playback/sessions/\(UID.n(7))/position": (.noContent, ""),
+            "PUT /playback/sessions/\(UID.n(7))/throughput": (.ok, Fixtures.update("continue", stream)),
+            "PUT /playback/sessions/\(UID.n(7))/network": (.ok, Fixtures.update("continue", stream)),
         ])
         output = FakeOutput()
         model = PlayerModel(
@@ -88,7 +88,7 @@ final class QualityTests: XCTestCase {
         await model.start()
         output.rung = (height: 720, bitrate: 4_000_000)
         await model.tick()
-        let sent = transport.json(.put, "/playback/sessions/7/throughput")
+        let sent = transport.json(.put, "/playback/sessions/\(UID.n(7))/throughput")
         XCTAssertEqual(sent?["rungHeight"] as? Int, 720)
         XCTAssertEqual(sent?["rungBitrate"] as? Int, 4_000_000)
     }
@@ -102,18 +102,18 @@ final class QualityTests: XCTestCase {
         XCTAssertNil(first["maxBitrate"])
 
         await model.selectQuality(model.qualityOptions[2])
-        var group = try XCTUnwrap(transport.json(.put, "/playback/sessions/7/network"))
+        var group = try XCTUnwrap(transport.json(.put, "/playback/sessions/\(UID.n(7))/network"))
         XCTAssertEqual(group["auto"] as? Bool, false)
         XCTAssertEqual(group["maxBitrate"] as? Int, 8_000_000)
         XCTAssertEqual(model.qualityOptions.map(\.selected), [false, false, true, false, false])
 
         await model.selectQuality(model.qualityOptions[1])
-        group = try XCTUnwrap(transport.json(.put, "/playback/sessions/7/network"))
+        group = try XCTUnwrap(transport.json(.put, "/playback/sessions/\(UID.n(7))/network"))
         XCTAssertEqual(group["auto"] as? Bool, false)
         XCTAssertNil(group["maxBitrate"])
 
         await model.selectQuality(model.qualityOptions[0])
-        group = try XCTUnwrap(transport.json(.put, "/playback/sessions/7/network"))
+        group = try XCTUnwrap(transport.json(.put, "/playback/sessions/\(UID.n(7))/network"))
         XCTAssertEqual(group["auto"] as? Bool, true)
         XCTAssertNil(group["maxBitrate"])
     }
@@ -130,7 +130,7 @@ final class QualityTests: XCTestCase {
         await model.start()
         XCTAssertEqual(
             model.previewURL(at: 604.0)?.absoluteString,
-            "http://media.example.test:8477/api/v1/streams/k1/0/previews/60.jpg")
+            "http://media.example.test:8477/api/v2/streams/k1/0/previews/60.jpg")
     }
 
     func testNoPreviewsMeansNoPreviewURL() async {

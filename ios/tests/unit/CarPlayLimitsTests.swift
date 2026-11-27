@@ -22,7 +22,7 @@ final class CarPlayLimitsTests: XCTestCase {
 
     func testRecentStopsAtTheCarsRowsAndSections() async throws {
         transport.routes = [
-            "GET /profiles/1/music/recently-played": (
+            "GET /profiles/\(UID.n(1))/music/recently-played": (
                 .ok,
                 Fixtures.page([
                     Fixtures.recent("album", Fixtures.album(50, "In Rainbows")),
@@ -62,7 +62,7 @@ final class CarPlayLimitsTests: XCTestCase {
     func testAnAlbumShowsWhatFitsAndPlaysEverySong() async throws {
         library = try carPlay(transport) { db in
             try db.album(50, "In Rainbows", artist: 40)
-            for track in 1...3 { try db.song(Int64(track), "S\(track)", album: 50, track: track) }
+            for track in 1...3 { try db.song(.n(track), "S\(track)", album: 50, track: track) }
         }
         let list = try await library.album(50, limits(items: 2))
         XCTAssertEqual(list.sections.flatMap(\.rows).map(\.text), ["S1", "S2"])
@@ -74,8 +74,8 @@ final class CarPlayLimitsTests: XCTestCase {
             try db.album(50, "In Rainbows", artist: 40)
             try db.playlist(3, "Road trip", kind: "music")
             for (entry, song) in [(1, 9), (2, 10), (3, 11)] {
-                try db.song(Int64(song), "S\(song)", album: 50, track: entry)
-                try db.entry(Int64(entry), in: 3, item: Int64(song), rank: "a\(entry)")
+                try db.song(.n(song), "S\(song)", album: 50, track: entry)
+                try db.entry(.n(entry), in: 3, item: .n(song), rank: "a\(entry)")
             }
         }
         let list = try await library.playlist(3, limits(items: 1))

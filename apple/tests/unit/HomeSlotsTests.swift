@@ -19,7 +19,7 @@ final class HomeSlotsTests: XCTestCase {
             "POST /auth/sign-in": (.created, Fixtures.signedIn),
             "GET /me": (.ok, Fixtures.me),
             "POST /me/lock": (.noContent, ""),
-            "POST /profiles/1/unlock": (.noContent, ""),
+            "POST /profiles/\(UID.n(1))/unlock": (.noContent, ""),
         ])
     }
 
@@ -36,19 +36,19 @@ final class HomeSlotsTests: XCTestCase {
         return model
     }
 
-    private func station(_ id: Int64, kind: String) -> Station {
+    private func station(_ id: UID, kind: String) -> Station {
         Fixtures.decode(
             Fixtures.station(
                 id, "S\(id)", kind: kind,
                 onAir: Fixtures.onAir("on_air", now: Fixtures.program(30, "Paper Lanterns", kind: "song"))))
     }
 
-    private func shelf(_ id: Int64, _ name: String, tiles: Int) -> OccasionShelf {
+    private func shelf(_ id: UID, _ name: String, tiles: Int) -> OccasionShelf {
         let occasion: ActiveOccasion = Fixtures.decode(
-            #"{"id":\#(id),"name":"\#(name)","anchorDate":"2026-12-25","#
+            #"{"id":"\#(id)","name":"\#(name)","anchorDate":"2026-12-25","#
                 + #""firstDate":"2026-12-01","lastDate":"2026-12-31"}"#)
         return OccasionShelf(
-            occasion: occasion, items: (0..<tiles).map { Fixtures.decode(Fixtures.item(Int64(100 + $0), "movie", "M")) }
+            occasion: occasion, items: (0..<tiles).map { Fixtures.decode(Fixtures.item(UID.n(100 + $0), "movie", "M")) }
         )
     }
 

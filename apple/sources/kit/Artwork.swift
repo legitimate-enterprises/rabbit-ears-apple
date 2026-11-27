@@ -34,32 +34,32 @@ public final class ArtworkStore {
 
     /// The artwork decoded no larger than `maxPixel` on its long side; nil
     /// when there is none or it cannot be decoded.
-    public func image(_ id: Int64, _ kind: Kind, maxPixel: Int) async -> CGImage? {
+    public func image(_ id: UID, _ kind: Kind, maxPixel: Int) async -> CGImage? {
         await bitmap("\(id)/\(kind.rawValue)", maxPixel) { await self.data(id, kind) }
     }
 
-    public func image(collection id: Int64, _ kind: Kind, maxPixel: Int) async -> CGImage? {
+    public func image(collection id: UID, _ kind: Kind, maxPixel: Int) async -> CGImage? {
         await bitmap("collection/\(id)/\(kind.rawValue)", maxPixel) { await self.data(collection: id, kind) }
     }
 
-    public func headshotImage(_ personId: Int64, maxPixel: Int) async -> CGImage? {
+    public func headshotImage(_ personId: UID, maxPixel: Int) async -> CGImage? {
         await bitmap("person/\(personId)", maxPixel) { await self.headshot(personId) }
     }
 
     /// The artwork decoded at this size if it is in memory now, so a view that has it needs no
     /// placeholder or fade.
-    public func resident(_ id: Int64, _ kind: Kind, maxPixel: Int) -> CGImage? {
+    public func resident(_ id: UID, _ kind: Kind, maxPixel: Int) -> CGImage? {
         _ = currentGeneration()
         return bitmaps.object(forKey: "\(id)/\(kind.rawValue)@\(maxPixel)" as NSString)
     }
 
-    public func resident(collection id: Int64, _ kind: Kind, maxPixel: Int) -> CGImage? {
+    public func resident(collection id: UID, _ kind: Kind, maxPixel: Int) -> CGImage? {
         _ = currentGeneration()
         return bitmaps.object(forKey: "collection/\(id)/\(kind.rawValue)@\(maxPixel)" as NSString)
     }
 
     /// The image bytes, or nil when the item has none or the server is unreachable.
-    public func data(_ id: Int64, _ kind: Kind) async -> Data? {
+    public func data(_ id: UID, _ kind: Kind) async -> Data? {
         let client = client
         let query = Operations.GetItemArtwork.Input.Query(v: currentGeneration())
         return await cached("\(id)/\(kind.rawValue)") {
@@ -69,7 +69,7 @@ public final class ArtworkStore {
     }
 
     /// A collection's own image, else its first movie's; nil when none has one.
-    public func data(collection id: Int64, _ kind: Kind) async -> Data? {
+    public func data(collection id: UID, _ kind: Kind) async -> Data? {
         let client = client
         let query = Operations.GetCollectionArtwork.Input.Query(v: currentGeneration())
         return await cached("collection/\(id)/\(kind.rawValue)") {
@@ -79,7 +79,7 @@ public final class ArtworkStore {
         }
     }
 
-    public func headshot(_ personId: Int64) async -> Data? {
+    public func headshot(_ personId: UID) async -> Data? {
         let client = client
         let query = Operations.GetPersonArtwork.Input.Query(v: currentGeneration())
         return await cached("person/\(personId)") {

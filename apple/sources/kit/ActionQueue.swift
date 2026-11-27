@@ -80,7 +80,7 @@ public actor ActionQueue {
     /// is made on the server at once, after what is queued, and `apply` is
     /// not run; a catch-up brings the rows it wrote.
     public func act(
-        as profileId: Int64, touching touched: [Components.Schemas.SyncTouched],
+        as profileId: UID, touching touched: [Components.Schemas.SyncTouched],
         call: @Sendable (Client, Date) async throws -> Void,
         apply: @escaping @Sendable (Database, Date) throws -> Void
     ) async throws {
@@ -94,7 +94,7 @@ public actor ActionQueue {
             afterFlush()
             return
         }
-        let uuid = UUID().uuidString
+        let uuid = UUID().uuidString.lowercased()
         try await replica.write { db in
             try apply(db, at)
             try db.execute(
@@ -190,7 +190,8 @@ public actor ActionQueue {
                 }
                 try await remove(answered.map(\.action.seq))
                 removed = removed || !answered.isEmpty
-                for (action, result) in answered where result.result == .rejected {
+                for (action, result) in answered
+                where result.result == .rejected && !Self.madeBefore(action.operationId, result.code) {
                     notice(action.operationId, result.code)
                 }
                 // The server stops a batch at its first failure; the rest go again later.
@@ -213,6 +214,14 @@ public actor ActionQueue {
         return true
     }
 
+    /// A create under a client id answered `conflict` met its own row: the
+    /// server made it, lost the answer and was sent it again. Its rows come by sync.
+    private static func madeBefore(_ operationId: String, _ code: String?) -> Bool {
+        code == "conflict"
+            && ["createPlaylist", "addPlaylistEntry", "addPlaylistEntries", "createCollection", "createStation"]
+                .contains(operationId)
+    }
+
     private func remove(_ seqs: [Int64]) async throws {
         try await replica.write { db in
             try db.execute(literal: "DELETE FROM queue.action_touch WHERE action IN \(seqs)")
@@ -230,8 +239,15 @@ public actor ActionQueue {
         let touches: SQL =
             "SELECT action, table_name, key1, key2, key3 FROM queue.action_touch WHERE action IN \(seqs) ORDER BY rowid"
         for row in try SQLRequest<Row>(literal: touches).fetchAll(db) {
-            let parts = [row["key1"], row["key2"], row["key3"]].compactMap { $0 as Int? }
-            let key = try parts.map { try Components.Schemas.SyncScalar(unvalidatedValue: $0) }
+            var key: [Components.Schemas.SyncScalar] = []
+            for part in [row["key1"], row["key2"], row["key3"]] as [DatabaseValue] {
+                switch part.storage {
+                case .string(let text): key.append(try .init(unvalidatedValue: text))
+                case .int64(let number): key.append(try .init(unvalidatedValue: Int(number)))
+                case .null: break
+                default: throw Failure.unsendable("a key part of \(row["table_name"] as String)")
+                }
+            }
             touched[row["action"], default: []].append(.init(table: row["table_name"], key: key))
         }
         return try rows.map { row in
@@ -281,5 +297,17 @@ struct ActionRecorder: ClientTransport {
         if let body { bytes = try await Data(collecting: body, upTo: limit) }
         throw Recorded(
             method: request.method.rawValue, path: request.path ?? "/", body: bytes, operationID: operationID)
+    }
+}
+
+extension Components.Schemas.SyncTouched {
+    /// A replica row by its id key parts, in primary-key order.
+    static func row(_ table: String, _ key: UID...) throws -> Self {
+        .init(table: table, key: try key.map { try .init(unvalidatedValue: $0.description) })
+    }
+
+    /// A row keyed by an id and an integer, as station_day's (station_id, weekday).
+    static func row(_ table: String, _ id: UID, _ part: Int) throws -> Self {
+        .init(table: table, key: [try .init(unvalidatedValue: id.description), try .init(unvalidatedValue: part)])
     }
 }

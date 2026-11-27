@@ -41,7 +41,7 @@ struct StationPlayerScreen: View {
     let client: Client
     let replica: Replica
     let endpoint: ServerEndpoint
-    let profileId: Int64
+    let profileId: UID
     let capabilities: SystemCapabilities
     let close: () -> Void
     @State private var model: PlayerModel?
@@ -94,7 +94,8 @@ struct StationSurface: View {
                 Theme.ground.ignoresSafeArea()
                 VStack(spacing: 0) {
                     if station.imageUrl != nil {
-                        StationIdentity(name: station.name, aspect: 1, imageUrl: station.imageUrl).frame(width: 360)
+                        StationIdentity(id: station.id, name: station.name, aspect: 1, imageUrl: station.imageUrl)
+                            .frame(width: 360)
                     } else {
                         StationGlyph(size: 146)
                     }

@@ -6,18 +6,19 @@ import XCTest
 
 final class MediaSummaryTests: XCTestCase {
     let file = Fixtures.decode(
-        #"{"id":5,"itemId":20,"path":"/media/Dune.Part.Two.2024.2160p.mkv","sizeBytes":24100000000,"#
+        #"{"id":"\#(UID.n(5))","itemId":"\#(UID.n(20))","path":"/media/Dune.Part.Two.2024.2160p.mkv","#
+            + #""sizeBytes":24100000000,"fileModifiedAt":"2026-01-01T00:00:00Z","createdAt":"2026-01-01T00:00:00Z","#
             + #""modifiedAt":"2026-01-01T00:00:00Z","container":"mkv","durationMs":9960000,"bitrate":38000000,"#
             + #""chapters":[],"tracks":["#
-            + #"{"id":1,"streamIndex":0,"kind":"video","codec":"hevc","profile":"Main 10","width":3840,"#
+            + #"{"id":"\#(UID.n(1))","streamIndex":0,"kind":"video","codec":"hevc","profile":"Main 10","width":3840,"#
             + #""height":2160,"hdrFormat":"hdr10","isDefault":true,"isForced":false},"#
-            + #"{"id":2,"streamIndex":1,"kind":"audio","codec":"truehd","language":"eng","channels":8,"#
+            + #"{"id":"\#(UID.n(2))","streamIndex":1,"kind":"audio","codec":"truehd","language":"eng","channels":8,"#
             + #""isDefault":true,"isForced":false},"#
-            + #"{"id":3,"streamIndex":2,"kind":"audio","codec":"aac","language":"eng","channels":2,"#
+            + #"{"id":"\#(UID.n(3))","streamIndex":2,"kind":"audio","codec":"aac","language":"eng","channels":2,"#
             + #""isDefault":false,"isForced":false},"#
-            + #"{"id":4,"streamIndex":3,"kind":"subtitle","codec":"subrip","language":"eng","#
+            + #"{"id":"\#(UID.n(4))","streamIndex":3,"kind":"subtitle","codec":"subrip","language":"eng","#
             + #""isDefault":false,"isForced":true,"subtitleIsText":true},"#
-            + #"{"id":5,"streamIndex":4,"kind":"subtitle","codec":"hdmv_pgs_subtitle","language":"eng","#
+            + #"{"id":"\#(UID.n(5))","streamIndex":4,"kind":"subtitle","codec":"hdmv_pgs_subtitle","language":"eng","#
             + #""title":"SDH","isDefault":false,"isForced":false,"subtitleIsText":false}]}"#,
         as: Components.Schemas.MediaFile.self)
 
@@ -42,12 +43,14 @@ final class MediaSummaryTests: XCTestCase {
             let parts = spec.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
             let title = parts.count > 1 && parts[1] != "forced" ? #","title":"\#(parts[1])""# : ""
             let language = parts[0].isEmpty ? "" : #","language":"\#(parts[0])""#
-            return #"{"id":\#(index),"streamIndex":\#(index),"kind":"subtitle","codec":"subrip""#
+            return #"{"id":"\#(UID.n(index))","streamIndex":\#(index),"kind":"subtitle","codec":"subrip""#
                 + language + title + #","isDefault":false,"isForced":\#(parts.last == "forced")}"#
         }
         let file = Fixtures.decode(
-            #"{"id":1,"itemId":1,"path":"/m.mkv","sizeBytes":1,"modifiedAt":"2026-01-01T00:00:00Z","#
-                + #""container":"mkv","chapters":[],"tracks":["# + json.joined(separator: ",") + "]}",
+            #"{"id":"\#(UID.n(1))","itemId":"\#(UID.n(1))","path":"/m.mkv","sizeBytes":1,"#
+                + #""fileModifiedAt":"2026-01-01T00:00:00Z","createdAt":"2026-01-01T00:00:00Z","#
+                + #""modifiedAt":"2026-01-01T00:00:00Z","container":"mkv","chapters":[],"tracks":["#
+                + json.joined(separator: ",") + "]}",
             as: Components.Schemas.MediaFile.self)
         return MediaSummary(file).subtitleLine
     }

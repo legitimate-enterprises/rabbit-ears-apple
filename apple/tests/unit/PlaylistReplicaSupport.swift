@@ -5,7 +5,7 @@ import XCTest
 
 @testable import RabbitEarsKit
 
-/// A v1 replica with a queue that never flushes on its own, an engine
+/// A replica with a queue that never flushes on its own, an engine
 /// whose catch-ups reach `transport`, and the server's answers there.
 @MainActor
 final class SyncedReplica {
@@ -28,13 +28,13 @@ final class SyncedReplica {
             replica: replica, endpoint: .default, token: "t", transport: transport, flush: {}, signOut: {})
     }
 
-    func playlists(_ profile: Int64 = 1, adult: Bool = true) -> PlaylistsModel {
+    func playlists(_ profile: UID = 1, adult: Bool = true) -> PlaylistsModel {
         PlaylistsModel(
             client: client, replica: replica, queue: queue, engine: engine, profileId: profile, adult: adult)
     }
 
-    func collections(_ profile: Int64 = 1) -> CollectionsModel {
-        CollectionsModel(client: client, replica: replica, queue: queue, engine: engine, profileId: profile)
+    func collections(_ profile: UID = 1) -> CollectionsModel {
+        CollectionsModel(replica: replica, queue: queue, profileId: profile)
     }
 
     /// Each queued action as `operationId METHOD path`, oldest first.
@@ -53,7 +53,8 @@ final class SyncedReplica {
         return body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
     }
 
-    /// The last queued action's touched rows as `table k1 k2`.
+    /// The last queued action's touched rows as `table k1 k2`, each key part as stored: an id's lowercase text or
+    /// an integer.
     func lastTouched() throws -> [String] {
         try actions {
             try Row.fetchAll(
@@ -64,7 +65,9 @@ final class SyncedReplica {
                     """
             ).map { row in
                 ([row["table_name"] as String]
-                    + [row["key1"], row["key2"]].compactMap { ($0 as Int64?).map(String.init) })
+                    + [row["key1"] as DatabaseValue, row["key2"] as DatabaseValue].compactMap { part in
+                        String.fromDatabaseValue(part) ?? Int64.fromDatabaseValue(part).map(String.init)
+                    })
                     .joined(separator: " ")
             }
         }
@@ -88,63 +91,86 @@ final class SyncedReplica {
     }
 }
 
-/// Playlist and collection rows of sync schema 1. Instants are Unix ms.
+/// Playlist and collection rows of sync schema 1. Instants are Unix ms;
+/// a row the owner made carries the owner in created_by and modified_by.
 extension Database {
     func playlist(
-        _ id: Int64, _ name: String, owner: Int64 = 1, kind: String = "movies", played: Int64? = nil,
+        _ id: UID, _ name: String, owner: UID = 1, kind: String = "movies", played: Int64? = nil,
         station: Bool = false
     ) throws {
         try execute(
-            sql: "INSERT INTO playlist VALUES (?, ?, ?, ?, ?, 1000, 2000, ?)",
-            arguments: [id, owner, name, kind, played, station])
+            sql: """
+                INSERT INTO playlist(id, account_id, name, kind, last_played_at, created_at, modified_at, created_by,
+                    modified_by, station_owned)
+                VALUES (?1, ?2, ?3, ?4, ?5, 1000, 2000, ?2, ?2, ?6)
+                """, arguments: [id, owner, name, kind, played, station])
     }
 
     func entry(
-        _ id: Int64, in playlist: Int64, item: Int64? = nil, collection: Int64? = nil, rank: String,
-        edition: Int64? = nil
+        _ id: UID, in playlist: UID, item: UID? = nil, collection: UID? = nil, rank: String, edition: UID? = nil
     ) throws {
         try execute(
-            sql: "INSERT INTO playlist_entry VALUES (?, ?, ?, ?, ?, 3000, ?)",
-            arguments: [id, playlist, item, collection, rank, edition])
+            sql: """
+                INSERT INTO playlist_entry(id, playlist_id, item_id, collection_id, rank, added_at, edition_id,
+                    created_at, modified_at)
+                VALUES (?, ?, ?, ?, ?, 3000, ?, 3000, 4000)
+                """, arguments: [id, playlist, item, collection, rank, edition])
     }
 
-    func share(_ playlist: Int64, with account: Int64, _ access: String) throws {
-        try execute(sql: "INSERT INTO playlist_share VALUES (?, ?, ?, 0)", arguments: [playlist, account, access])
-    }
-
-    func householdShare(_ playlist: Int64, with household: Int64, _ access: String) throws {
+    func share(_ playlist: UID, with account: UID, _ access: String) throws {
         try execute(
-            sql: "INSERT INTO playlist_household_share VALUES (?, ?, ?, 0)", arguments: [playlist, household, access])
+            sql: "INSERT INTO playlist_share(playlist_id, account_id, access, created_at) VALUES (?, ?, ?, 0)",
+            arguments: [playlist, account, access])
+    }
+
+    func householdShare(_ playlist: UID, with household: UID, _ access: String) throws {
+        try execute(
+            sql: """
+                INSERT INTO playlist_household_share(playlist_id, household_id, access, created_at)
+                VALUES (?, ?, ?, 0)
+                """,
+            arguments: [playlist, household, access])
     }
 
     /// How another profile shows to those it shares with.
-    func card(_ id: Int64, _ name: String, household: Int64 = 8) throws {
+    func card(_ id: UID, _ name: String, household: UID = 8) throws {
         try execute(
             sql: "INSERT INTO account_card(id, name, kind, household_id) VALUES (?, ?, 'adult', ?)",
             arguments: [id, name, household])
     }
 
-    func collection(_ id: Int64, _ name: String, source: String = "custom", household: Int64? = 7) throws {
+    /// A TMDB collection's tmdb_id is 100 times the n of its uid.N id, n below 256.
+    func collection(_ id: UID, _ name: String, source: String = "custom", household: UID? = 7) throws {
         try execute(
-            sql: "INSERT INTO collection VALUES (?, ?, ?, ?, ?, ?, 1000, 2000)",
+            sql: """
+                INSERT INTO collection(id, source, household_id, tmdb_id, name, overview, created_at, modified_at)
+                VALUES (?, ?, ?, ?, ?, ?, 1000, 2000)
+                """,
             arguments: [
-                id, source, source == "custom" ? household : nil, source == "tmdb" ? id * 100 : nil, name,
-                source == "tmdb" ? "Three of them." : nil,
+                id, source, source == "custom" ? household : nil, source == "tmdb" ? Int(id.uuid.uuid.15) * 100 : nil,
+                name, source == "tmdb" ? "Three of them." : nil,
             ])
     }
 
-    func collect(_ item: Int64, in collection: Int64, at position: Int? = nil) throws {
-        try execute(sql: "INSERT INTO collection_movie VALUES (?, ?, ?)", arguments: [collection, item, position])
+    func collect(_ item: UID, in collection: UID, at position: Int? = nil) throws {
+        try execute(
+            sql: "INSERT INTO collection_movie(collection_id, item_id, position) VALUES (?, ?, ?)",
+            arguments: [collection, item, position])
     }
 
-    /// An edition of the item with one file of `ms`, tagged when `tag` is given.
-    func edition(_ id: Int64, of item: Int64, ms: Int64, tag: String? = nil) throws {
-        try execute(sql: "INSERT INTO edition VALUES (?, ?, ?, NULL)", arguments: [id, item, tag])
-        try execute(sql: "INSERT INTO media_file VALUES (?, 1000, 'mkv', ?, 0, NULL)", arguments: [id, ms])
-        try execute(sql: "INSERT INTO edition_file VALUES (?, ?)", arguments: [id, id])
+    /// An edition of the item with one file of `ms`, tagged when `tag` is given; the file has the edition's id.
+    func edition(_ id: UID, of item: UID, ms: Int64, tag: String? = nil) throws {
+        try execute(sql: "INSERT INTO edition(id, item_id, tag) VALUES (?, ?, ?)", arguments: [id, item, tag])
+        try execute(
+            sql: """
+                INSERT INTO media_file(id, size_bytes, container, duration_ms, bitrate)
+                VALUES (?, 1000, 'mkv', ?, 0)
+                """,
+            arguments: [id, ms])
+        try execute(sql: "INSERT INTO edition_file(edition_id, media_file_id) VALUES (?, ?)", arguments: [id, id])
     }
 
-    func music(_ id: Int64, _ kind: String, _ title: String, parent: Int64? = nil, library: Int64 = 2) throws {
+    func music(_ id: UID, _ kind: String, _ title: String, parent: UID? = nil, library: UID = 2) throws {
         try execute(
             sql: """
                 INSERT INTO item(id, library_id, parent_id, kind, parsed_title, added_at, explicit)
@@ -153,14 +179,15 @@ extension Database {
             arguments: [id, library, parent, kind, title])
     }
 
-    func station(_ id: Int64, of owner: Int64, playing playlist: Int64) throws {
+    func station(_ id: UID, of owner: UID, playing playlist: UID) throws {
         try execute(
             sql: "INSERT INTO station(id, account_id, playlist_id, name) VALUES (?, ?, ?, 'Channel')",
             arguments: [id, owner, playlist])
     }
 
-    func cover(_ id: Int64, on playlist: Int64, item: Int64? = nil) throws {
+    func cover(_ id: UID, on playlist: UID, item: UID? = nil) throws {
         try execute(
-            sql: "INSERT INTO cover VALUES (?, ?, NULL, ?, 0, 0)", arguments: [id, playlist, item])
+            sql: "INSERT INTO cover(id, playlist_id, item_id, backdrop, created_at) VALUES (?, ?, ?, 0, 0)",
+            arguments: [id, playlist, item])
     }
 }

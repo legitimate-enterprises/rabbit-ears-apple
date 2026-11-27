@@ -43,9 +43,11 @@ final class UpNextModelTests: XCTestCase {
             try db.execute(
                 sql: """
                     INSERT INTO item(id, library_id, parent_id, kind, parsed_title, added_at) VALUES
-                        (50, 2, NULL, 'channel', 'Shop', 0), (41, 2, 50, 'video', 'New', 0),
-                        (40, 2, 50, 'video', 'Old', 0);
-                    INSERT INTO item_metadata(item_id, source, published_at) VALUES (41, 'local', 2), (40, 'local', 1);
+                        (\(sqlID(50)), \(sqlID(2)), NULL, 'channel', 'Shop', 0),
+                        (\(sqlID(41)), \(sqlID(2)), \(sqlID(50)), 'video', 'New', 0),
+                        (\(sqlID(40)), \(sqlID(2)), \(sqlID(50)), 'video', 'Old', 0);
+                    INSERT INTO item_metadata(item_id, source, published_at)
+                        VALUES (\(sqlID(41)), 'local', 2), (\(sqlID(40)), 'local', 1);
                     """)
             try db.playable(41)
             try rows(db)
@@ -56,7 +58,7 @@ final class UpNextModelTests: XCTestCase {
         await UpNextModel.load(after: ended, replica: replica, profile: avery)
     }
 
-    private func request(_ id: Int64, _ kind: String) -> PlayRequest {
+    private func request(_ id: UID, _ kind: String) -> PlayRequest {
         PlayRequest(item: Fixtures.decode(Fixtures.item(id, kind, "T\(id)"), as: Item.self))
     }
 
@@ -86,7 +88,7 @@ final class UpNextModelTests: XCTestCase {
 
     func testAPlaylistPlaysItsNextRowWithAFileNamingItsEdition() async throws {
         let replica = try library { db in
-            for id in Int64(60)...62 { try db.item(id, "movie", "T\(id)", rating: "PG") }
+            for number in 60...62 { try db.item(.n(number), "movie", "T\(number)", rating: "PG") }
             try db.playable(60)
             try db.playable(61, missing: true)
             try db.edition(620, of: 62)
@@ -95,7 +97,7 @@ final class UpNextModelTests: XCTestCase {
             try db.file(621, in: 621)
             try db.playlist(3, of: 1, items: [(60, nil), (61, nil), (62, 621), (60, nil)])
         }
-        let rows = [60, 61, 62, 60].map {
+        let rows = ([60, 61, 62, 60] as [UID]).map {
             Fixtures.decode(Fixtures.row(entry: $0, item: $0, kind: "movie"), as: PlayOrderRow.self)
         }
         let queue = try XCTUnwrap(VideoQueue(rows, start: 0, playlistId: 3))
@@ -112,11 +114,11 @@ final class UpNextModelTests: XCTestCase {
 
     func testAPlaylistNotSharedWithTheProfileOffersNothing() async throws {
         let replica = try library { db in
-            for id in Int64(60)...61 { try db.item(id, "movie", "T\(id)", rating: "PG") }
+            for number in 60...61 { try db.item(.n(number), "movie", "T\(number)", rating: "PG") }
             try db.playable(61)
             try db.playlist(4, of: 2, items: [(60, nil), (61, nil)])
         }
-        let rows = [60, 61].map {
+        let rows = ([60, 61] as [UID]).map {
             Fixtures.decode(Fixtures.row(entry: $0, item: $0, kind: "movie"), as: PlayOrderRow.self)
         }
         let queue = try XCTUnwrap(VideoQueue(rows, start: 0, playlistId: 4))
@@ -154,7 +156,7 @@ final class UpNextModelTests: XCTestCase {
     func testTheCardsCheckboxSavesAutoplayForTheProfile() async throws {
         let app = try SyncedApp { try $0.member(1, "Avery") }
         defer { app.remove() }
-        app.routes.routes["POST /profiles/1/unlock"] = (.noContent, "")
+        app.routes.routes["POST /profiles/\(UID.n(1))/unlock"] = (.noContent, "")
         let sync = try await app.synced()
         let model = app.model!
         try await model.choose(try XCTUnwrap(model.profiles.first))

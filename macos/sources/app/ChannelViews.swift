@@ -5,7 +5,7 @@ import SwiftUI
 struct ChannelScreen: View {
     @Environment(AppModel.self) private var app
     @Environment(Browser.self) private var browser
-    let id: Int64
+    let id: UID
     @State private var sort = YouTubeVideoSort.newest
     @State private var detail: ChannelDetail?
     @State private var failed = false

@@ -6,7 +6,7 @@ import SwiftUI
 /// land in, or renaming one. Shown as a sheet over the whole window.
 struct CollectionNameRequest: Identifiable {
     let id = UUID()
-    var movieId: Int64?
+    var movieId: UID?
     var renaming: MovieCollection?
 }
 
@@ -55,7 +55,7 @@ struct CollectionMenu: View {
     @Environment(CollectionsModel.self) private var collections: CollectionsModel?
     @Environment(AppModel.self) private var app
     @Environment(Browser.self) private var browser
-    let movieId: Int64
+    let movieId: UID
 
     var body: some View {
         if let collections, app.isAdult {
@@ -74,7 +74,7 @@ struct CollectionMenu: View {
 struct InCollections: View {
     @Environment(CollectionsModel.self) private var collections: CollectionsModel?
     @Environment(Browser.self) private var browser
-    let movieId: Int64
+    let movieId: UID
     @State private var named: [MovieCollection] = []
 
     var body: some View {
@@ -146,7 +146,7 @@ struct CollectionScreen: View {
     @Environment(CatalogModel.self) private var catalog
     @Environment(AppModel.self) private var app
     @Environment(Browser.self) private var browser
-    let id: Int64
+    let id: UID
     @State private var movies: [Item]?
     @State private var ordering = false
 

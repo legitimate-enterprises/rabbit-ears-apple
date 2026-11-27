@@ -72,7 +72,9 @@ final class CatalogTests: XCTestCase {
         ])
         let video = Fixtures.decode(
             Fixtures.video(70, "Dishwasher", position: 9, played: "2026-05-02T00:00:00Z"), as: YouTubeVideo.self)
-        XCTAssertEqual(catalog.continueWatching(with: [video]).map(\.id), ["item/102", "video/70", "item/20"])
+        XCTAssertEqual(
+            catalog.continueWatching(with: [video]).map(\.id),
+            ["item/\(UID.n(102))", "video/\(UID.n(70))", "item/\(UID.n(20))"])
     }
 
     func testNextUpFollowsTheLatestWatchedEpisodeAcrossSeasons() {
@@ -127,11 +129,11 @@ final class CatalogTests: XCTestCase {
         let items = [20, 21, 22].map { Resumable.item(Fixtures.decode(Fixtures.item($0, "movie", "M\($0)"))) }
         XCTAssertNil(HomeHero(Array(items.prefix(0))), "nothing in progress has no hero")
         let one = HomeHero(Array(items.prefix(1)))
-        XCTAssertEqual(one?.hero.id, "item/20")
+        XCTAssertEqual(one?.hero.id, "item/\(UID.n(20))")
         XCTAssertEqual(one?.alsoInProgress.map(\.id), [])
         let several = HomeHero(items)
-        XCTAssertEqual(several?.hero.id, "item/20")
-        XCTAssertEqual(several?.alsoInProgress.map(\.id), ["item/21", "item/22"])
+        XCTAssertEqual(several?.hero.id, "item/\(UID.n(20))")
+        XCTAssertEqual(several?.alsoInProgress.map(\.id), ["item/\(UID.n(21))", "item/\(UID.n(22))"])
     }
 
     func testTheChipsAreAllUnwatchedInProgressAndKids() {

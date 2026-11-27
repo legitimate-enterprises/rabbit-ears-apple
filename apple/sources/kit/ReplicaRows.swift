@@ -35,8 +35,9 @@ enum ReplicaRows {
             id: row["id"], libraryId: row["library_id"], parentId: row["parent_id"], kind: kind,
             parsedTitle: row["parsed_title"], parsedYear: row["parsed_year"], seasonNumber: row["season_number"],
             episodeNumber: row["episode_number"], metadata: row["described"] ? metadata(row) : nil, genres: genres,
-            // The replica carries no updated_at; nothing reads it.
-            addedAt: instant(row["added_at"]), updatedAt: instant(row["added_at"]),
+            // The replica carries neither audit instant; nothing reads them.
+            addedAt: instant(row["added_at"]), createdAt: instant(row["added_at"]),
+            modifiedAt: instant(row["added_at"]),
             unavailable: row["unavailable"] ? true : nil)
         if kind == .movie || kind == .show {
             let override: Bool? = row["kids_content"]
@@ -50,7 +51,7 @@ enum ReplicaRows {
         WatchState(
             itemId: row["item_id"], positionMs: row["position_ms"], editionId: row["edition_id"],
             watched: row["watched"], playCount: row["play_count"],
-            lastPlayedAt: (row["last_played_at"] as Int64?).map(instant), updatedAt: instant(row["updated_at"]))
+            lastPlayedAt: (row["last_played_at"] as Int64?).map(instant), changedAt: instant(row["changed_at"]))
     }
 
     static func person(_ row: Row) -> Person {
@@ -72,15 +73,22 @@ enum ReplicaRows {
     }
 
     /// Each item's genres by name, as the server reads them.
-    private static func genres(_ db: Database, of ids: [Int64]) throws -> [Int64: [Genre]] {
+    private static func genres(_ db: Database, of ids: [UID]) throws -> [UID: [Genre]] {
         let rows = try Row.fetchAll(
             db,
             sql: """
                 SELECT ig.item_id, g.id, g.name, g.tmdb_id FROM genre g JOIN item_genre_shown ig ON ig.genre_id = g.id
-                WHERE ig.item_id IN (SELECT value FROM json_each(?)) ORDER BY g.name
-                """, arguments: ["[\(ids.map(String.init).joined(separator: ","))]"])
-        return Dictionary(grouping: rows) { $0["item_id"] as Int64 }
+                WHERE ig.item_id IN (SELECT unhex(value, '-') FROM json_each(?)) ORDER BY g.name
+                """, arguments: [json(ids)])
+        return Dictionary(grouping: rows) { $0["item_id"] as UID }
             .mapValues { $0.map { Genre(id: $0["id"], name: $0["name"], tmdbId: $0["tmdb_id"]) } }
+    }
+
+    /// The argument for `<id column> IN (SELECT unhex(value, '-') FROM json_each(?))`,
+    /// the one way to bind a list of ids: a JSON array of their strings.
+    /// Text compared with a BLOB id matches nothing, so the unhex is required.
+    static func json(_ ids: some Sequence<UID>) -> String {
+        "[" + ids.map { "\"\($0)\"" }.joined(separator: ",") + "]"
     }
 
     /// An empty text is absent, as the server leaves it out.

@@ -107,7 +107,7 @@ final class ReplicaTests: XCTestCase {
         try replica.adopt(fixture.snapshot(version: 7, titles: ["Bunny"])) { db in
             let synced = try Int64.fetchOne(db, sql: "SELECT version FROM sync_state")
             XCTAssertEqual(synced, 7)
-            try db.execute(sql: "CREATE TABLE fts_item(id INTEGER PRIMARY KEY)")
+            try db.execute(sql: "CREATE TABLE fts_item(id BLOB PRIMARY KEY)")
             try db.execute(sql: "INSERT INTO fts_item SELECT id FROM item")
         }
         let built = try await replica.read { try Int.fetchOne($0, sql: "SELECT count(*) FROM fts_item") }

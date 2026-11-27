@@ -131,7 +131,7 @@ struct PlaylistView: View {
     @Environment(Services.self) private var services
     @Environment(Browser.self) private var browser
     @Environment(\.dismiss) private var dismiss
-    let id: Int64
+    let id: UID
     @State private var entries: [PlaylistEntry]?
     @State private var editing = EditMode.inactive
     @State private var deleting = false
@@ -259,7 +259,7 @@ struct PlaylistView: View {
 /// of its playlist.
 struct PlaylistEntryRows: View {
     @Environment(Services.self) private var services
-    let playlistId: Int64
+    let playlistId: UID
     let entries: [PlaylistEntry]
     var editable = true
     /// Takes the entries read again after an edit.

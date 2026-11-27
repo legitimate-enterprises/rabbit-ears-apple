@@ -44,14 +44,14 @@ public final class UpNextModel {
     private struct Next {
         let item: Item
         var title: String
-        var editionId: Int64?
+        var editionId: UID?
         var index: Int?
     }
 
     /// From a playlist its next row, otherwise the episode, film or video
     /// after the item. Only what has a file on disk counts.
     private nonisolated static func next(
-        after id: Item.ID, in queue: VideoQueue?, _ profile: Int64, _ db: Database
+        after id: Item.ID, in queue: VideoQueue?, _ profile: UID, _ db: Database
     ) throws -> Next? {
         guard
             try Bool.fetchOne(
@@ -76,7 +76,7 @@ public final class UpNextModel {
     /// NextRow: the row after `queue`'s index of its play order the profile
     /// may see, else after the item's first row, skipping rows with no file on disk.
     private nonisolated static func nextRow(
-        after id: Item.ID, in queue: VideoQueue, _ profile: Int64, _ db: Database
+        after id: Item.ID, in queue: VideoQueue, _ profile: UID, _ db: Database
     ) throws -> Next? {
         guard
             try Bool.fetchOne(
@@ -92,14 +92,13 @@ public final class UpNextModel {
                 SELECT r.item_id, r.edition_id, \(ReplicaRows.unavailable("r.item_id")) AS gone FROM playlist_row r
                 WHERE r.playlist_id = ? AND r.item_id \(ReplicaRows.seenBy) ORDER BY r.seq
                 """, arguments: [queue.playlistId, profile])
-        let ids = rows.map { $0["item_id"] as Int64 }
+        let ids = rows.map { $0["item_id"] as UID }
         guard
             let at = ids.indices.contains(queue.index) && ids[queue.index] == id ? queue.index : ids.firstIndex(of: id),
             let index = rows.indices.dropFirst(at + 1).first(where: { !rows[$0]["gone"] }),
             var next = try titled(ids[index], db)
         else { return nil }
-        let edition: Int64 = rows[index]["edition_id"]
-        if edition != 0 {
+        if let edition = rows[index]["edition_id"] as UID? {
             next.editionId = edition
             let cuts = try Editions.cuts(ids[index], db)
             if cuts.filter({ $0.files > 0 }).count > 1, let name = cuts.first(where: { $0.id == edition })?.name {
@@ -130,8 +129,9 @@ public final class UpNextModel {
             return Next(item: Item(video: video), title: video.title)
         }
         guard let item = try ReplicaRows.items(db, ids: [id]).first else { return nil }
-        guard item.kind == .episode, let season = try ReplicaRows.items(db, ids: [item.parentId ?? 0]).first,
-            let show = try ReplicaRows.items(db, ids: [season.parentId ?? 0]).first
+        guard item.kind == .episode, let seasonId = item.parentId,
+            let season = try ReplicaRows.items(db, ids: [seasonId]).first, let showId = season.parentId,
+            let show = try ReplicaRows.items(db, ids: [showId]).first
         else { return Next(item: item, title: Catalog.title(item)) }
         return Next(
             item: item,

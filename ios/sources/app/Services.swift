@@ -43,7 +43,7 @@ final class AppContext {
     }
 
     /// The profile's services, made once and shared; another profile's music stops.
-    func services(for profileId: Int64) async -> Services? {
+    func services(for profileId: UID) async -> Services? {
         guard let client = model.client, let sync = model.sync, let endpoint = model.endpoint,
             let artwork = model.artwork
         else { return nil }
@@ -73,10 +73,10 @@ final class Services {
     let collections: CollectionsModel
     let stations: StationsModel
     let player: MusicPlayer
-    let profileId: Int64
+    let profileId: UID
 
     init(
-        client: Client, sync: SyncSession, endpoint: ServerEndpoint, profileId: Int64, adult: Bool,
+        client: Client, sync: SyncSession, endpoint: ServerEndpoint, profileId: UID, adult: Bool,
         center: any NowPlayingCenter, capabilities: SystemCapabilities
     ) {
         self.profileId = profileId
@@ -85,10 +85,8 @@ final class Services {
         playlists = PlaylistsModel(
             client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profileId,
             adult: adult)
-        collections = CollectionsModel(
-            client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profileId)
-        stations = StationsModel(
-            client: client, replica: sync.replica, queue: sync.queue, engine: sync.engine, profileId: profileId)
+        collections = CollectionsModel(replica: sync.replica, queue: sync.queue, profileId: profileId)
+        stations = StationsModel(client: client, replica: sync.replica, queue: sync.queue, profileId: profileId)
         player = MusicPlayer(
             client: client, endpoint: endpoint, profileId: profileId, output: AVAudioOutput(),
             capabilities: capabilities)

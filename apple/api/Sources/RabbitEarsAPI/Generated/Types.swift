@@ -39,7 +39,7 @@ public protocol APIProtocol: Sendable {
     func listSsoOptions(_ input: Operations.ListSsoOptions.Input) async throws -> Operations.ListSsoOptions.Output
     /// Sends the browser to the provider to sign in with the authorization code flow and PKCE.
     ///
-    /// The redirect URI sent to the provider is this server's `/api/v1/auth/sso/callback` at the host the request names, over https when the connection is TLS or a reverse proxy on this host sent `X-Forwarded-Proto: https`. The cookie binds the sign-in to this browser for 10 minutes. A provider that is unknown, disabled or does not answer sends the browser back to the sign-in page with `#sso_error=provider_error`. When too many sign-ins are in flight, the one closest to expiring is dropped.
+    /// The redirect URI sent to the provider is this server's `/api/v2/auth/sso/callback` at the host the request names, over https when the connection is TLS or a reverse proxy on this host sent `X-Forwarded-Proto: https`. The cookie binds the sign-in to this browser for 10 minutes. A provider that is unknown, disabled or does not answer sends the browser back to the sign-in page with `#sso_error=provider_error`. When too many sign-ins are in flight, the one closest to expiring is dropped.
     ///
     /// - Remark: HTTP `GET /auth/sso/{providerId}/start`.
     /// - Remark: Generated from `#/paths//auth/sso/{providerId}/start/get(startSso)`.
@@ -1938,9 +1938,11 @@ public protocol APIProtocol: Sendable {
     /// one SQLite database: the schema's tables holding every row the
     /// household may see, its views, among them those that apply each
     /// profile's kid filter such as profile_item and profile_station, and
-    /// its indexes. Its
-    /// one-row table replica_meta holds `schema`, `version`, the version
-    /// the snapshot was taken at, and `household_id`. The client replaces
+    /// its indexes. Every id column, `household_id` included, holds the
+    /// id's 16 bytes as a BLOB; getSyncChanges sends the same ids as
+    /// canonical UUID strings, which the client writes back as those bytes.
+    /// Its one-row table replica_meta holds `schema`, `version`, the
+    /// version the snapshot was taken at, and `household_id`. The client replaces
     /// its replica with the file whole, then asks getSyncChanges with
     /// `since` set to replica_meta's `version`. A `schema` outside
     /// SyncRanges' schemaMin to schemaMax answers 400.
@@ -1992,9 +1994,9 @@ public protocol APIProtocol: Sendable {
     ///
     /// A batch that fails validation, names in `touched` a table that is
     /// not one of the sync schema's, a key of the wrong length or a key
-    /// part of the wrong type (an integer for an integer column, a string
-    /// for a text one), or whose `seq` does not strictly increase, answers
-    /// 400 and runs nothing.
+    /// part of the wrong type (an integer for an integer column, a
+    /// canonical UUID string for an id column, a string for a text one), or
+    /// whose `seq` does not strictly increase, answers 400 and runs nothing.
     ///
     ///
     /// - Remark: HTTP `POST /sync/actions`.
@@ -2058,7 +2060,7 @@ extension APIProtocol {
     }
     /// Sends the browser to the provider to sign in with the authorization code flow and PKCE.
     ///
-    /// The redirect URI sent to the provider is this server's `/api/v1/auth/sso/callback` at the host the request names, over https when the connection is TLS or a reverse proxy on this host sent `X-Forwarded-Proto: https`. The cookie binds the sign-in to this browser for 10 minutes. A provider that is unknown, disabled or does not answer sends the browser back to the sign-in page with `#sso_error=provider_error`. When too many sign-ins are in flight, the one closest to expiring is dropped.
+    /// The redirect URI sent to the provider is this server's `/api/v2/auth/sso/callback` at the host the request names, over https when the connection is TLS or a reverse proxy on this host sent `X-Forwarded-Proto: https`. The cookie binds the sign-in to this browser for 10 minutes. A provider that is unknown, disabled or does not answer sends the browser back to the sign-in page with `#sso_error=provider_error`. When too many sign-ins are in flight, the one closest to expiring is dropped.
     ///
     /// - Remark: HTTP `GET /auth/sso/{providerId}/start`.
     /// - Remark: Generated from `#/paths//auth/sso/{providerId}/start/get(startSso)`.
@@ -2621,11 +2623,13 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//profiles/{profileId}/join-code/post(resendProfileJoinCode)`.
     public func resendProfileJoinCode(
         path: Operations.ResendProfileJoinCode.Input.Path,
-        headers: Operations.ResendProfileJoinCode.Input.Headers = .init()
+        headers: Operations.ResendProfileJoinCode.Input.Headers = .init(),
+        body: Operations.ResendProfileJoinCode.Input.Body? = nil
     ) async throws -> Operations.ResendProfileJoinCode.Output {
         try await resendProfileJoinCode(Operations.ResendProfileJoinCode.Input(
             path: path,
-            headers: headers
+            headers: headers,
+            body: body
         ))
     }
     /// The owner turns a kid into a pending adult of the same household, keeping their watch state. They join with the code like any added adult. A kid shared with other households leaves them: the device household becomes their own and only one.
@@ -6151,9 +6155,11 @@ extension APIProtocol {
     /// one SQLite database: the schema's tables holding every row the
     /// household may see, its views, among them those that apply each
     /// profile's kid filter such as profile_item and profile_station, and
-    /// its indexes. Its
-    /// one-row table replica_meta holds `schema`, `version`, the version
-    /// the snapshot was taken at, and `household_id`. The client replaces
+    /// its indexes. Every id column, `household_id` included, holds the
+    /// id's 16 bytes as a BLOB; getSyncChanges sends the same ids as
+    /// canonical UUID strings, which the client writes back as those bytes.
+    /// Its one-row table replica_meta holds `schema`, `version`, the
+    /// version the snapshot was taken at, and `household_id`. The client replaces
     /// its replica with the file whole, then asks getSyncChanges with
     /// `since` set to replica_meta's `version`. A `schema` outside
     /// SyncRanges' schemaMin to schemaMax answers 400.
@@ -6221,9 +6227,9 @@ extension APIProtocol {
     ///
     /// A batch that fails validation, names in `touched` a table that is
     /// not one of the sync schema's, a key of the wrong length or a key
-    /// part of the wrong type (an integer for an integer column, a string
-    /// for a text one), or whose `seq` does not strictly increase, answers
-    /// 400 and runs nothing.
+    /// part of the wrong type (an integer for an integer column, a
+    /// canonical UUID string for an id column, a string for a text one), or
+    /// whose `seq` does not strictly increase, answers 400 and runs nothing.
     ///
     ///
     /// - Remark: HTTP `POST /sync/actions`.
@@ -6244,7 +6250,7 @@ public enum Servers {
     public enum Server1 {
         public static func url() throws -> Foundation.URL {
             try Foundation.URL(
-                validatingOpenAPIServerURL: "/api/v1",
+                validatingOpenAPIServerURL: "/api/v2",
                 variables: []
             )
         }
@@ -6252,7 +6258,7 @@ public enum Servers {
     @available(*, deprecated, renamed: "Servers.Server1.url")
     public static func server1() throws -> Foundation.URL {
         try Foundation.URL(
-            validatingOpenAPIServerURL: "/api/v1",
+            validatingOpenAPIServerURL: "/api/v2",
             variables: []
         )
     }

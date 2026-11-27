@@ -21,7 +21,7 @@ extension Fixtures {
 extension RoutingTransport {
     /// The nonce of each confirmation sent to `Fixtures.lan`.
     func nonces() -> [String] {
-        sent.filter { $0.baseURL.absoluteString == "\(Fixtures.lan)/api/v1" }.compactMap { sent in
+        sent.filter { $0.baseURL.absoluteString == "\(Fixtures.lan)/api/v2" }.compactMap { sent in
             ((try? JSONSerialization.jsonObject(with: Data(sent.body.utf8))) as? [String: Any])?["nonce"] as? String
         }
     }
@@ -41,7 +41,7 @@ extension RoutingTransport {
                         + #""expiresAt":"2026-01-01T00:01:00Z"}"#
                 )
             }
-            guard sent.path == "/local-checks/c1/confirmation", sent.baseURL.absoluteString == "\(Fixtures.lan)/api/v1"
+            guard sent.path == "/local-checks/c1/confirmation", sent.baseURL.absoluteString == "\(Fixtures.lan)/api/v2"
             else { return nil }
             let body = (try? JSONSerialization.jsonObject(with: Data(sent.body.utf8))) as? [String: Any]
             return (.ok, #"{"proof":"\#(reply(body?["nonce"] as? String ?? ""))"}"#)
@@ -51,7 +51,7 @@ extension RoutingTransport {
 
 final class HomeLinkTests: XCTestCase {
     let server = ServerEndpoint(userInput: "https://media.example.test")!
-    let stream = "/api/v1/streams/k/0/master.m3u8"
+    let stream = "/api/v2/streams/k/0/master.m3u8"
     var transport: RoutingTransport!
 
     override func setUp() {
@@ -99,9 +99,9 @@ final class HomeLinkTests: XCTestCase {
 
         let opened = try XCTUnwrap(transport.sent.first)
         XCTAssertEqual(opened.path, "/local-checks")
-        XCTAssertEqual(opened.baseURL.absoluteString, "https://media.example.test/api/v1")
+        XCTAssertEqual(opened.baseURL.absoluteString, "https://media.example.test/api/v2")
         XCTAssertEqual(opened.authorization, "Bearer tok")
-        let confirmed = try XCTUnwrap(transport.sent.first { $0.baseURL.absoluteString == "\(Fixtures.lan)/api/v1" })
+        let confirmed = try XCTUnwrap(transport.sent.first { $0.baseURL.absoluteString == "\(Fixtures.lan)/api/v2" })
         XCTAssertEqual(confirmed.method, .post)
         XCTAssertEqual(confirmed.path, "/local-checks/c1/confirmation")
         XCTAssertNil(confirmed.authorization, "the token never crosses the local network")

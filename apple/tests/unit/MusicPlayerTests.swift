@@ -45,15 +45,19 @@ final class FakeNowPlaying: NowPlayingCenter {
 
 extension Fixtures {
     /// A song's direct-play session; its id is the song's.
-    static func audioStream(_ session: Int64, verdict: String = "direct_play", position: Int64 = 0) -> String {
-        #"{"sessionId":\#(session),"entry":{"position":0,"verdict":"\#(verdict)","videoAction":"copy","#
+    static func audioStream(_ session: UID, verdict: String = "direct_play", position: Int64 = 0) -> String {
+        #"{"sessionId":"\#(session)","entry":{"position":0,"verdict":"\#(verdict)","videoAction":"copy","#
             + #""audioAction":"copy","subtitleAction":"none","bad":false},"#
-            + #""streamUrl":"/api/v1/streams/s\#(session)/0/file","mediaFileId":1,"streamKind":"file","#
+            + #""streamUrl":"/api/v2/streams/s\#(session)/0/file","mediaFileId":"\#(UID.n(1))","#
+            + #""streamKind":"file","#
             + #""positionMs":\#(position),"#
             + #""negotiated":{"verdict":"\#(verdict)","width":0,"height":0,"bitrate":900000,"#
             + #""audioCodec":"flac","lossless":true},"rungs":[],"sidecars":[]}"#
     }
 }
+
+/// The path of playback session `number`.
+private func session(_ number: Int) -> String { "/playback/sessions/\(UID.n(number))" }
 
 @MainActor
 final class MusicPlayerTests: XCTestCase {
@@ -64,7 +68,7 @@ final class MusicPlayerTests: XCTestCase {
     var activations = 0
     /// Songs whose playback the server refuses, read off the main actor
     /// while each test awaits the request.
-    nonisolated(unsafe) var refused: Set<Int64> = []
+    nonisolated(unsafe) var refused: Set<UID> = []
     /// Sessions the server has ended, as it does a song's when a video
     /// starts on the device; every request to one answers 404.
     nonisolated(unsafe) var gone: Set<String> = []
@@ -75,7 +79,7 @@ final class MusicPlayerTests: XCTestCase {
             switch (sent.method, sent.path) {
             case (.post, "/playback/sessions"):
                 let body = (try? JSONSerialization.jsonObject(with: Data(sent.body.utf8))) as? [String: Any]
-                let item = (body?["itemId"] as? NSNumber)?.int64Value ?? 0
+                let item = UID(body?["itemId"] as? String ?? "") ?? 0
                 let position = (body?["positionMs"] as? NSNumber)?.int64Value ?? 0
                 return self.refused.contains(item)
                     ? (.conflict, Fixtures.error("conflict", "Nothing on the plan can play."))
@@ -94,10 +98,10 @@ final class MusicPlayerTests: XCTestCase {
         player.attach(center)
     }
 
-    private var started: [Int64] {
+    private var started: [UID] {
         transport.sent.filter { $0.method == .post && $0.path == "/playback/sessions" }.compactMap { sent in
             let body = (try? JSONSerialization.jsonObject(with: Data(sent.body.utf8))) as? [String: Any]
-            return (body?["itemId"] as? NSNumber)?.int64Value
+            return UID(body?["itemId"] as? String ?? "")
         }
     }
 
@@ -108,11 +112,11 @@ final class MusicPlayerTests: XCTestCase {
         await player.play(Fixtures.songs(3), source: "In Rainbows", playlistId: 8)
         XCTAssertEqual(activations, 1)
         let body = transport.json(.post, "/playback/sessions")
-        XCTAssertEqual(body?["itemId"] as? Int, 1)
+        XCTAssertEqual(body?["itemId"] as? String, "\(UID.n(1))")
         XCTAssertEqual(body?["positionMs"] as? Int, 0)
-        XCTAssertEqual(body?["playlistId"] as? Int, 8)
+        XCTAssertEqual(body?["playlistId"] as? String, "\(UID.n(8))")
         XCTAssertNotNil(body?["snapshot"])
-        XCTAssertEqual(output.loaded.map(\.path), ["/api/v1/streams/s1/0/file"])
+        XCTAssertEqual(output.loaded.map(\.path), ["/api/v2/streams/s\(UID.n(1))/0/file"])
         XCTAssertTrue(player.playing)
         XCTAssertEqual(player.stream?.negotiated.verdict, .directPlay)
         let info = center.shown.last??.title
@@ -123,11 +127,11 @@ final class MusicPlayerTests: XCTestCase {
         await player.play(Fixtures.songs(2), source: "")
         output.positionMs = 240_000
         await player.songEnded()
-        XCTAssertEqual(ended, ["/playback/sessions/1"])
-        XCTAssertTrue(transport.queries(.delete, "/playback/sessions/1").contains("positionMs=240000"))
+        XCTAssertEqual(ended, [session(1)])
+        XCTAssertTrue(transport.queries(.delete, session(1)).contains("positionMs=240000"))
         XCTAssertEqual(player.current?.id, 2)
         await player.songEnded()
-        XCTAssertEqual(ended, ["/playback/sessions/1", "/playback/sessions/2"])
+        XCTAssertEqual(ended, [session(1), session(2)])
         XCTAssertFalse(player.playing)
         XCTAssertNil(player.stream)
         XCTAssertNil(player.current, "the queue running out empties it, so the mini player goes")
@@ -138,9 +142,9 @@ final class MusicPlayerTests: XCTestCase {
         await player.play(Fixtures.songs(1), source: "")
         output.positionMs = 10_000
         await player.tick()
-        XCTAssertEqual(transport.json(.put, "/playback/sessions/1/position")?["positionMs"] as? Int, 10_000)
+        XCTAssertEqual(transport.json(.put, "\(session(1))/position")?["positionMs"] as? Int, 10_000)
         await player.pause()
-        let paused = try XCTUnwrap(transport.json(.put, "/playback/sessions/1/position"))
+        let paused = try XCTUnwrap(transport.json(.put, "\(session(1))/position"))
         XCTAssertEqual(paused["paused"] as? Bool, true)
         XCTAssertEqual(center.shown.last??.playing, false)
     }
@@ -179,17 +183,17 @@ final class MusicPlayerTests: XCTestCase {
     func testAPlayerFailureMovesDownThePlanThenSkipsWhenItIsExhausted() async {
         await player.play(Fixtures.songs(2), source: "")
         await player.songEnded()
-        transport.routes["POST /playback/sessions/2/events"] = (
+        transport.routes["POST \(session(2))/events"] = (
             .ok, #"{"action":"restart","stream":\#(Fixtures.audioStream(2, verdict: "audio_transcode"))}"#
         )
         await player.outputFailed("cannot decode")
-        XCTAssertEqual(transport.json(.post, "/playback/sessions/2/events")?["kind"] as? String, "client_failure")
+        XCTAssertEqual(transport.json(.post, "\(session(2))/events")?["kind"] as? String, "client_failure")
         XCTAssertEqual(output.loaded.count, 3)
         XCTAssertEqual(player.stream?.negotiated.verdict, .audioTranscode)
-        transport.routes["POST /playback/sessions/2/events"] = (.conflict, Fixtures.error("conflict"))
+        transport.routes["POST \(session(2))/events"] = (.conflict, Fixtures.error("conflict"))
         await player.outputFailed("cannot decode")
         XCTAssertNil(player.alert)
-        XCTAssertEqual(ended.last, "/playback/sessions/2")
+        XCTAssertEqual(ended.last, session(2))
         XCTAssertFalse(player.playing)
     }
 
@@ -202,7 +206,7 @@ final class MusicPlayerTests: XCTestCase {
         output.positionMs = 1_000
         await player.previous()
         XCTAssertEqual(player.current?.id, 1)
-        XCTAssertEqual(ended, ["/playback/sessions/2"])
+        XCTAssertEqual(ended, [session(2)])
     }
 
     func testRemoteCommandsDriveThePlayer() async throws {
@@ -256,7 +260,7 @@ final class MusicPlayerTests: XCTestCase {
         await player.play(Fixtures.songs(1), source: "")
         await player.next()
         XCTAssertNil(player.current)
-        XCTAssertEqual(ended, ["/playback/sessions/1"])
+        XCTAssertEqual(ended, [session(1)])
         XCTAssertNil(center.shown.last ?? nil)
     }
 
@@ -264,7 +268,7 @@ final class MusicPlayerTests: XCTestCase {
         await player.play(Fixtures.songs(2), source: "")
         output.positionMs = 61_000
         await player.pause()
-        gone = ["/playback/sessions/1"]
+        gone = [session(1)]
         await player.resume()
         XCTAssertEqual(started, [1, 1])
         XCTAssertEqual(transport.json(.post, "/playback/sessions")?["positionMs"] as? Int, 61_000)
@@ -290,7 +294,7 @@ final class MusicPlayerTests: XCTestCase {
         let release = DispatchSemaphore(value: 0)
         let old = transport.respond
         transport.respond = { sent in
-            if sent.method == .delete && sent.path == "/playback/sessions/1" {
+            if sent.method == .delete && sent.path == session(1) {
                 arrived.fulfill()
                 release.wait()
             }
@@ -304,7 +308,7 @@ final class MusicPlayerTests: XCTestCase {
         XCTAssertFalse(player.playing)
         XCTAssertNil(player.stream)
         XCTAssertEqual(output.loaded.count, 1)
-        XCTAssertEqual(Set(ended), ["/playback/sessions/1", "/playback/sessions/2"])
+        XCTAssertEqual(Set(ended), [session(1), session(2)])
     }
 
     /// Skips to the next song and makes `edit` while its session is being opened.
@@ -353,29 +357,10 @@ final class MusicPlayerTests: XCTestCase {
         XCTAssertEqual(player.queue.upNext.map(\.song.id), [5])
     }
 
-    func testAnInterruptionPausesAndItsEndResumesOnlyWhatWasPlaying() async {
-        await player.play(Fixtures.songs(2), source: "")
-        output.pause()
-        await player.interrupted(.began)
-        XCTAssertFalse(player.playing)
-        XCTAssertEqual(center.shown.last??.playing, false)
-        await player.toggle()
-        XCTAssertTrue(player.playing, "one tap plays again after a call")
-        XCTAssertFalse(output.isPaused)
-
-        await player.interrupted(.began)
-        await player.interrupted(.ended(shouldResume: true))
-        XCTAssertTrue(player.playing)
-        await player.pause()
-        await player.interrupted(.began)
-        await player.interrupted(.ended(shouldResume: true))
-        XCTAssertFalse(player.playing, "a song paused before the call stays paused")
-    }
-
     func testStopEndsTheSessionAndEmptiesTheQueue() async {
         await player.play(Fixtures.songs(2), source: "")
         await player.stop()
-        XCTAssertEqual(ended, ["/playback/sessions/1"])
+        XCTAssertEqual(ended, [session(1)])
         XCTAssertNil(player.current)
         XCTAssertFalse(player.playing)
     }

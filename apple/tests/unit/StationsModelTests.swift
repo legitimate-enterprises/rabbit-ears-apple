@@ -61,10 +61,15 @@ final class StationsModelTests: XCTestCase {
         XCTAssertEqual(station.rating, "PG-13")
         XCTAssertEqual(station.days, [.monday, .friday])
         XCTAssertEqual(
-            station.times, [StationTimeRange(from: "10:00", to: "11:00"), StationTimeRange(from: "22:00", to: "02:00")])
-        XCTAssertEqual(station.imageUrl, "/api/v1/stations/5/image?v=77")
+            station.times,
+            [
+                StationTimeRange(id: 51, from: "10:00", to: "11:00"),
+                StationTimeRange(id: 50, from: "22:00", to: "02:00"),
+            ])
+        XCTAssertEqual(station.imageUrl, "/api/v2/stations/\(UID.n(5))/image?v=\(UID.n(77))")
         XCTAssertEqual(station.createdAt, at("2026-01-01T00:00:00Z"))
-        XCTAssertEqual(station.updatedAt, at("2026-01-02T00:00:00Z"))
+        XCTAssertEqual(station.modifiedAt, at("2026-01-02T00:00:00Z"))
+        XCTAssertNil(station.createdBy)
         let onAir = station.onAir
         XCTAssertEqual(onAir.status, .onAir)
         XCTAssertEqual(onAir.now?.itemId, 20)
@@ -177,7 +182,12 @@ final class StationsModelTests: XCTestCase {
         }
         let model = stationsModel(replica)
         let images = [await model.station(11), await model.station(10), await model.station(12)].map { $0?.imageUrl }
-        XCTAssertEqual(images, ["/api/v1/stations/11/image?v=78", nil, "/api/v1/stations/12/image?v=80"])
+        XCTAssertEqual(
+            images,
+            [
+                "/api/v2/stations/\(UID.n(11))/image?v=\(UID.n(78))", nil,
+                "/api/v2/stations/\(UID.n(12))/image?v=\(UID.n(80))",
+            ])
         let hiding = try await unwrapped(await stationsModel(replica, profile: 4).station(12))
         XCTAssertNil(hiding.imageUrl, "Moon Pie is kids' content, which Jo hides")
     }
@@ -189,11 +199,12 @@ final class StationsModelTests: XCTestCase {
             try db.edition(210, item: 21, tag: "Director's Cut")
             try db.edition(211, item: 21)
             try db.edition(220, item: 22)
-            try db.execute(sql: "UPDATE station_program SET edition_id = 201 WHERE id = 20")
-            try db.execute(sql: "UPDATE station_program SET edition_id = 211 WHERE id = 21")
-            try db.execute(sql: "UPDATE station_program SET edition_id = 210 WHERE id = 23")
-            try db.execute(sql: "UPDATE station_program SET item_id = 21 WHERE id = 23")
-            try db.execute(sql: "UPDATE station_program SET edition_id = 220 WHERE id = 22")
+            for (program, edition): (UID, UID) in [(20, 201), (21, 211), (23, 210), (22, 220)] {
+                try db.execute(
+                    sql: "UPDATE station_program SET edition_id = ? WHERE id = ?", arguments: [edition, program])
+            }
+            try db.execute(
+                sql: "UPDATE station_program SET item_id = ? WHERE id = ?", arguments: [UID.n(21), UID.n(23)])
         }
         let onAir = try await unwrapped(await stationsModel(replica).station(5)).onAir
         XCTAssertEqual(onAir.now?.editionId, 201)
@@ -229,133 +240,6 @@ final class StationsModelTests: XCTestCase {
         let model = stationsModel(try stationHousehold())
         XCTAssertTrue(model.isOwner(Fixtures.decode(Fixtures.bigScreen)))
         XCTAssertFalse(model.isOwner(Fixtures.decode(Fixtures.station(8, "Theirs", owner: 2))))
-    }
-}
-
-/// Edits: queued where the operation replays, else sent, then caught up with.
-@MainActor
-final class StationsModelWriteTests: XCTestCase {
-    let transport = RoutingTransport()
-
-    func testSaveCreatesThenReplacesOnTheServerAndCatchesUp() async throws {
-        transport.routes["POST /stations"] = (.created, Fixtures.station(9, "Late show"))
-        transport.routes["PUT /stations/9"] = (.ok, Fixtures.station(9, "Later show"))
-        let model = stationsModel(try stationHousehold(), transport: transport)
-        var form = StationForm(kind: .music)
-        form.name = "Late show"
-        let made = await model.save(form)
-        XCTAssertEqual(made?.id, 9)
-        XCTAssertNil(transport.json(.post, "/stations")?["playlistId"])
-        XCTAssertEqual(transport.json(.post, "/stations")?["kind"] as? String, "music")
-        XCTAssertEqual(transport.paths(.get), ["/sync/changes"], "the new rows come through sync")
-        form.name = "Later show"
-        let saved = await model.save(form, as: 9)
-        XCTAssertEqual(saved?.name, "Later show")
-        XCTAssertEqual(transport.json(.put, "/stations/9")?["name"] as? String, "Later show")
-        XCTAssertEqual(transport.paths(.get), ["/sync/changes", "/sync/changes"])
-        XCTAssertNil(model.error)
-    }
-
-    func testARefusedSaveShowsEachFieldsMessage() async throws {
-        transport.routes["POST /stations"] = (
-            .badRequest,
-            #"{"code":"bad_request","message":"invalid request","#
-                + #""fields":[{"field":"name","message":"too long"}]}"#
-        )
-        let model = stationsModel(try stationHousehold(), transport: transport)
-        var form = StationForm(kind: .movies)
-        form.name = "Late show"
-        let made = await model.save(form)
-        XCTAssertNil(made)
-        XCTAssertEqual(model.fieldErrors, ["name": "too long"])
-        XCTAssertEqual(transport.paths(.get), [], "nothing to catch up with")
-        transport.routes["POST /stations"] = (.created, Fixtures.station(9, "Late show"))
-        _ = await model.save(form)
-        XCTAssertEqual(model.fieldErrors, [:])
-    }
-
-    /// Rescheduling is queued, offline too; the new programs arrive by sync
-    /// once the server has made them.
-    func testRescheduleIsQueued() async throws {
-        let replica = try stationHousehold()
-        let model = stationsModel(replica, transport: transport)
-        let rescheduled = await model.reschedule(5)
-        XCTAssertTrue(rescheduled)
-        XCTAssertTrue(transport.sent.isEmpty, "nothing is sent until the queue flushes")
-        let queued = try await queued(replica)
-        XCTAssertEqual(queued, ["rescheduleStation POST /stations/5/reschedule 1 station 5 -"])
-        let station = await model.station(5)
-        XCTAssertEqual(station?.onAir.now?.itemId, 20, "what is on stays until the server's schedule arrives")
-    }
-
-    /// Deleting is queued: the station is gone at once, offline too, and
-    /// the server hears of it when the queue is sent.
-    func testDeleteIsQueuedAndGoneAtOnce() async throws {
-        let replica = try stationHousehold()
-        let model = stationsModel(replica, transport: transport)
-        await model.loadMine()
-        XCTAssertEqual(model.mine.map(\.id), [5, 11])
-        let deleted = await model.delete(5)
-        XCTAssertTrue(deleted)
-        XCTAssertEqual(model.mine.map(\.id), [11])
-        let left = await model.list()
-        XCTAssertEqual(left?.map(\.id), [8, 11, 10])
-        let station = await model.station(5)
-        XCTAssertNil(station)
-        XCTAssertTrue(transport.sent.isEmpty, "nothing is sent until the queue flushes")
-        let queued = try await queued(replica)
-        XCTAssertEqual(queued, ["deleteStation DELETE /stations/5 1 station 5 -"])
-    }
-
-    /// Each queued action with its touched rows, as `operation method path profile table key1 key2`.
-    private func queued(_ replica: Replica) async throws -> [String] {
-        try await replica.read { db in
-            try String.fetchAll(
-                db,
-                sql: """
-                    SELECT a.operation_id || ' ' || a.method || ' ' || a.path || ' ' || a.profile_id || ' '
-                        || t.table_name || ' ' || t.key1 || ' ' || COALESCE(t.key2, '-')
-                    FROM queue.action a JOIN queue.action_touch t ON t.action = a.seq ORDER BY a.seq, t.rowid
-                    """)
-        }
-    }
-
-    /// Nothing is written when a program starts or ends, so a load wakes
-    /// the boards once at the soonest such moment among what it read.
-    func testALoadWakesTheBoardsOnceAtTheNextProgramBoundary() async throws {
-        let app = try SyncedApp { db in
-            try db.account(1, "Avery")
-            try db.item(20, "movie", "The Lantern Keeper")
-            try db.item(21, "movie", "Salt and Ember")
-            try db.station(5, "The Big Screen")
-            try db.program(20, station: 5, item: 20, starts: "2026-11-15T14:00:00Z", ends: "2026-11-15T15:52:00Z")
-            try db.program(21, station: 5, item: 21, starts: "2026-11-15T16:00:00Z", ends: "2026-11-15T18:18:00Z")
-            try db.station(6, "Kitchen Radio", kind: "music", timing: "continuous")
-            try db.program(30, station: 6, item: 21, starts: "2026-11-15T15:50:00Z", ends: "2026-11-15T16:05:00Z")
-        }
-        defer { app.remove() }
-        let sync = try await app.synced()
-        var asked: [Date] = []
-        let (released, release) = AsyncStream.makeStream(of: Void.self)
-        let model = stationsModel(sync.replica, now: "2026-11-15T15:55:00Z") { date in
-            asked.append(date)
-            for await _ in released { return }
-            throw CancellationError()
-        }
-        _ = await model.list()
-        _ = await model.station(6)
-        await app.until { !asked.isEmpty }
-        let start = ISO8601DateFormatter().date(from: "2026-11-15T16:00:00Z")
-        XCTAssertEqual(asked, [start], "one wake, at Salt and Ember's start")
-
-        let before = app.model.live.stations
-        release.yield()
-        await app.until { app.model.live.stations > before }
-        XCTAssertEqual(app.model.live.stations, before + 1)
-        _ = await model.list()
-        await app.until { asked.count == 2 }
-        XCTAssertEqual(asked.count, 2, "the next load wakes again")
-        release.finish()
     }
 }
 

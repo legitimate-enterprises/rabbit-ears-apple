@@ -1,3 +1,4 @@
+import RabbitEarsAPI
 import RabbitEarsKit
 import SwiftUI
 
@@ -121,7 +122,7 @@ struct SubtitlesPopup: View {
         }
     }
 
-    private var tracks: [(id: Int64, label: String)] {
+    private var tracks: [(id: UID, label: String)] {
         model.subtitleTracks.map {
             ($0.id, Format.language($0.language) + ($0.title.map { " \($0)" } ?? ""))
         }

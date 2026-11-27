@@ -20,7 +20,8 @@ struct StationMiniPlayer: View {
                             ArtSquare(
                                 id: song.albumId, radius: 6, placeholder: .album, badges: StatusBadges(id: song.id))
                         } else {
-                            StationIdentity(name: station.name, aspect: 1, radius: 6, imageUrl: station.imageUrl)
+                            StationIdentity(
+                                id: station.id, name: station.name, aspect: 1, radius: 6, imageUrl: station.imageUrl)
                         }
                     }
                     .frame(width: 40)
@@ -73,7 +74,8 @@ struct StationNowPlaying: View {
                     SongTitles(song: song)
                     progress(song)
                 } else {
-                    StationIdentity(name: station.name, aspect: 1, radius: 14, imageUrl: station.imageUrl)
+                    StationIdentity(
+                        id: station.id, name: station.name, aspect: 1, radius: 14, imageUrl: station.imageUrl)
                     VStack(spacing: 4) {
                         Text(station.name).font(.system(size: 22, weight: .bold))
                         Text(StationText.waiting(station.onAir, kind: .music)).font(.system(size: 15))

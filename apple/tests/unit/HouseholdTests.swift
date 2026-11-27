@@ -4,7 +4,7 @@ import XCTest
 
 @testable import RabbitEarsKit
 
-private func pending(_ id: Int64, _ name: String, expires: String? = nil) -> String {
+private func pending(_ id: UID, _ name: String, expires: String? = nil) -> String {
     let invite = expires.map { #","inviteExpiresAt":"\#($0)""# } ?? ""
     return Fixtures.account(id, name).replacingOccurrences(of: #""pending":false"#, with: #""pending":true\#(invite)"#)
 }
@@ -58,8 +58,9 @@ final class HouseholdModelTests: XCTestCase {
     var model: HouseholdModel!
 
     let invite =
-        #"{"account":\#(pending(2, "Robin")),"joinCode":{"id":5,"code":"7KQ4-MNP2","link":"/join/7KQ4-MNP2","#
-        + #""accountId":2,"expiresAt":"2026-01-08T00:00:00.123456789Z","createdAt":"2026-01-01T00:00:00.5Z"}}"#
+        #"{"account":\#(pending(2, "Robin")),"joinCode":{"id":"\#(UID.n(5))","code":"7KQ4-MNP2","#
+        + #""link":"/join/7KQ4-MNP2","accountId":"\#(UID.n(2))","expiresAt":"2026-01-08T00:00:00.123456789Z","#
+        + #""createdAt":"2026-01-01T00:00:00.5Z","modifiedAt":"2026-01-01T00:00:00.5Z"}}"#
 
     override func setUp() async throws {
         transport = RoutingTransport([
@@ -88,9 +89,9 @@ final class HouseholdModelTests: XCTestCase {
     }
 
     func testEditingAKidReplacesItAndChangesThePinOnlyWhenAsked() async throws {
-        transport.routes["PUT /profiles/2"] = (.ok, Fixtures.kid)
-        transport.routes["DELETE /profiles/2/pin"] = (.noContent, "")
-        transport.routes["PUT /profiles/2/pin"] = (.noContent, "")
+        transport.routes["PUT /profiles/\(UID.n(2))"] = (.ok, Fixtures.kid)
+        transport.routes["DELETE /profiles/\(UID.n(2))/pin"] = (.noContent, "")
+        transport.routes["PUT /profiles/\(UID.n(2))/pin"] = (.noContent, "")
         let born = Fixtures.kid.replacingOccurrences(
             of: #""filterMode""#, with: #""birthday":"2017-08-19","filterMode""#)
         let kid = Fixtures.decode(born, as: Account.self)
@@ -101,30 +102,31 @@ final class HouseholdModelTests: XCTestCase {
         XCTAssertTrue(form.errors.isEmpty)
         form.name = "Robbie"
         try await model.saveKid(kid, form)
-        XCTAssertEqual(transport.json(.put, "/profiles/2")?["name"] as? String, "Robbie")
-        XCTAssertTrue(transport.paths(.put).allSatisfy { $0 != "/profiles/2/pin" })
+        XCTAssertEqual(transport.json(.put, "/profiles/\(UID.n(2))")?["name"] as? String, "Robbie")
+        XCTAssertTrue(transport.paths(.put).allSatisfy { $0 != "/profiles/\(UID.n(2))/pin" })
         form.requirePin = false
         try await model.saveKid(kid, form)
-        XCTAssertEqual(transport.paths(.delete), ["/profiles/2/pin"])
+        XCTAssertEqual(transport.paths(.delete), ["/profiles/\(UID.n(2))/pin"])
         form.requirePin = true
         form.pin = "2468"
         form.pinConfirmation = "2468"
         try await model.saveKid(kid, form)
-        XCTAssertEqual(transport.json(.put, "/profiles/2/pin")?["pin"] as? String, "2468")
+        XCTAssertEqual(transport.json(.put, "/profiles/\(UID.n(2))/pin")?["pin"] as? String, "2468")
         XCTAssertEqual(transport.paths(.get).filter { $0 == "/profiles" }.count, 3)
     }
 
     func testResendAndChangeToAdultHandBackTheCode() async throws {
         let cy = Fixtures.decode(pending(3, "Cy"), as: Account.self)
         let kid = Fixtures.decode(Fixtures.kid, as: Account.self)
-        transport.routes["POST /profiles/3/join-code"] = (.created, invite)
-        transport.routes["POST /profiles/2/make-adult"] = (.created, invite)
+        transport.routes["POST /profiles/\(UID.n(3))/join-code"] = (.created, invite)
+        transport.routes["POST /profiles/\(UID.n(2))/make-adult"] = (.created, invite)
         let resent = try await model.resendCode(cy)
         XCTAssertEqual(resent.url.absoluteString, "http://rabbit.local:8477/join/7KQ4-MNP2")
         let made = try await model.makeAdult(kid, email: "robin@example.test")
         XCTAssertEqual(made.code, "7KQ4-MNP2")
-        XCTAssertEqual(transport.json(.post, "/profiles/2/make-adult")?["email"] as? String, "robin@example.test")
-        transport.routes["POST /profiles/2/make-adult"] = (.conflict, Fixtures.error("conflict"))
+        XCTAssertEqual(
+            transport.json(.post, "/profiles/\(UID.n(2))/make-adult")?["email"] as? String, "robin@example.test")
+        transport.routes["POST /profiles/\(UID.n(2))/make-adult"] = (.conflict, Fixtures.error("conflict"))
         do {
             _ = try await model.makeAdult(kid, email: "taken@example.test")
             XCTFail("expected emailTaken")
@@ -135,11 +137,11 @@ final class HouseholdModelTests: XCTestCase {
 
     func testRemoveRefreshesWhoIsWatching() async throws {
         let bea = Fixtures.decode(Fixtures.account(4, "Bea"), as: Account.self)
-        transport.routes["DELETE /profiles/4"] = (.noContent, "")
+        transport.routes["DELETE /profiles/\(UID.n(4))"] = (.noContent, "")
         try await model.remove(bea)
-        XCTAssertEqual(transport.paths(.delete), ["/profiles/4"])
+        XCTAssertEqual(transport.paths(.delete), ["/profiles/\(UID.n(4))"])
         XCTAssertEqual(transport.paths(.get).filter { $0 == "/me" }.count, 1)
-        transport.routes["DELETE /profiles/4"] = (.conflict, Fixtures.error("conflict", "Last admin."))
+        transport.routes["DELETE /profiles/\(UID.n(4))"] = (.conflict, Fixtures.error("conflict", "Last admin."))
         do {
             try await model.remove(bea)
             XCTFail("expected an error")
@@ -149,7 +151,7 @@ final class HouseholdModelTests: XCTestCase {
     }
 
     func testChoosingAKidTakesAwayHouseholdPowers() async throws {
-        transport.routes["POST /profiles/2/unlock"] = (.noContent, "")
+        transport.routes["POST /profiles/\(UID.n(2))/unlock"] = (.noContent, "")
         XCTAssertTrue(app.canManageHousehold)
         try await app.choose(try XCTUnwrap(app.profiles.last), pin: "1234")
         XCTAssertFalse(app.canManageHousehold)
@@ -158,7 +160,7 @@ final class HouseholdModelTests: XCTestCase {
     }
 
     func testAKidsColorIsSavedWithTheKid() async throws {
-        transport.routes["PUT /profiles/2"] = (.ok, Fixtures.kid)
+        transport.routes["PUT /profiles/\(UID.n(2))"] = (.ok, Fixtures.kid)
         let colored = Fixtures.kid.replacingOccurrences(
             of: #""filterMode""#, with: ##""color":"#3C4170","filterMode""##)
         let kid = Fixtures.decode(colored, as: Account.self)
@@ -166,10 +168,10 @@ final class HouseholdModelTests: XCTestCase {
         XCTAssertEqual(form.color, "#3C4170")
         form.color = "#6B2E5A"
         try await model.saveKid(kid, form)
-        XCTAssertEqual(transport.json(.put, "/profiles/2")?["color"] as? String, "#6B2E5A")
+        XCTAssertEqual(transport.json(.put, "/profiles/\(UID.n(2))")?["color"] as? String, "#6B2E5A")
     }
 
-    func testAProfileWearsTheServersColor() {
+    func testAProfileWearsTheServersColor() throws {
         let colored = Fixtures.kid.replacingOccurrences(
             of: #""filterMode""#, with: ##""color":"#2E6B5B","filterMode""##)
         XCTAssertEqual(Fixtures.decode(colored, as: Account.self).rgb, 0x2E6B5B)
@@ -178,6 +180,8 @@ final class HouseholdModelTests: XCTestCase {
             ProfilePalette.colors,
             ["#3C4170", "#2E6B5B", "#6B3A2E", "#5B4A8A", "#8A5A2B", "#2E5B8A", "#6B2E5A", "#4A6B2E"])
         XCTAssertEqual(ProfilePalette.placeholder(9), 0x2E6B5B)
+        let random = try XCTUnwrap(UID("0190a5b2-3c4d-7e5f-8a6b-7c8d9e0f1a03"))
+        XCTAssertEqual(ProfilePalette.placeholder(random), 0x5B4A8A, "the id's last byte picks, as on the server")
         XCTAssertNil(ProfilePalette.rgb("blue"))
     }
 }

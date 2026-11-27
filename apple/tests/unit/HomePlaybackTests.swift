@@ -17,14 +17,14 @@ final class HomePlaybackTests: XCTestCase {
             "POST /playback/sessions": (
                 .created,
                 Fixtures.stream(
-                    sidecars: #"{"trackId":4,"language":"eng","format":"webvtt","forced":true,"#
-                        + #""url":"/api/v1/streams/k1/0/subtitles/4.vtt"}"#, extra: Fixtures.autoExtra)
+                    sidecars: #"{"trackId":"\#(UID.n(4))","language":"eng","format":"webvtt","forced":true,"#
+                        + #""url":"/api/v2/streams/k1/0/subtitles/\#(UID.n(4)).vtt"}"#, extra: Fixtures.autoExtra)
             ),
-            "PUT /playback/sessions/7/position": (.noContent, ""),
-            "PUT /playback/sessions/7/network": (
-                .ok, Fixtures.update("restart", Fixtures.stream(url: "/api/v1/streams/k2/0/master.m3u8"))
+            "PUT /playback/sessions/\(UID.n(7))/position": (.noContent, ""),
+            "PUT /playback/sessions/\(UID.n(7))/network": (
+                .ok, Fixtures.update("restart", Fixtures.stream(url: "/api/v2/streams/k2/0/master.m3u8"))
             ),
-            "DELETE /playback/sessions/7": (.noContent, ""),
+            "DELETE /playback/sessions/\(UID.n(7))": (.noContent, ""),
         ])
         client = server.client(token: "t", transport: transport)
     }
@@ -57,8 +57,8 @@ final class HomePlaybackTests: XCTestCase {
     func testAStreamTheServerKeepsIsLoadedAgainOnceItsAddressIsGone() async throws {
         await arriveHome()
         let kept = (HTTPResponse.Status.ok, Fixtures.update("continue", Fixtures.stream(position: 61_000)))
-        transport.routes["PUT /playback/sessions/7/network"] = kept
-        transport.routes["PUT /playback/sessions/7/throughput"] = kept
+        transport.routes["PUT /playback/sessions/\(UID.n(7))/network"] = kept
+        transport.routes["PUT /playback/sessions/\(UID.n(7))/throughput"] = kept
         let output = FakeOutput()
         let capabilities = FakeCapabilities()
         let model = movie(output, capabilities)
@@ -66,27 +66,28 @@ final class HomePlaybackTests: XCTestCase {
         capabilities.current.path = PathFacts(expensive: true)
         await model.capabilitiesChanged(.network)
         XCTAssertEqual(output.loaded.count, 2)
-        XCTAssertEqual(output.loaded.last?.0.absoluteString, "https://media.example.test/api/v1/streams/k1/0/file")
+        XCTAssertEqual(output.loaded.last?.0.absoluteString, "https://media.example.test/api/v2/streams/k1/0/file")
         XCTAssertEqual(output.loaded.last?.1, 61)
         await model.tick()
-        XCTAssertEqual(transport.paths(.put).last, "/playback/sessions/7/throughput")
+        XCTAssertEqual(transport.paths(.put).last, "/playback/sessions/\(UID.n(7))/throughput")
         XCTAssertEqual(output.loaded.count, 2, "loaded once")
         await model.stop()
     }
 
     func testAPlayerThatFailsAtHomeChecksBeforeTheNextEntryLoads() async throws {
         await arriveHome()
-        transport.routes["POST /playback/sessions/7/events"] = (
-            .ok, Fixtures.update("restart", Fixtures.stream(url: "/api/v1/streams/k1/1/master.m3u8"))
+        transport.routes["POST /playback/sessions/\(UID.n(7))/events"] = (
+            .ok, Fixtures.update("restart", Fixtures.stream(url: "/api/v2/streams/k1/1/master.m3u8"))
         )
         let output = FakeOutput()
         let model = movie(output)
         await model.start()
         await model.playerFailed("The network connection was lost.")
         XCTAssertEqual(checks, 2)
-        XCTAssertLessThan(try XCTUnwrap(index("/local-checks")), try XCTUnwrap(index("/playback/sessions/7/events")))
+        XCTAssertLessThan(
+            try XCTUnwrap(index("/local-checks")), try XCTUnwrap(index("/playback/sessions/\(UID.n(7))/events")))
         XCTAssertEqual(
-            output.loaded.last?.0.absoluteString, "https://media.example.test/api/v1/streams/k1/1/master.m3u8")
+            output.loaded.last?.0.absoluteString, "https://media.example.test/api/v2/streams/k1/1/master.m3u8")
         await model.playerFailed("Cannot decode")
         XCTAssertEqual(checks, 2, "away, a failure waits on no check")
         await model.stop()
@@ -94,9 +95,9 @@ final class HomePlaybackTests: XCTestCase {
 
     func testASongThatFailsAtHomeChecksBeforeTheNextEntryLoads() async throws {
         transport.routes["POST /playback/sessions"] = (.created, Fixtures.audioStream(1))
-        transport.routes["PUT /playback/sessions/1/position"] = (.noContent, "")
-        transport.routes["DELETE /playback/sessions/1"] = (.noContent, "")
-        transport.routes["POST /playback/sessions/1/events"] = (
+        transport.routes["PUT /playback/sessions/\(UID.n(1))/position"] = (.noContent, "")
+        transport.routes["DELETE /playback/sessions/\(UID.n(1))"] = (.noContent, "")
+        transport.routes["POST /playback/sessions/\(UID.n(1))/events"] = (
             .ok, Fixtures.update("restart", Fixtures.audioStream(1, verdict: "audio_transcode", position: 9000))
         )
         await arriveHome()
@@ -108,7 +109,8 @@ final class HomePlaybackTests: XCTestCase {
         XCTAssertEqual(output.loaded.last?.host(), "10.0.0.2")
         await player.outputFailed("The network connection was lost.")
         XCTAssertEqual(checks, 2)
-        XCTAssertLessThan(try XCTUnwrap(index("/local-checks")), try XCTUnwrap(index("/playback/sessions/1/events")))
+        XCTAssertLessThan(
+            try XCTUnwrap(index("/local-checks")), try XCTUnwrap(index("/playback/sessions/\(UID.n(1))/events")))
         XCTAssertEqual(output.loaded.last?.host(), "media.example.test")
         await player.stop()
     }
@@ -124,7 +126,7 @@ final class HomePlaybackTests: XCTestCase {
             fetchText: { url in "WEBVTT\n\n00:00:01.000 --> 00:00:09.000\n\(url.host() ?? "")\n" })
         await model.start()
         XCTAssertEqual(discoveredLocally(.post, "/playback/sessions"), true)
-        XCTAssertEqual(output.loaded.last?.0.absoluteString, "\(Fixtures.lan)/api/v1/streams/k1/0/file")
+        XCTAssertEqual(output.loaded.last?.0.absoluteString, "\(Fixtures.lan)/api/v2/streams/k1/0/file")
         XCTAssertEqual(model.cue(at: 2), "media.example.test", "subtitles stay on the address signed in at")
         XCTAssertEqual(model.previewURL(at: 0)?.host(), "media.example.test")
         XCTAssertEqual(checks, 1, "a fresh check stands")
@@ -135,11 +137,11 @@ final class HomePlaybackTests: XCTestCase {
         capabilities.current.path = PathFacts(expensive: true)
         await model.capabilitiesChanged(.network)
         XCTAssertFalse(server.atHome)
-        XCTAssertEqual(discoveredLocally(.put, "/playback/sessions/7/network"), false)
+        XCTAssertEqual(discoveredLocally(.put, "/playback/sessions/\(UID.n(7))/network"), false)
         XCTAssertLessThan(
-            try XCTUnwrap(index("/local-checks")), try XCTUnwrap(index("/playback/sessions/7/network")))
+            try XCTUnwrap(index("/local-checks")), try XCTUnwrap(index("/playback/sessions/\(UID.n(7))/network")))
         XCTAssertEqual(
-            output.loaded.last?.0.absoluteString, "https://media.example.test/api/v1/streams/k2/0/master.m3u8")
+            output.loaded.last?.0.absoluteString, "https://media.example.test/api/v2/streams/k2/0/master.m3u8")
         await model.stop()
     }
 
@@ -156,11 +158,11 @@ final class HomePlaybackTests: XCTestCase {
 
     func testASongAndAStationCheckFirstAndPlayFromTheLocalAddressAtHome() async throws {
         transport.routes["POST /playback/sessions"] = (.created, Fixtures.audioStream(1))
-        transport.routes["PUT /playback/sessions/1/position"] = (.noContent, "")
-        transport.routes["DELETE /playback/sessions/1"] = (.noContent, "")
-        transport.routes["DELETE /playback/sessions/30"] = (.noContent, "")
+        transport.routes["PUT /playback/sessions/\(UID.n(1))/position"] = (.noContent, "")
+        transport.routes["DELETE /playback/sessions/\(UID.n(1))"] = (.noContent, "")
+        transport.routes["DELETE /playback/sessions/\(UID.n(30))"] = (.noContent, "")
         let onAir = Fixtures.onAir("on_air", now: Fixtures.program(30, "Paper Lanterns", kind: "song"), position: 0)
-        transport.routes["POST /stations/6/playback"] = (
+        transport.routes["POST /stations/\(UID.n(6))/playback"] = (
             .created, #"{"stream":\#(Fixtures.audioStream(30)),"onAir":\#(onAir)}"#
         )
         let output = FakeAudioOutput()
@@ -174,9 +176,9 @@ final class HomePlaybackTests: XCTestCase {
         await player.play(Fixtures.songs(1), source: "In Rainbows")
         await player.tune(tuner)
         XCTAssertEqual(
-            transport.paths(.post), ["/local-checks", "/playback/sessions", "/stations/6/playback"],
+            transport.paths(.post), ["/local-checks", "/playback/sessions", "/stations/\(UID.n(6))/playback"],
             "the first check stands for the station")
-        XCTAssertEqual(discoveredLocally(.post, "/stations/6/playback"), false)
+        XCTAssertEqual(discoveredLocally(.post, "/stations/\(UID.n(6))/playback"), false)
         XCTAssertEqual(output.loaded.map { $0.host() }, ["media.example.test", "media.example.test"])
 
         await arriveHome()
@@ -184,16 +186,19 @@ final class HomePlaybackTests: XCTestCase {
         await player.play(Fixtures.songs(1), source: "In Rainbows")
         XCTAssertEqual(discoveredLocally(.post, "/playback/sessions"), true)
         await player.tune(tuner)
-        XCTAssertEqual(discoveredLocally(.post, "/stations/6/playback"), true)
+        XCTAssertEqual(discoveredLocally(.post, "/stations/\(UID.n(6))/playback"), true)
         XCTAssertEqual(
             output.loaded.suffix(2).map(\.absoluteString),
-            ["\(Fixtures.lan)/api/v1/streams/s1/0/file", "\(Fixtures.lan)/api/v1/streams/s30/0/file"])
+            [
+                "\(Fixtures.lan)/api/v2/streams/s\(UID.n(1))/0/file",
+                "\(Fixtures.lan)/api/v2/streams/s\(UID.n(30))/0/file",
+            ])
         await player.stop()
         tuner.cancel()
     }
 
     func testPlayabilityChecksFirst() async throws {
-        transport.routes["POST /items/20/playability"] = (
+        transport.routes["POST /items/\(UID.n(20))/playability"] = (
             .ok,
             #"{"verdict":"direct_play","negotiated":{"verdict":"direct_play","width":1920,"height":1080,"#
                 + #""bitrate":8000000}}"#
@@ -202,10 +207,10 @@ final class HomePlaybackTests: XCTestCase {
         let facts = FakeCapabilities().current
         let away = await model.playability(20, facts: facts, server: server)
         XCTAssertEqual(away?.verdict, .directPlay)
-        XCTAssertEqual(transport.paths(.post), ["/local-checks", "/items/20/playability"])
-        XCTAssertEqual(discoveredLocally(.post, "/items/20/playability"), false)
+        XCTAssertEqual(transport.paths(.post), ["/local-checks", "/items/\(UID.n(20))/playability"])
+        XCTAssertEqual(discoveredLocally(.post, "/items/\(UID.n(20))/playability"), false)
         await arriveHome()
         _ = await model.playability(20, facts: facts, server: server)
-        XCTAssertEqual(discoveredLocally(.post, "/items/20/playability"), true)
+        XCTAssertEqual(discoveredLocally(.post, "/items/\(UID.n(20))/playability"), true)
     }
 }

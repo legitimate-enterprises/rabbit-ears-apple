@@ -23,14 +23,24 @@ final class CustomImagesTests: XCTestCase {
     }
 
     func testReadsTheRoutesAnImageUrlNames() {
-        XCTAssertEqual(
-            CustomImage.route("/api/v1/profiles/3/playlists/7/image?v=12")?.target,
-            .playlist(profileId: 3, playlistId: 7))
-        XCTAssertEqual(CustomImage.route("/api/v1/profiles/3/playlists/7/image?v=12")?.version, 12)
-        XCTAssertEqual(CustomImage.route("/api/v1/stations/5/image?v=2")?.target, .station(5))
-        for other in ["https://example.com/a.jpg", "/api/v1/items/1/artwork/poster", "/api/v1/stations/5/image"] {
+        let playlist = "/api/v2/profiles/\(UID.n(3))/playlists/\(UID.n(7))/image?v=\(UID.n(12))"
+        XCTAssertEqual(CustomImage.route(playlist)?.target, .playlist(profileId: 3, playlistId: 7))
+        XCTAssertEqual(CustomImage.route(playlist)?.version, UID.n(12).description, "the cover's id")
+        XCTAssertEqual(CustomImage.route("/api/v2/stations/\(UID.n(5))/image?v=\(UID.n(2))")?.target, .station(5))
+        for other in [
+            "https://example.com/a.jpg", "/api/v2/items/\(UID.n(1))/artwork/poster",
+            "/api/v2/stations/\(UID.n(5))/image", "/api/v2/stations/5/image?v=2",
+        ] {
             XCTAssertNil(CustomImage.route(other), other)
         }
+    }
+
+    func testACustomImageIsAskedForByItsRouteAndVersion() async {
+        let transport = RoutingTransport()
+        let store = ArtworkStore(client: ServerEndpoint.default.client(token: "t", transport: transport))
+        _ = await store.data(imageUrl: "/api/v2/profiles/\(UID.n(3))/playlists/\(UID.n(7))/image?v=\(UID.n(12))")
+        XCTAssertEqual(transport.paths(.get), ["/profiles/\(UID.n(3))/playlists/\(UID.n(7))/image"])
+        XCTAssertEqual(transport.sent.last?.query, "v=\(UID.n(12))")
     }
 
     func testOffersEachTitleOnceWithABackdropOnlyForVideo() {
@@ -43,7 +53,8 @@ final class CustomImagesTests: XCTestCase {
             Fixtures.entry(5, position: 3, song: 6),
         ].map { Fixtures.decode($0, as: PlaylistEntry.self) }
         XCTAssertEqual(
-            CustomImage.choices(entries).map(\.id), ["4/poster", "4/backdrop", "6/poster"])
+            CustomImage.choices(entries).map(\.id),
+            ["\(UID.n(4))/poster", "\(UID.n(4))/backdrop", "\(UID.n(6))/poster"])
     }
 
     func testThePicksAreThePlaylistsTitlesInTheReplica() async throws {
@@ -61,7 +72,7 @@ final class CustomImagesTests: XCTestCase {
         defer { synced.remove() }
         let playlists = synced.playlists()
         let mine = await playlists.artChoices(of: 3)
-        XCTAssertEqual(mine.map(\.id), ["4/poster", "4/backdrop", "6/poster"])
+        XCTAssertEqual(mine.map(\.id), ["\(UID.n(4))/poster", "\(UID.n(4))/backdrop", "\(UID.n(6))/poster"])
         let robins = await playlists.artChoices(of: 5)
         XCTAssertEqual(robins, [], "not the profile's to read")
         XCTAssertTrue(synced.transport.sent.isEmpty)
@@ -81,9 +92,9 @@ final class CustomImagesTests: XCTestCase {
 
     func testSetsAnUploadAPickAndALinkThenRemoves() async {
         let transport = RoutingTransport([
-            "PUT /profiles/1/playlists/3/image": (.ok, Fixtures.playlist(3, "Mine")),
-            "PUT /stations/9/image": (.badRequest, Fixtures.fieldError("url")),
-            "DELETE /stations/9/image": (.noContent, ""),
+            "PUT /profiles/\(UID.n(1))/playlists/\(UID.n(3))/image": (.ok, Fixtures.playlist(3, "Mine")),
+            "PUT /stations/\(UID.n(9))/image": (.badRequest, Fixtures.fieldError("url")),
+            "DELETE /stations/\(UID.n(9))/image": (.noContent, ""),
         ])
         let model = CustomImageModel(
             client: ServerEndpoint(userInput: "192.168.1.9")!.client(token: "t", transport: transport))
@@ -91,17 +102,17 @@ final class CustomImagesTests: XCTestCase {
 
         let upload = await model.set(.file(image(20, 10, as: .png)), on: playlist)
         XCTAssertTrue(upload)
-        XCTAssertTrue(transport.body(.put, "/profiles/1/playlists/3/image")?.isEmpty == false)
+        XCTAssertTrue(transport.body(.put, "/profiles/\(UID.n(1))/playlists/\(UID.n(3))/image")?.isEmpty == false)
 
         let pick = await model.set(.artwork(itemId: 4, kind: .backdrop), on: playlist)
         XCTAssertTrue(pick)
-        let picked = transport.json(.put, "/profiles/1/playlists/3/image")
-        XCTAssertEqual(picked?["itemId"] as? Int, 4)
+        let picked = transport.json(.put, "/profiles/\(UID.n(1))/playlists/\(UID.n(3))/image")
+        XCTAssertEqual(picked?["itemId"] as? String, UID.n(4).description)
         XCTAssertEqual(picked?["kind"] as? String, "backdrop")
 
         let refused = await model.set(.link(" http://10.0.0.1/a.jpg "), on: .station(9))
         XCTAssertFalse(refused)
-        XCTAssertEqual(transport.json(.put, "/stations/9/image")?["url"] as? String, "http://10.0.0.1/a.jpg")
+        XCTAssertEqual(transport.json(.put, "/stations/\(UID.n(9))/image")?["url"] as? String, "http://10.0.0.1/a.jpg")
         XCTAssertEqual(model.error, "needed")
 
         let notImage = await model.set(.file(Data("text".utf8)), on: playlist)
@@ -111,6 +122,6 @@ final class CustomImagesTests: XCTestCase {
         let removed = await model.remove(from: .station(9))
         XCTAssertTrue(removed)
         XCTAssertNil(model.error)
-        XCTAssertEqual(transport.paths(.delete), ["/stations/9/image"])
+        XCTAssertEqual(transport.paths(.delete), ["/stations/\(UID.n(9))/image"])
     }
 }

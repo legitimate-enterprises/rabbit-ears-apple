@@ -39,33 +39,41 @@ final class WatchActionsTests: ActionQueueCase {
             try db.execute(
                 sql: """
                     INSERT INTO item(id, library_id, parent_id, kind, parsed_title, added_at) VALUES
-                        (50, 2, NULL, 'channel', 'Shop', 0), (52, 2, 50, 'video', 'B', 0), (51, 2, 50, 'video', 'A', 0);
-                    UPDATE item SET kids_content = 1 WHERE id = 50;
-                    INSERT INTO item(id, library_id, kind, parsed_title, added_at) VALUES (60, 1, 'album', 'Hits', 0);
+                        (\(sqlID(50)), \(sqlID(2)), NULL, 'channel', 'Shop', 0),
+                        (\(sqlID(52)), \(sqlID(2)), \(sqlID(50)), 'video', 'B', 0),
+                        (\(sqlID(51)), \(sqlID(2)), \(sqlID(50)), 'video', 'A', 0);
+                    UPDATE item SET kids_content = 1 WHERE id = \(sqlID(50));
+                    INSERT INTO item(id, library_id, kind, parsed_title, added_at)
+                        VALUES (\(sqlID(60)), \(sqlID(1)), 'album', 'Hits', 0);
                     """)
             try rows(db)
         }
     }
 
-    /// position, watched, play count, last played, updated, edition.
-    private func state(_ replica: Replica, _ item: Int64, for profile: Int64 = 1) async throws -> [Int64?]? {
+    /// position, watched, play count, last played, changed, and the edition as its uid.N number.
+    private func state(_ replica: Replica, _ item: UID, for profile: UID = 1) async throws -> [Int64?]? {
         try await replica.read { db in
             try Row.fetchOne(
                 db,
                 sql: """
-                    SELECT position_ms, watched, play_count, last_played_at, updated_at, edition_id FROM watch_state
+                    SELECT position_ms, watched, play_count, last_played_at, changed_at, edition_id FROM watch_state
                     WHERE account_id = ? AND item_id = ?
                     """, arguments: [profile, item]
-            ).map { row in (0..<6).map { row[$0] as Int64? } }
+            ).map { row in
+                (0..<5).map { row[$0] as Int64? }
+                    + [(row[5] as UID?).map { Int64(String($0.description.suffix(12)), radix: 16)! }]
+            }
         }
     }
 
-    /// A stored state: position, watched, play count, last played, updated, edition.
-    private func store(_ item: Int64, _ values: [Int64?], for profile: Int64 = 1) -> (Database) throws -> Void {
+    /// A stored state: position, watched, play count, last played, changed, edition uid.N(n).
+    private func store(_ item: UID, _ values: [Int64?], for profile: UID = 1) -> (Database) throws -> Void {
         { db in
+            var cells: [(any DatabaseValueConvertible)?] = [profile, item]
+            cells += values.prefix(5).map { $0 }
+            cells.append(values[5].map { UID.n(Int($0)) })
             try db.execute(
-                sql: "INSERT INTO watch_state VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                arguments: StatementArguments([profile, item] + values))
+                sql: "INSERT INTO watch_state VALUES (?, ?, ?, ?, ?, ?, ?, ?)", arguments: StatementArguments(cells))
         }
     }
 
@@ -87,7 +95,9 @@ final class WatchActionsTests: ActionQueueCase {
         XCTAssertEqual(again, [0, 1, 1, now, now, 7], "already watched is no new play")
 
         _ = await queue.flush()
-        XCTAssertEqual(sent().map { $0["path"] as? String }, Array(repeating: "/profiles/1/watch-state/20", count: 3))
+        XCTAssertEqual(
+            sent().map { $0["path"] as? String },
+            Array(repeating: "/profiles/\(UID.n(1))/watch-state/\(UID.n(20))", count: 3))
         let body = sent().first?["body"] as? [String: Any]
         XCTAssertEqual(body?["watched"] as? Bool, false)
         XCTAssertEqual(body?["positionMs"] as? Int, 600_123)
@@ -119,16 +129,17 @@ final class WatchActionsTests: ActionQueueCase {
         XCTAssertEqual(video?[1], 1)
 
         _ = await queue.flush()
-        XCTAssertEqual(sent().map { $0["path"] as? String }, ["/profiles/3/watch-state/batch"])
+        XCTAssertEqual(sent().map { $0["path"] as? String }, ["/profiles/\(UID.n(3))/watch-state/batch"])
         let body = sent().first?["body"] as? [String: Any]
-        XCTAssertEqual(body?["itemIds"] as? [Int], [12, 13, 15, 51, 52], "each once, episodes by number")
+        XCTAssertEqual(
+            body?["itemIds"] as? [String], [12, 13, 15, 51, 52].map { "\(UID.n($0))" }, "each once, episodes by number")
         XCTAssertEqual(body?["watched"] as? Bool, true)
     }
 
     func testALargeSelectionGoesInActionsOfAtMostTheTouchedLimit() async throws {
         let replica = try library { db in
             for number in 1...(ActionQueue.touchedLimit + 6) {
-                try db.item(Int64(1000 + number), "episode", "E\(number)", parent: 11, season: 1, episode: number)
+                try db.item(UID.n(1000 + number), "episode", "E\(number)", parent: 11, season: 1, episode: number)
             }
         }
         try await queue(replica).putWatchStates(false, items: [11], as: 1, in: replica)
@@ -168,7 +179,9 @@ final class WatchActionsTests: ActionQueueCase {
         let kept = try await state(replica, 12)
         XCTAssertNotNil(kept)
         _ = await queue.flush()
-        XCTAssertEqual(sent().first?["path"] as? String, "/profiles/1/watch-state/20?at=2027-01-15T08%3A00%3A00.123Z")
+        XCTAssertEqual(
+            sent().first?["path"] as? String,
+            "/profiles/\(UID.n(1))/watch-state/\(UID.n(20))?at=2027-01-15T08%3A00%3A00.123Z")
     }
 
     func testAPlayAddsOneKeepsTheLaterLastPlayAndWatchesOnlyOverAnOlderState() async throws {
@@ -191,7 +204,7 @@ final class WatchActionsTests: ActionQueueCase {
 
         _ = await queue.flush()
         let body = sent().first?["body"] as? [String: Any]
-        XCTAssertEqual(sent().first?["path"] as? String, "/profiles/1/watch-state/20/plays")
+        XCTAssertEqual(sent().first?["path"] as? String, "/profiles/\(UID.n(1))/watch-state/\(UID.n(20))/plays")
         XCTAssertNil(body?["editionId"])
         XCTAssertNotNil(body?["at"])
     }

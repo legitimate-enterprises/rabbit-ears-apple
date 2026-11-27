@@ -16,7 +16,10 @@ final class CarPlayImagesTests: XCTestCase {
             try db.cover(2, on: 3)
         }
         let list = try await library.playlists(CarPlayLimits(maxItems: 500, maxSections: 50, limited: false))
-        XCTAssertEqual(list.sections.first?.rows.first?.art, .custom("/api/v1/stations/8/image?v=77"))
-        XCTAssertEqual(list.sections.last?.rows.first?.art, .custom("/api/v1/profiles/1/playlists/3/image?v=2"))
+        XCTAssertEqual(
+            list.sections.first?.rows.first?.art, .custom("/api/v2/stations/\(UID.n(8))/image?v=\(UID.n(77))"))
+        XCTAssertEqual(
+            list.sections.last?.rows.first?.art,
+            .custom("/api/v2/profiles/\(UID.n(1))/playlists/\(UID.n(3))/image?v=\(UID.n(2))"))
     }
 }

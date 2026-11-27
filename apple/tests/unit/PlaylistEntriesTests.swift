@@ -122,9 +122,9 @@ final class PlaylistEntriesTests: XCTestCase {
 
     func testAMoveIsRankedBetweenItsNewNeighboursAndQueued() async throws {
         try await synced.replica.write { db in
-            for (id, rank) in [(40, "a0"), (41, "a1"), (42, "a1"), (43, "a3")] as [(Int64, String)] {
-                try db.item(20 + id, "movie", "Movie \(id)", rating: "PG")
-                try db.entry(id, in: 4, item: 20 + id, rank: rank)
+            for (number, rank) in [(40, "a0"), (41, "a1"), (42, "a1"), (43, "a3")] {
+                try db.item(.n(20 + number), "movie", "Movie \(number)", rating: "PG")
+                try db.entry(.n(number), in: 4, item: .n(20 + number), rank: rank)
             }
         }
         let entriesRead = await model.entries(of: 4)
@@ -133,8 +133,11 @@ final class PlaylistEntriesTests: XCTestCase {
         let body = try XCTUnwrap(try synced.lastBody())
         XCTAssertEqual(body["rank"] as? String, "a0V")
         XCTAssertNil(body["position"])
-        XCTAssertEqual(body["itemId"] as? Int, 63)
-        XCTAssertEqual(try synced.lastTouched(), ["playlist_entry 43"])
+        XCTAssertEqual(body["itemId"] as? String, UID.n(63).description)
+        XCTAssertEqual(try synced.lastTouched(), ["playlist_entry \(UID.n(43))"])
+        let moved = await model.entries(of: 4)?.first { $0.id == 43 }
+        XCTAssertGreaterThan(try XCTUnwrap(moved).modifiedAt, entries[3].modifiedAt, "as the server stamps a move")
+        XCTAssertEqual(moved?.modifiedBy, 1)
         let order1 = await model.entries(of: 4)?.map(\.id)
         XCTAssertEqual(order1, [40, 43, 41, 42])
 
@@ -147,12 +150,13 @@ final class PlaylistEntriesTests: XCTestCase {
         let order3 = await model.entries(of: 4)?.map(\.id)
         XCTAssertEqual(order3, [43, 42, 40])
         let queued = try synced.queued()
+        let path = "/profiles/\(UID.n(1))/playlists/\(UID.n(4))/entries"
         XCTAssertEqual(
             queued,
             [
-                "replacePlaylistEntry PUT /profiles/1/playlists/4/entries/43",
-                "replacePlaylistEntry PUT /profiles/1/playlists/4/entries/40",
-                "removePlaylistEntry DELETE /profiles/1/playlists/4/entries/41",
+                "replacePlaylistEntry PUT \(path)/\(UID.n(43))",
+                "replacePlaylistEntry PUT \(path)/\(UID.n(40))",
+                "removePlaylistEntry DELETE \(path)/\(UID.n(41))",
             ])
         XCTAssertNil(model.error)
     }
@@ -165,7 +169,8 @@ final class PlaylistEntriesTests: XCTestCase {
             try db.music(82, "song", "Nude", parent: 81)
             try db.music(83, "song", "Reckoner", parent: 81)
             try db.execute(
-                sql: "UPDATE item SET track_number = 2 WHERE id = 82; UPDATE item SET track_number = 1 WHERE id = 83")
+                sql: "UPDATE item SET track_number = 2 WHERE id = \(sqlID(82)); "
+                    + "UPDATE item SET track_number = 1 WHERE id = \(sqlID(83))")
             try db.edition(182, of: 82, ms: 255_000)
             try db.edition(183, of: 83, ms: 290_000)
             try db.music(85, "artist", "Nobody")
@@ -182,6 +187,37 @@ final class PlaylistEntriesTests: XCTestCase {
         XCTAssertEqual(rows.map(\.editionId), [183, 182, 182])
         XCTAssertEqual(rows.start(of: 40), 2)
         XCTAssertNil(rows.start(of: 42), "an entry that stands for nothing now")
+    }
+
+    /// The server takes at most 2,000 entries a call, so a larger batch goes
+    /// as consecutive calls, each touching its own rows, ranked on from the one before.
+    func testABatchOverWhatOneCallTakesIsQueuedAsConsecutiveCalls() async throws {
+        let ids = (0...2000).map { UID.n(1000 + $0) }
+        try await synced.replica.write { db in
+            for id in ids { try db.item(id, "movie", "Movie") }
+        }
+        let added = await model.add(ids, to: 4)
+        XCTAssertTrue(added)
+        XCTAssertNil(model.error)
+
+        let path = "/profiles/\(UID.n(1))/playlists/\(UID.n(4))/entries/batch"
+        XCTAssertEqual(try synced.queued(), ["addPlaylistEntries POST \(path)", "addPlaylistEntries POST \(path)"])
+        let sent: [Int] = try await synced.read(
+            "SELECT json_array_length(CAST(body AS TEXT), '$.entries') FROM queue.action ORDER BY seq")
+        XCTAssertEqual(sent, [2000, 1])
+        let touched: [Int] = try await synced.read(
+            """
+            SELECT count(*) FROM queue.action a JOIN queue.action_touch t ON t.action = a.seq
+            JOIN json_each(CAST(a.body AS TEXT), '$.entries') e ON json_extract(e.value, '$.id') = t.key1
+            GROUP BY a.seq ORDER BY a.seq
+            """)
+        XCTAssertEqual(touched, [2000, 1], "each call touches the rows it sends")
+        let read = await model.entries(of: 4)
+        let entries = try XCTUnwrap(read)
+        XCTAssertEqual(entries.compactMap(\.itemId), ids)
+        let ranks = entries.compactMap(\.rank)
+        XCTAssertEqual(ranks.count, ids.count)
+        XCTAssertTrue(zip(ranks, ranks.dropFirst()).allSatisfy { $0 < $1 }, "ascending across the calls")
     }
 
     func testAnUnreadablePlayOrderIsNil() async {

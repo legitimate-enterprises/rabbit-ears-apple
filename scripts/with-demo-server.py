@@ -88,7 +88,7 @@ class API:
         headers = {"Content-Type": "application/json"}
         if self.token:
             headers["Authorization"] = "Bearer " + self.token
-        request = urllib.request.Request(self.base + "/api/v1" + path,
+        request = urllib.request.Request(self.base + "/api/v2" + path,
                                          data=None if data is None else json.dumps(data).encode(),
                                          headers=headers, method=method)
         try:

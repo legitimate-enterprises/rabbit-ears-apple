@@ -7,6 +7,7 @@ public typealias Playlist = Components.Schemas.Playlist
 public typealias PlaylistEntry = Components.Schemas.PlaylistEntry
 public typealias PlaylistKind = Components.Schemas.PlaylistKind
 public typealias PlayOrderRow = Components.Schemas.PlaylistPlayOrderItem
+typealias PlaylistEntryInput = Components.Schemas.PlaylistEntryInput
 
 /// The active profile's playlists and those shared with it. Each holds one
 /// library kind, movies, tv or music; kids own none and only read, and the
@@ -22,12 +23,12 @@ public final class PlaylistsModel {
     public let replica: Replica
     public let queue: ActionQueue
     public let engine: SyncEngine
-    public let profileId: Int64
+    public let profileId: UID
     /// An adult makes and adds to playlists; a kid only has those shared with them.
     public let adult: Bool
 
     public init(
-        client: Client, replica: Replica, queue: ActionQueue, engine: SyncEngine, profileId: Int64, adult: Bool = true
+        client: Client, replica: Replica, queue: ActionQueue, engine: SyncEngine, profileId: UID, adult: Bool = true
     ) {
         self.client = client
         self.replica = replica
@@ -37,7 +38,7 @@ public final class PlaylistsModel {
         self.adult = adult
     }
 
-    public func shares(of playlist: Int64) -> PlaylistSharesModel {
+    public func shares(of playlist: UID) -> PlaylistSharesModel {
         PlaylistSharesModel(client: client, queue: queue, profileId: profileId, playlistId: playlist)
     }
 
@@ -61,17 +62,16 @@ public final class PlaylistsModel {
 
     public func playlists(_ kind: PlaylistKind) -> [Playlist] { playlists.filter { $0.kind == kind } }
 
-    // shortcut: online-only until offline ids are decided
+    /// Queued, so it shows at once under the id made here, which the server keeps.
     @discardableResult
     public func create(name: String, kind: PlaylistKind) async -> Playlist? {
         guard let name = Self.name(name) else { return nil }
+        let id = UID.new()
         var created: Playlist?
         await write {
-            let playlist = try await client.createPlaylist(
-                path: .init(profileId: profileId), body: .json(.init(name: name, kind: kind))
-            ).created.body.json
-            try await caughtUp()
-            created = playlist
+            try await queue.createPlaylist(as: profileId, id, name: name, kind: kind)
+            try await reload()
+            created = playlists.first { $0.id == id }
         }
         return created
     }
@@ -94,7 +94,7 @@ public final class PlaylistsModel {
     }
 
     /// The entries top to bottom; nil when they could not be read.
-    public func entries(of playlistId: Int64) async -> [PlaylistEntry]? {
+    public func entries(of playlistId: UID) async -> [PlaylistEntry]? {
         var entries: [PlaylistEntry]?
         await write {
             entries = try await readPlaylist(playlistId) { db, profile in
@@ -105,7 +105,7 @@ public final class PlaylistsModel {
     }
 
     /// What "Pick a title's artwork" offers from the playlist's entries; empty when none or unread.
-    public func artChoices(of playlistId: Int64) async -> [ArtChoice] {
+    public func artChoices(of playlistId: UID) async -> [ArtChoice] {
         let entries = try? await readPlaylist(playlistId) { db, profile in
             try PlaylistRows.entries(db, profile: profile, playlist: playlistId)
         }
@@ -115,7 +115,7 @@ public final class PlaylistsModel {
     /// What playing the playlist plays; nil when it could not be read.
     /// Containers are expanded as the server expands them, so this is the
     /// only source of what plays.
-    public func playOrder(of playlistId: Int64) async -> [PlayOrderRow]? {
+    public func playOrder(of playlistId: UID) async -> [PlayOrderRow]? {
         var rows: [PlayOrderRow]?
         await write {
             rows = try await readPlaylist(playlistId) { db, profile in
@@ -125,22 +125,32 @@ public final class PlaylistsModel {
         return rows
     }
 
-    /// Adds an item at `position`, or last; false when the server refused,
-    /// as for a song in a movies playlist. A title of several editions added
+    /// Adds an item at `position`, or last; false when refused, as the server
+    /// refuses a song in a movies playlist. A title of several editions added
     /// without one is not refused: it sets `editionQuestion` and answers false.
     @discardableResult
     public func add(
-        _ itemId: Int64, to playlistId: Int64, at position: Int? = nil, edition editionId: Int64? = nil
+        _ itemId: UID, to playlistId: UID, at position: Int? = nil, edition editionId: UID? = nil
     ) async -> Bool {
         var question: EditionQuestion?
         let added = await write {
-            do {
-                try await insert(.init(itemId: itemId, position: position, editionId: editionId), into: playlistId)
-            } catch  where editionId == nil && APIError.from(error)?.fields.contains("editionId") == true {
-                let editions = try await replica.read { try Editions.of(itemId, $0) }
-                guard !editions.isEmpty else { throw error }
+            let picked = try await replica.read { [profileId] db -> (PlaylistEntryInput?, [Edition]) in
+                let kind = try Self.kind(db, itemId, in: Self.playlist(db, profile: profileId, playlistId))
+                var edition = editionId
+                if edition == nil, Self.titles.contains(kind) {
+                    // The server takes a title's only edition, and refuses one of several unnamed.
+                    let editions = try Editions.of(itemId, db)
+                    if editions.count > 1 { return (nil, editions) }
+                    edition = editions.first?.id
+                }
+                let rank = try PlaylistRows.rank(db, playlist: playlistId, except: nil, at: position ?? .max)
+                return (PlaylistEntryInput(id: .new(), itemId: itemId, rank: rank, editionId: edition), [])
+            }
+            if let entry = picked.0 {
+                try await insert(entry, into: playlistId)
+            } else {
                 question = EditionQuestion(
-                    itemId: itemId, playlistId: playlistId, position: position, editions: editions)
+                    itemId: itemId, playlistId: playlistId, position: position, editions: picked.1)
             }
         }
         editionQuestion = question
@@ -154,33 +164,79 @@ public final class PlaylistsModel {
         return await add(question.itemId, to: question.playlistId, at: question.position, edition: edition.id)
     }
 
-    /// Adds a collection as one entry; only a movies playlist takes one.
+    /// Adds a collection as one entry, last; only a movies playlist takes one.
     @discardableResult
-    public func add(collection collectionId: Int64, to playlistId: Int64) async -> Bool {
-        await write { try await insert(.init(collectionId: collectionId), into: playlistId) }
-    }
-
-    // shortcut: online-only until offline ids are decided
-    /// Appends a selection in one request, to a playlist or a station's own;
-    /// a title of several editions takes its default one.
-    @discardableResult
-    public func add(_ itemIds: [Int64], to playlistId: Int64) async -> Bool {
+    public func add(collection collectionId: UID, to playlistId: UID) async -> Bool {
         await write {
-            _ = try await client.addPlaylistEntries(
-                path: .init(profileId: profileId, playlistId: playlistId),
-                body: .json(.init(entries: itemIds.map { .init(itemId: $0) }))
-            ).noContent
-            try await caughtUp()
+            let entry = try await replica.read { [profileId] db in
+                guard try Self.playlist(db, profile: profileId, playlistId).kind == .movies else {
+                    throw AppError.server(Self.wrongKind)
+                }
+                return PlaylistEntryInput(
+                    id: .new(), collectionId: collectionId,
+                    rank: try PlaylistRows.rank(db, playlist: playlistId, except: nil, at: .max))
+            }
+            try await insert(entry, into: playlistId)
         }
     }
 
-    // shortcut: online-only until offline ids are decided
-    private func insert(_ input: Components.Schemas.PlaylistEntryInput, into playlistId: Int64) async throws {
-        _ = try await client.addPlaylistEntry(
-            path: .init(profileId: profileId, playlistId: playlistId), body: .json(input)
-        ).created.body.json
-        try await caughtUp()
+    /// Appends a selection in one request, to a playlist or a station's own;
+    /// a title of several editions takes its default one. One of more
+    /// entries than a queued action may touch goes to the server at once and
+    /// shows after the catch-up that follows.
+    @discardableResult
+    public func add(_ itemIds: [UID], to playlistId: UID) async -> Bool {
+        await write {
+            guard !itemIds.isEmpty else { return }
+            let entries = try await replica.read { [profileId] db in
+                let playlist = try Self.playlist(db, profile: profileId, playlistId)
+                let last = try String.fetchOne(
+                    db,
+                    sql: "SELECT rank FROM playlist_entry WHERE playlist_id = ? ORDER BY rank DESC, id DESC LIMIT 1",
+                    arguments: [playlistId])
+                let ranks = try FractionalIndex.keys(between: last, and: nil, count: itemIds.count)
+                return try zip(itemIds, ranks).map { itemId, rank in
+                    let kind = try Self.kind(db, itemId, in: playlist)
+                    let edition =
+                        try Self.titles.contains(kind) ? Editions.of(itemId, db).first(where: \.isDefault)?.id : nil
+                    return PlaylistEntryInput(id: .new(), itemId: itemId, rank: rank, editionId: edition)
+                }
+            }
+            try await queue.addEntries(as: profileId, to: playlistId, entries)
+            if entries.count > ActionQueue.touchedLimit { try await caughtUp() } else { try await reload() }
+        }
     }
+
+    private func insert(_ entry: PlaylistEntryInput, into playlistId: UID) async throws {
+        try await queue.addEntry(as: profileId, to: playlistId, entry)
+        try await reload()
+    }
+
+    /// The kinds of item whose entry plays one edition.
+    private nonisolated static let titles: Set<String> = ["movie", "episode", "song"]
+    private nonisolated static let wrongKind = "The item does not belong in this kind of playlist."
+
+    /// The playlist the profile may add to, as the server refuses one it may only read; one it cannot see is not found.
+    private nonisolated static func playlist(_ db: Database, profile: UID, _ id: UID) throws -> Playlist {
+        guard let playlist = try PlaylistRows.playlist(db, profile: profile, id: id) else {
+            throw AppError.server("not found")
+        }
+        guard playlist.isEditable else { throw AppError.server("Your access to this playlist does not allow that.") }
+        return playlist
+    }
+
+    /// The kind of an item the playlist holds, as service.Holds decides.
+    private nonisolated static func kind(_ db: Database, _ item: UID, in playlist: Playlist) throws -> String {
+        guard let kind = try String.fetchOne(db, sql: "SELECT kind FROM item WHERE id = ?", arguments: [item]) else {
+            throw AppError.server("not found")
+        }
+        guard holds[playlist.kind]?.contains(kind) == true else { throw AppError.server(wrongKind) }
+        return kind
+    }
+
+    private nonisolated static let holds: [PlaylistKind: Set<String>] = [
+        .movies: ["movie"], .tv: ["show", "season", "episode"], .music: ["artist", "album", "song"],
+    ]
 
     public func remove(_ entry: PlaylistEntry) async {
         await write {
@@ -212,7 +268,7 @@ public final class PlaylistsModel {
 
     /// Reads what `body` reads of a playlist the profile owns or that reaches it; one it cannot see is not found.
     private func readPlaylist<T: Sendable>(
-        _ id: Int64, _ body: @escaping @Sendable (Database, Int64) throws -> T
+        _ id: UID, _ body: @escaping @Sendable (Database, UID) throws -> T
     ) async throws -> T {
         try await replica.read { [profileId] db in
             guard try PlaylistRows.playlist(db, profile: profileId, id: id) != nil else {
@@ -224,7 +280,7 @@ public final class PlaylistsModel {
 
     private static func name(_ name: String) -> String? {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? nil : String(name.prefix(100))
+        return name.isEmpty ? nil : name.prefix(scalars: 100)
     }
 
     @discardableResult
@@ -242,11 +298,11 @@ public final class PlaylistsModel {
 
 /// An add the server would not take without an edition, and the editions to pick from.
 public struct EditionQuestion: Identifiable, Sendable {
-    public let itemId: Int64
-    public let playlistId: Int64
+    public let itemId: UID
+    public let playlistId: UID
     public let position: Int?
     public let editions: [Edition]
-    public var id: Int64 { itemId }
+    public var id: UID { itemId }
 }
 
 extension PlaylistKind {
@@ -259,7 +315,7 @@ extension PlaylistKind {
 extension PlaylistEntry {
     /// Its poster's item; a song shows its album's and a collection its own,
     /// which `kind` tells apart.
-    public var artId: Int64 { song?.albumId ?? itemId ?? collectionId ?? id }
+    public var artId: UID { song?.albumId ?? itemId ?? collectionId ?? id }
 }
 
 extension Array where Element == PlayOrderRow {
@@ -267,7 +323,7 @@ extension Array where Element == PlayOrderRow {
 
     /// Where an entry's rows begin among the playable ones; nil when it
     /// stands for nothing now, as a show with no episodes.
-    public func start(of entryId: Int64) -> Int? {
+    public func start(of entryId: UID) -> Int? {
         guard let first = firstIndex(where: { $0.entryId == entryId }) else { return nil }
         return self[..<first].filter { $0.song != nil || $0.item != nil }.count
     }
@@ -277,12 +333,12 @@ extension Array where Element == PlayOrderRow {
 /// play order and the row on screen, each row playing its own edition.
 /// Ending a row plays the next.
 public struct VideoQueue: Hashable, Sendable {
-    public let playlistId: Int64
+    public let playlistId: UID
     public let items: [Item]
     private let rows: [PlayOrderRow]
     public let index: Int
 
-    public init?(_ rows: [PlayOrderRow], start: Int, playlistId: Int64) {
+    public init?(_ rows: [PlayOrderRow], start: Int, playlistId: UID) {
         let rows = rows.filter { $0.item != nil }
         guard rows.indices.contains(start) else { return nil }
         self.rows = rows
@@ -292,57 +348,9 @@ public struct VideoQueue: Hashable, Sendable {
     }
 
     public var current: Item { items[index] }
-    public var editionId: Int64? { rows[index].editionId }
+    public var editionId: UID? { rows[index].editionId }
     /// Present only while the title has more than one edition.
     public var editionName: String? { rows[index].editionName }
     public var next: VideoQueue? { VideoQueue(rows, start: index + 1, playlistId: playlistId) }
     public func at(_ row: Int) -> VideoQueue? { VideoQueue(rows, start: row, playlistId: playlistId) }
-}
-
-/// The lines under a playlist's name and an entry's title.
-public enum PlaylistText {
-    /// `3 movies · 6h 10m`, `12 episodes · 8h` or `48 songs · 3h 2m`.
-    public static func summary(_ playlist: Playlist) -> String {
-        "\(count(playlist)) · \(Format.runtime(minutes: minutes(playlist.durationMs)))"
-    }
-
-    /// `3 movies`, `12 episodes` or `48 songs`.
-    public static func count(_ playlist: Playlist) -> String {
-        let noun =
-            switch playlist.kind {
-            case .movies: "movie"
-            case .tv: "episode"
-            case .music: "song"
-            }
-        return Format.count(playlist.itemCount, noun)
-    }
-
-    public static func title(_ entry: PlaylistEntry) -> String {
-        named(
-            entry.item.map(Catalog.title) ?? entry.artist?.name ?? entry.album?.title ?? entry.song?.title
-                ?? entry.collection?.name ?? "", edition: entry.editionName)
-    }
-
-    public static func named(_ title: String, edition: String?) -> String {
-        edition.map { "\(title) · \($0)" } ?? title
-    }
-
-    /// What the entry stands for: a container counts what it plays now.
-    public static func detail(_ entry: PlaylistEntry) -> String {
-        let show = entry.show.map(Catalog.title)
-        let parts: [String?] =
-            switch entry.kind {
-            case .movie: [Format.runtime(minutes: minutes(entry.durationMs))]
-            case .show: [Format.count(entry.itemCount, "episode")]
-            case .season: [show, Format.count(entry.itemCount, "episode")]
-            case .episode: [show, entry.item.map(Format.episodeCode)]
-            case .artist: [Format.count(entry.itemCount, "song")]
-            case .album: [entry.album?.artistName, Format.count(entry.itemCount, "song")]
-            case .song: [entry.song?.artistName, entry.song?.albumTitle]
-            case .collection: [Format.count(entry.itemCount, "movie")]
-            }
-        return parts.compactMap { $0 }.joined(separator: " · ")
-    }
-
-    private static func minutes(_ ms: Int64) -> Int { Int((ms + 30_000) / 60_000) }
 }

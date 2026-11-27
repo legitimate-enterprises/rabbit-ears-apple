@@ -7,7 +7,7 @@ struct ChannelView: View {
     @Environment(Browser.self) private var browser
     @Environment(CatalogModel.self) private var catalog
     @Environment(AppModel.self) private var app
-    let id: Int64
+    let id: UID
     @State private var detail: ChannelDetail?
     @State private var failure: String?
     @State private var allowed: Set<Account.ID> = []
@@ -132,7 +132,7 @@ struct VideoView: View {
     @Environment(Browser.self) private var browser
     @Environment(CatalogModel.self) private var catalog
     @Environment(AppModel.self) private var app
-    let id: Int64
+    let id: UID
     @State private var detail: VideoDetail?
     @State private var failure: String?
     @State private var media: MediaSummary?

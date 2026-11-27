@@ -72,13 +72,13 @@ final class KidsHiddenTests: XCTestCase {
         XCTAssertEqual(catalog.nextUp.map(\.id), [])
     }
 
-    private func profile(_ id: Int64, hiding: Bool) -> Account {
+    private func profile(_ id: UID, hiding: Bool) -> Account {
         Fixtures.decode(String(Fixtures.account(id, "Avery").dropLast()) + #","hideKidsContent":\#(hiding)}"#)
     }
 
     private func hide(_ hiding: Bool, _ model: CatalogModel) async throws {
         try await model.replica.write {
-            try $0.execute(sql: "UPDATE account SET hide_kids_content = ? WHERE id = 2", arguments: [hiding])
+            try $0.execute(sql: "UPDATE account SET hide_kids_content = ? WHERE id = ?", arguments: [hiding, UID.n(2)])
         }
     }
 

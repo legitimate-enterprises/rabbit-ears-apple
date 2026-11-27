@@ -39,6 +39,28 @@ final class BundledSQLiteTests: XCTestCase {
         XCTAssertEqual(titles, ["Rabbit Ears"])
     }
 
+    // The replica's id lists (`unhex(value, '-')`) and search tables need both.
+    func testUnhexSkipsTheDashesOfAUUID() throws {
+        let bytes = try DatabaseQueue().read { db in
+            try Data.fetchOne(db, sql: "SELECT unhex('00000000-0000-7000-8000-00000000002a', '-')")
+        }
+        XCTAssertEqual(bytes, Data([0, 0, 0, 0, 0, 0, 0x70, 0, 0x80, 0, 0, 0, 0, 0, 0, 0x2a]))
+    }
+
+    func testAContentlessTableKeepsAndDeletesByItsUnindexedColumn() throws {
+        let kept = try DatabaseQueue().write { db in
+            try db.execute(
+                sql: """
+                    CREATE VIRTUAL TABLE titles USING fts5(key UNINDEXED, name, tokenize = 'trigram',
+                        content = '', contentless_delete = 1, contentless_unindexed = 1);
+                    INSERT INTO titles(key, name) VALUES (x'01', 'Rabbit Ears'), (x'02', 'Rabbit Hop');
+                    DELETE FROM titles WHERE key IN (x'01');
+                    """)
+            return try Data.fetchAll(db, sql: "SELECT key FROM titles WHERE titles MATCH 'rabbit'")
+        }
+        XCTAssertEqual(kept, [Data([2])])
+    }
+
     func testAnAttachedDatabaseFileIsQueryable() throws {
         let dir = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

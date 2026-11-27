@@ -15,10 +15,10 @@ final class WatchSyncTests: XCTestCase {
 
     override func setUp() async throws {
         harness = DownloadHarness()
-        harness.objects["GET /items/20"] = Fixtures.item(20, "movie", "Dune", runtime: 100)
-        harness.objects["GET /items/21"] = Fixtures.item(21, "movie", "Arrival", runtime: 100)
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie", runtime: 6_000_000)]
-        harness.resolves["item/21"] = [Fixtures.downloadTitle(21, "movie", runtime: 6_000_000)]
+        harness.objects["GET /items/\(UID.n(20))"] = Fixtures.item(20, "movie", "Dune", runtime: 100)
+        harness.objects["GET /items/\(UID.n(21))"] = Fixtures.item(21, "movie", "Arrival", runtime: 100)
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie", runtime: 6_000_000)]
+        harness.resolves["item/\(UID.n(21))"] = [Fixtures.downloadTitle(21, "movie", runtime: 6_000_000)]
         try await harness.download(.title(20))
         try await harness.download(.title(21))
         try await harness.replica.write { db in
@@ -27,7 +27,7 @@ final class WatchSyncTests: XCTestCase {
         }
     }
 
-    private func play(_ id: Int64, to positionMs: Int64) async {
+    private func play(_ id: UID, to positionMs: Int64) async {
         let output = FakeOutput()
         let item = Fixtures.decode(Fixtures.item(id, "movie", "Movie"), as: Item.self)
         let player = PlayerModel(
@@ -39,16 +39,16 @@ final class WatchSyncTests: XCTestCase {
     }
 
     /// The session a local start answers, for sending its reports by hand.
-    private func start(_ id: Int64) async throws -> Int64 {
+    private func start(_ id: UID) async throws -> UID {
         let snapshot = await harness.endpoint.snapshot(harness.box.facts, checkedWith: harness.client, maxBitrate: nil)
         let stream = try await harness.client.startPlayback(
             body: .json(.init(profileId: 1, itemId: id, snapshot: snapshot))
         ).created.body.json
-        XCTAssertLessThan(stream.sessionId, 0, "played from the device")
+        XCTAssertNotNil(store.sessions[stream.sessionId], "played from the device")
         return stream.sessionId
     }
 
-    private func report(_ session: Int64, at positionMs: Int64) async throws {
+    private func report(_ session: UID, at positionMs: Int64) async throws {
         _ = try await harness.client.reportPlaybackPosition(
             path: .init(sessionId: session), body: .json(.init(positionMs: positionMs, paused: false))
         ).noContent
@@ -147,7 +147,7 @@ final class WatchSyncTests: XCTestCase {
 
     func testAFinishedLocalPlayTakesAWatchedEpisodeOutOfAStandingRequest() async throws {
         harness.plays.replica = harness.replica
-        harness.resolves["item/10"] = [
+        harness.resolves["item/\(UID.n(10))"] = [
             Fixtures.downloadTitle(101, "episode", library: 2, runtime: 6_000_000),
             Fixtures.downloadTitle(102, "episode", library: 2, runtime: 6_000_000),
         ]

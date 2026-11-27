@@ -1,3 +1,4 @@
+import RabbitEarsAPI
 import XCTest
 
 @testable import RabbitEarsKit
@@ -6,17 +7,17 @@ import XCTest
 @MainActor
 final class SelectAllTests: XCTestCase {
     /// `pages` pages of three ids, 1 up; a page takes `wait` to arrive.
-    private func pager(pages: Int, wait: Duration = .zero, failingAt: Int? = nil) -> Pager<Int64> {
+    private func pager(pages: Int, wait: Duration = .zero, failingAt: Int? = nil) -> Pager<UID> {
         Pager { offset in
             let start = offset ?? 0
             if wait > .zero { try await Task.sleep(for: wait) }
             if start == failingAt { throw AppError.server("down") }
             let next = start + 3
-            return ((start..<next).map { Int64($0 + 1) }, next < pages * 3 ? next : nil)
+            return ((start..<next).map { UID.n($0 + 1) }, next < pages * 3 ? next : nil)
         }
     }
 
-    private func selecting(_ pager: Pager<Int64>) -> Selection {
+    private func selecting(_ pager: Pager<UID>) -> Selection {
         let selection = Selection()
         selection.begin()
         selection.source = .init({ pager }, id: { $0 })
@@ -30,8 +31,8 @@ final class SelectAllTests: XCTestCase {
         selection.toggleAll()
         XCTAssertTrue(selection.gathering)
         await selection.gather?.value
-        XCTAssertEqual(selection.picked, Set(1...12))
-        XCTAssertEqual(selection.inPickOrder, Array(1...12))
+        XCTAssertEqual(selection.picked, Set((1...12).map(UID.n)))
+        XCTAssertEqual(selection.inPickOrder, (1...12).map(UID.n))
         XCTAssertFalse(selection.gathering)
         XCTAssertTrue(selection.allPicked)
     }
@@ -56,7 +57,7 @@ final class SelectAllTests: XCTestCase {
         XCTAssertFalse(selection.allPicked, "the second page has not been read")
         selection.toggleAll()
         await selection.gather?.value
-        XCTAssertEqual(selection.picked, Set(1...6))
+        XCTAssertEqual(selection.picked, Set((1...6).map(UID.n)))
     }
 
     func testAHeldListingIsPickedWholeWithoutReadingAnything() async {

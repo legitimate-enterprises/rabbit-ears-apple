@@ -43,7 +43,7 @@ struct PlayShuffle: View {
 struct AlbumView: View {
     @Environment(Services.self) private var services
     @Environment(Browser.self) private var browser
-    let id: Int64
+    let id: UID
     @State private var detail: AlbumDetail?
     @State private var failure: String?
     @State private var target: PlaylistTarget?
@@ -154,7 +154,7 @@ struct AlbumStrip: View {
 
 struct ArtistView: View {
     @Environment(Services.self) private var services
-    let id: Int64
+    let id: UID
     @State private var detail: ArtistDetail?
     @State private var failure: String?
     @State private var target: PlaylistTarget?

@@ -128,7 +128,7 @@ final class CarPlayLibraryTests: XCTestCase {
 
     func testAlbumsThatDoNotFitAreLetterRowsWithCounts() async throws {
         library = try carPlay(transport) { db in
-            for id in Int64(101)...196 { try db.album(id, "A\(id)", artist: 40) }
+            for number in 101...196 { try db.album(.n(number), "A\(number)", artist: 40) }
             try db.album(197, "Blue", artist: 40)
         }
         let list = try await library.albums(CarPlayLimits(maxItems: 50, maxSections: 50, limited: false))
@@ -144,14 +144,14 @@ final class CarPlayLibraryTests: XCTestCase {
     func testMoreLettersThanSectionsAlsoBecomeLetterRows() async throws {
         library = try carPlay(transport) { db in
             try db.execute(sql: "DELETE FROM item")
-            for (id, name) in [(Int64(41), "Abba"), (42, "Blur"), (43, "Cream")] { try db.artist(id, name) }
+            for (id, name) in [(UID.n(41), "Abba"), (42, "Blur"), (43, "Cream")] { try db.artist(id, name) }
         }
         let list = try await library.artists(CarPlayLimits(maxItems: 50, maxSections: 2, limited: false))
         XCTAssertEqual(list.sections.flatMap(\.rows).map(\.detail), ["1 artist", "1 artist", "1 artist"])
     }
 
     func testALimitedCarShowsTheTwelveMostRecentlyPlayed() async throws {
-        transport.routes["GET /profiles/1/music/recently-played"] = (
+        transport.routes["GET /profiles/\(UID.n(1))/music/recently-played"] = (
             .ok, Fixtures.page([Fixtures.recent("artist", Fixtures.artist)])
         )
         let list = try await library.artists(CarPlayLimits(maxItems: 12, maxSections: 50, limited: true))
@@ -159,7 +159,7 @@ final class CarPlayLibraryTests: XCTestCase {
         XCTAssertEqual(row.text, "Radiohead")
         XCTAssertEqual(row.art, .round(40))
         XCTAssertEqual(row.action, .open(.artist(40)))
-        XCTAssertEqual(transport.queries(.get, "/profiles/1/music/recently-played"), ["kind=artist&limit=12"])
+        XCTAssertEqual(transport.queries(.get, "/profiles/\(UID.n(1))/music/recently-played"), ["kind=artist&limit=12"])
     }
 
     func testALetterListsItsAlbumsCutToTheCarsLimit() async throws {
@@ -175,7 +175,7 @@ final class CarPlayLibraryTests: XCTestCase {
 
     func testRecentPlaysOnTapUnderTwoHeadings() async throws {
         transport.routes = [
-            "GET /profiles/1/music/recently-played": (
+            "GET /profiles/\(UID.n(1))/music/recently-played": (
                 .ok,
                 Fixtures.page([
                     Fixtures.recent("album", Fixtures.album(50, "In Rainbows")),
@@ -195,11 +195,11 @@ final class CarPlayLibraryTests: XCTestCase {
 
     func testAnEmptyLibrarySaysNoMusicYet() async throws {
         transport.routes = [
-            "GET /profiles/1/music/recently-played": (.ok, Fixtures.page([])),
+            "GET /profiles/\(UID.n(1))/music/recently-played": (.ok, Fixtures.page([])),
             "GET /music/albums": (.ok, Fixtures.page([])),
             "GET /music/letters": (.ok, Fixtures.page([])),
         ]
-        library = try carPlay(transport) { try $0.execute(sql: "DELETE FROM item WHERE id = 40") }
+        library = try carPlay(transport) { try $0.execute(sql: "DELETE FROM item WHERE id = \(sqlID(40))") }
         let noMusic = CarPlayMessage("No music yet", "Albums appear here after your server\u{2019}s next scan.")
         let recent = try await library.recent(roomy)
         XCTAssertTrue(recent.sections.isEmpty)

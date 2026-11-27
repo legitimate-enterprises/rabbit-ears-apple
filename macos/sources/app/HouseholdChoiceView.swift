@@ -6,7 +6,7 @@ import SwiftUI
 /// shows, their own preselected.
 struct HouseholdChoiceView: View {
     @Environment(AppModel.self) private var model
-    @State private var chosen: Int64?
+    @State private var chosen: UID?
     @State private var error: String?
     @State private var busy = false
 

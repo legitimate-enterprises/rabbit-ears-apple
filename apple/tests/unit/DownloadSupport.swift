@@ -65,23 +65,25 @@ final class FactsBox {
 
 extension Fixtures {
     static func downloadTitle(
-        _ id: Int64, _ kind: String, library: Int64 = 1, size: Int64 = 100, watched: Bool = false,
+        _ id: UID, _ kind: String, library: UID = 1, size: Int64 = 100, watched: Bool = false,
         position: Int64 = 0, runtime: Int64 = 3_000_000, available: Bool = true
     ) -> String {
-        #"{"itemId":\#(id),"kind":"\#(kind)","libraryId":\#(library),"available":\#(available),"#
+        #"{"itemId":"\#(id)","kind":"\#(kind)","libraryId":"\#(library)","available":\#(available),"#
             + #""watched":\#(watched),"positionMs":\#(position),"sizeBytes":\#(size),"runtimeMs":\#(runtime),"#
             + #""quality":"original","verdict":"direct_play","container":"mp4","estimated":false}"#
     }
 
     static func download(
-        _ id: Int64, item: Int64, profile: Int64 = 1, status: String = "ready", size: Int64 = 100
+        _ id: UID, item: UID, profile: UID = 1, status: String = "ready", size: Int64 = 100
     ) -> String {
-        #"{"id":\#(id),"profileId":\#(profile),"itemId":\#(item),"mediaFileId":1,"quality":"original","#
+        #"{"id":"\#(id)","profileId":"\#(profile)","itemId":"\#(item)","mediaFileId":"\#(UID.n(1))","#
+            + #""quality":"original","#
             + #""status":"\#(status)","verdict":"direct_play","container":"mp4","sizeBytes":\#(size),"#
             + #""estimated":false,"#
-            + #""progress":1,"url":"/api/v1/downloads/\#(id)/file","#
-            + #""subtitles":[{"trackId":4,"isForced":true,"url":"/api/v1/downloads/\#(id)/subtitles/4.vtt"}],"#
-            + #""createdAt":"2026-01-01T00:00:00Z"}"#
+            + #""progress":1,"url":"/api/v2/downloads/\#(id)/file","#
+            + #""subtitles":[{"trackId":"\#(UID.n(4))","isForced":true,"#
+            + #""url":"/api/v2/downloads/\#(id)/subtitles/\#(UID.n(4)).vtt"}],"#
+            + #""createdAt":"2026-01-01T00:00:00Z","modifiedAt":"2026-01-01T00:00:00Z"}"#
     }
 }
 
@@ -91,8 +93,8 @@ extension Fixtures {
 @MainActor
 final class PlayLog {
     enum Call: Equatable {
-        case progress(profile: Int64, item: Int64, edition: Int64?, positionMs: Int64, watched: Bool, at: Date)
-        case finished(profile: Int64, item: Int64, edition: Int64?, at: Date)
+        case progress(profile: UID, item: UID, edition: UID?, positionMs: Int64, watched: Bool, at: Date)
+        case finished(profile: UID, item: UID, edition: UID?, at: Date)
     }
 
     var calls: [Call] = []
@@ -107,9 +109,10 @@ final class PlayLog {
                 _ = try? await self?.replica?.write { db in
                     try db.execute(
                         sql: """
-                            INSERT INTO watch_state VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5, ?6)
+                            INSERT INTO watch_state (account_id, item_id, position_ms, watched, play_count,
+                                last_played_at, changed_at, edition_id) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5, ?6)
                             ON CONFLICT DO UPDATE SET position_ms = ?3, watched = ?4, last_played_at = ?5,
-                                updated_at = ?5, edition_id = ?6
+                                changed_at = ?5, edition_id = ?6
                             """,
                         arguments: [profile, item, position, watched, Int64(at.timeIntervalSince1970 * 1000), edition])
                 }
@@ -119,9 +122,10 @@ final class PlayLog {
                 _ = try? await self?.replica?.write { db in
                     try db.execute(
                         sql: """
-                            INSERT INTO watch_state VALUES (?1, ?2, 0, 1, 1, ?3, ?3, ?4)
+                            INSERT INTO watch_state (account_id, item_id, position_ms, watched, play_count,
+                                last_played_at, changed_at, edition_id) VALUES (?1, ?2, 0, 1, 1, ?3, ?3, ?4)
                             ON CONFLICT DO UPDATE SET position_ms = 0, watched = 1, play_count = play_count + 1,
-                                last_played_at = ?3, updated_at = ?3, edition_id = ?4
+                                last_played_at = ?3, changed_at = ?3, edition_id = ?4
                             """, arguments: [profile, item, Int64(at.timeIntervalSince1970 * 1000), edition])
                 }
             })
@@ -150,12 +154,12 @@ final class DownloadHarness {
         set { server.locked { $0.resolves = newValue } }
     }
     /// Titles sync says the profile may no longer keep.
-    var removing: Set<Int64> {
+    var removing: Set<UID> {
         get { server.locked { $0.removing } }
         set { server.locked { $0.removing = newValue } }
     }
     /// By item: the error a batch claim answers for it.
-    var refusing: [Int64: String] {
+    var refusing: [UID: String] {
         get { server.locked { $0.refusing } }
         set { server.locked { $0.refusing = newValue } }
     }
@@ -196,7 +200,7 @@ final class DownloadHarness {
         store.reached()
     }
 
-    func exists(_ itemId: Int64) -> Bool {
+    func exists(_ itemId: UID) -> Bool {
         store.titles[itemId].flatMap(store.file(of:)).map {
             FileManager.default.fileExists(atPath: $0.path(percentEncoded: false))
         }
@@ -205,7 +209,7 @@ final class DownloadHarness {
 
     /// Asks for a target and fetches what it covers.
     @discardableResult
-    func download(_ target: DownloadTarget, profile: Int64 = 1) async throws -> DownloadPlan? {
+    func download(_ target: DownloadTarget, profile: UID = 1) async throws -> DownloadPlan? {
         let plan = try await store.request(target, quality: .original, profile: profile)
         await settle()
         return plan
@@ -224,16 +228,16 @@ final class DownloadHarness {
 final class FakeDownloadServer: @unchecked Sendable {
     struct State {
         var resolves: [String: [String]] = [:]
-        var removing: Set<Int64> = []
+        var removing: Set<UID> = []
         var objects: [String: String] = [:]
         /// By item: the error a batch claim answers for it.
-        var refusing: [Int64: String] = [:]
+        var refusing: [UID: String] = [:]
 
         /// The file is the size resolving it predicted.
-        func size(_ item: Int64) -> Int64 {
+        func size(_ item: UID) -> Int64 {
             resolves.values.joined().lazy
                 .compactMap { (try? JSONSerialization.jsonObject(with: Data($0.utf8))) as? [String: Any] }
-                .first { $0["itemId"] as? Int64 == item }?["sizeBytes"] as? Int64 ?? 100
+                .first { $0["itemId"] as? String == item.description }?["sizeBytes"] as? Int64 ?? 100
         }
     }
 
@@ -251,43 +255,47 @@ final class FakeDownloadServer: @unchecked Sendable {
             let target = (json?["targets"] as? [[String: Any]])?.first ?? [:]
             let key =
                 target["playlistId"].map { "playlist/\($0)" } ?? target["collectionId"].map { "collection/\($0)" }
-                ?? "item/\(target["itemId"] ?? 0)"
+                ?? "item/\(target["itemId"] ?? "")"
             guard let titles = state.resolves[key] else { return (.notFound, Fixtures.error("not_found")) }
             return (.ok, #"{"titles":[\#(titles.joined(separator: ","))],"sizeBytes":0}"#)
         case (.post, let path) where path.hasSuffix("/downloads/sync"):
-            let ids = (json?["itemIds"] as? [Int64]) ?? []
-            let keep = ids.filter { !state.removing.contains($0) }.map(String.init).joined(separator: ",")
-            let remove = ids.filter(state.removing.contains).map(String.init).joined(separator: ",")
+            let ids = ((json?["itemIds"] as? [String]) ?? []).compactMap(UID.init)
+            let keep = ids.filter { !state.removing.contains($0) }.map { #""\#($0)""# }.joined(separator: ",")
+            let remove = ids.filter(state.removing.contains).map { #""\#($0)""# }.joined(separator: ",")
             return (.ok, #"{"keep":[\#(keep)],"remove":[\#(remove)]}"#)
         case (.post, let path) where path.hasSuffix("/downloads/batch"):
-            let profile = Int64(path.split(separator: "/")[1]) ?? 1
-            let titles = (json?["titles"] as? [[String: Any]]) ?? []
-            let results = titles.map { title in
-                let item = title["itemId"] as? Int64 ?? 0
-                if let error = state.refusing[item] { return #"{"itemId":\#(item),"error":\#(error)}"# }
-                let download = Fixtures.download(item, item: item, profile: profile, size: state.size(item))
-                return #"{"itemId":\#(item),"download":\#(download)}"#
-            }
-            return (.ok, #"{"results":[\#(results.joined(separator: ","))]}"#)
+            return (.ok, batch(path, json, state))
         case (.get, let path) where path.contains("/downloads/"):
-            let id = Int64(path.split(separator: "/").last ?? "") ?? 0
-            let profile = Int64(path.split(separator: "/")[1]) ?? 1
+            guard let id = path.split(separator: "/").last.flatMap({ UID(String($0)) }) else { return nil }
+            let profile = UID(String(path.split(separator: "/")[1])) ?? 1
             return (.ok, Fixtures.download(id, item: id, profile: profile, size: state.size(id)))
         case (.delete, _): return (.noContent, "")
         default: return nil
         }
     }
+
+    private func batch(_ path: String, _ json: [String: Any]?, _ state: State) -> String {
+        let profile = UID(String(path.split(separator: "/")[1])) ?? 1
+        let titles = (json?["titles"] as? [[String: Any]]) ?? []
+        let results = titles.compactMap { title -> String? in
+            guard let item = (title["itemId"] as? String).flatMap(UID.init) else { return nil }
+            if let error = state.refusing[item] { return #"{"itemId":"\#(item)","error":\#(error)}"# }
+            let download = Fixtures.download(item, item: item, profile: profile, size: state.size(item))
+            return #"{"itemId":"\#(item)","download":\#(download)}"#
+        }
+        return #"{"results":[\#(results.joined(separator: ","))]}"#
+    }
 }
 
 extension DownloadTarget {
-    static func show(_ id: Int64) -> DownloadTarget { .init(scope: .item, id: id, name: "Show \(id)", standing: true) }
-    static func title(_ id: Int64) -> DownloadTarget {
+    static func show(_ id: UID) -> DownloadTarget { .init(scope: .item, id: id, name: "Show \(id)", standing: true) }
+    static func title(_ id: UID) -> DownloadTarget {
         .init(scope: .item, id: id, name: "Title \(id)", standing: false)
     }
-    static func album(_ id: Int64) -> DownloadTarget {
+    static func album(_ id: UID) -> DownloadTarget {
         .init(scope: .item, id: id, name: "Album \(id)", standing: true, music: true)
     }
-    static func playlist(_ id: Int64) -> DownloadTarget {
+    static func playlist(_ id: UID) -> DownloadTarget {
         .init(scope: .playlist, id: id, name: "Playlist \(id)", standing: true)
     }
 }

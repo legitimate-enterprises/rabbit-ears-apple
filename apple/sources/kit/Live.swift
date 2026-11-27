@@ -166,7 +166,7 @@ public enum Handoff {
     /// Watch together: opens one from the session there, which that device
     /// joins by itself; the answer plays here in it.
     public static func together(
-        _ there: PlaybackSession, _ request: PlayRequest, client: Client, profileId: Int64
+        _ there: PlaybackSession, _ request: PlayRequest, client: Client, profileId: UID
     ) async throws -> PlayRequest {
         let model = WatchTogetherModel(client: client, profileId: profileId, itemId: request.item.id)
         try await model.open(from: there.id)
@@ -187,10 +187,10 @@ public final class PlayerHandoff {
 
     private let player: PlayerModel
     private let client: Client
-    private let profileId: Int64
-    private let itemId: Int64
+    private let profileId: UID
+    private let itemId: UID
 
-    public init(player: PlayerModel, client: Client, profileId: Int64, itemId: Int64) {
+    public init(player: PlayerModel, client: Client, profileId: UID, itemId: UID) {
         self.player = player
         self.client = client
         self.profileId = profileId

@@ -43,14 +43,14 @@ enum Route: Hashable {
     case person(Person.ID)
     case search
     case youtubeSearch
-    case album(Int64)
-    case artist(Int64)
-    case playlist(Int64)
-    case collection(Int64)
+    case album(UID)
+    case artist(UID)
+    case playlist(UID)
+    case collection(UID)
     case occasion(ActiveOccasion)
-    case channel(Int64)
-    case video(Int64)
-    case station(Int64)
+    case channel(UID)
+    case video(UID)
+    case station(UID)
 }
 
 /// Navigation shared by every browsing view: each tab's stack and what is playing.
@@ -106,7 +106,7 @@ struct LiveUpdates: ViewModifier {
                 await model.followLive(catalog, inView: scenePhase != .background)
             }
             // Back in view, the downloads catch up: watch changes made offline go up, then what is new comes down.
-            .task(id: "\(model.activeProfile?.id ?? 0)/\(scenePhase == .active)") {
+            .task(id: "\(model.activeProfile?.id.description ?? "")/\(scenePhase == .active)") {
                 guard scenePhase == .active, let profile = model.activeProfile?.id else { return }
                 await model.downloads?.sync(profile: profile)
             }
@@ -142,7 +142,7 @@ struct MainView: View {
             }
         }
         // Hide kids' content changes what the server lists, so the catalog is read again.
-        .task(id: "\(model.activeProfile?.id ?? 0)/\(model.activeProfile?.hideKidsContent == true)") {
+        .task(id: "\(model.activeProfile?.id.description ?? "")/\(model.activeProfile?.hideKidsContent == true)") {
             // CarPlay may have made this profile's services already; the context shares them.
             guard let client = model.client, let sync = model.sync, let profile = model.activeProfile,
                 let nextServices = await AppContext.shared.services(for: profile.id)
@@ -160,13 +160,15 @@ struct MainView: View {
         }
         // The libraries a server has decide the tabs: asked on sign-in, a profile's change and return to the app.
         // The profile is read again then too, for a Hide kids' content changed on another device.
-        .task(id: "\(model.activeProfile?.id ?? 0)/\(scenePhase == .active)") {
+        .task(id: "\(model.activeProfile?.id.description ?? "")/\(scenePhase == .active)") {
             guard scenePhase == .active else { return }
             await model.reload()
             await model.loadLibrarySections()
         }
         // A title's menu shows which kids' lists hold it without asking per tile.
-        .task(id: "\(model.activeProfile?.id ?? 0)/\(model.allowListKids.map(\.id))/\(scenePhase == .active)") {
+        .task(
+            id: "\(model.activeProfile?.id.description ?? "")/\(model.allowListKids.map(\.id))/\(scenePhase == .active)"
+        ) {
             if scenePhase == .active { await model.loadAllowLists() }
         }
         .onChange(of: model.librarySections) {
@@ -376,7 +378,7 @@ struct ProfileMenu: View {
             }
             .labelStyle(.titleAndIcon)
         }
-        .task(id: "\(profile?.id ?? 0)/\(profile?.avatarUrl ?? "")") {
+        .task(id: "\(profile?.id.description ?? "")/\(profile?.avatarUrl ?? "")") {
             guard let profile else {
                 picture = nil
                 return

@@ -88,11 +88,11 @@ extension DownloadStore {
 
     /// The titles to claim and fetch now, in download order: each one
     /// waiting and not in flight that fits the allowance.
-    func nextTitles() -> [Int64] {
+    func nextTitles() -> [UID] {
         let order = ledger.requests.sorted { $0.createdAt < $1.createdAt }.flatMap(\.titles)
         var used = usedBytes
-        var seen = Set<Int64>()
-        var next: [Int64] = []
+        var seen = Set<UID>()
+        var next: [UID] = []
         for id in order where seen.insert(id).inserted && transfers[id] == nil {
             guard let title = ledger.titles[id] else { continue }
             switch title.state {
@@ -113,11 +113,11 @@ extension DownloadStore {
     /// and quality of at most 5000, in order; the server converts them back
     /// to back from then on. A title the server refuses fails alone. False
     /// when the server is gone or refuses the device for now.
-    func claim(_ ids: [Int64], _ link: Link) async -> Bool {
+    func claim(_ ids: [UID], _ link: Link) async -> Bool {
         struct Batch {
-            let profile: Int64
+            let profile: UID
             let quality: DownloadQuality
-            var ids: [Int64]
+            var ids: [UID]
         }
         var batches: [Batch] = []
         let me = me
@@ -165,7 +165,7 @@ extension DownloadStore {
     /// Who claims the title now: the active profile when it asked for it,
     /// else a profile the server answers for that did. Another adult's title
     /// waits for them.
-    private func claimant(_ id: Int64, _ me: Components.Schemas.Me?) -> Int64? {
+    private func claimant(_ id: UID, _ me: Components.Schemas.Me?) -> UID? {
         let asking = ledger.requests.filter { $0.titles.contains(id) }.map(\.profileId)
         if let active = me?.activeProfileId, asking.contains(active) { return active }
         return asking.first { answers(for: $0, me) }
@@ -173,13 +173,13 @@ extension DownloadStore {
 
     /// Whether the server answers for the profile now: the active one, or a
     /// kid while an adult is. Not knowing who is active, it may.
-    private func answers(for profile: Int64, _ me: Components.Schemas.Me?) -> Bool {
+    private func answers(for profile: UID, _ me: Components.Schemas.Me?) -> Bool {
         guard let me else { return true }
         let kids = Set(me.profiles.filter { $0.kind == .kid }.map(\.id))
         return profile == me.activeProfileId || !kids.contains(me.activeProfileId) && kids.contains(profile)
     }
 
-    private func claimed(_ download: ServerDownload, profile: Int64) {
+    private func claimed(_ download: ServerDownload, profile: UID) {
         let id = download.itemId
         ledger.titles[id]?.claim = DownloadClaim(id: download.id, profileId: profile, container: download.container)
         ledger.titles[id]?.sizeBytes = download.sizeBytes
@@ -189,7 +189,7 @@ extension DownloadStore {
     /// subtitles and artwork, then releases the claim. A claim
     /// the server lost is made again once. False stops the pump: the server
     /// is gone or refuses the device for now.
-    func download(_ id: Int64, _ link: Link, again: Bool = false) async -> Bool {
+    func download(_ id: UID, _ link: Link, again: Bool = false) async -> Bool {
         guard let title = ledger.titles[id], let claim = title.claim else { return true }
         let name = "\(id).\(claim.container)"
         let destination = media.appending(path: name)
@@ -218,6 +218,7 @@ extension DownloadStore {
                 return true
             }
             ledger.titles[id]?.file = name
+            ledger.titles[id]?.mediaFileId = ready.mediaFileId
             ledger.titles[id]?.subtitles = subtitles
             ledger.titles[id]?.resumeData = nil
             ledger.titles[id]?.state = .onDevice
@@ -251,7 +252,7 @@ extension DownloadStore {
     }
 
     /// Where a title stands after its fetch threw; false stops the pump.
-    private func stopped(_ id: Int64, by error: any Error, _ link: Link, again: Bool) async -> Bool {
+    private func stopped(_ id: UID, by error: any Error, _ link: Link, again: Bool) async -> Bool {
         switch error {
         case DownloadFailure.interrupted(let resumeData):
             guard ledger.titles[id] != nil else { return true }
@@ -273,7 +274,7 @@ extension DownloadStore {
     }
 
     /// The claim expired or went: claimed again once, then the title fails.
-    private func reclaim(_ id: Int64, _ link: Link, again: Bool) async -> Bool {
+    private func reclaim(_ id: UID, _ link: Link, again: Bool) async -> Bool {
         // Another profile's 404 is the server not answering for it now; its claim waits for it.
         if let profile = ledger.titles[id]?.claim?.profileId, !answers(for: profile, me) {
             ledger.titles[id]?.state = .pending
@@ -313,7 +314,7 @@ extension DownloadStore {
     /// The server's unauthorized is a device signed out. Another 401, as a
     /// proxy's or a file fetch's, and a 403, a device at Who's watching,
     /// wait; 404 is a download gone, which the next pump claims again.
-    private func refused(_ id: Int64, status: Int, code: APIError.Code? = nil, message: String? = nil) -> Bool {
+    private func refused(_ id: UID, status: Int, code: APIError.Code? = nil, message: String? = nil) -> Bool {
         ledger.titles[id]?.resumeData = nil
         switch status {
         case 401 where code == .unauthorized:
@@ -334,7 +335,7 @@ extension DownloadStore {
         }
     }
 
-    private func progressed(_ id: Int64, _ share: Double) {
+    private func progressed(_ id: UID, _ share: Double) {
         switch ledger.titles[id]?.state {
         case .preparing, .downloading: ledger.titles[id]?.state = .downloading(share)
         default: return

@@ -67,7 +67,7 @@ public final class CatalogModel {
     /// Counts each finished `load`, so a view can follow the catalog reloading.
     public private(set) var revision = 0
     public private(set) var error: String?
-    public let profileId: Int64
+    public let profileId: UID
     public let client: Client
     public let replica: Replica
     public let queue: ActionQueue
@@ -76,7 +76,7 @@ public final class CatalogModel {
     /// Counts loads, so only the latest one's answer lands.
     @ObservationIgnored private var loads = 0
 
-    public init(client: Client, replica: Replica, queue: ActionQueue, profileId: Int64, hidingKids: Bool = false) {
+    public init(client: Client, replica: Replica, queue: ActionQueue, profileId: UID, hidingKids: Bool = false) {
         self.client = client
         self.replica = replica
         self.queue = queue
@@ -108,7 +108,7 @@ public final class CatalogModel {
         revision += 1
     }
 
-    private nonisolated static func catalog(_ profile: Int64, _ db: Database) throws -> Catalog {
+    private nonisolated static func catalog(_ profile: UID, _ db: Database) throws -> Catalog {
         let browsed = "i.id IN (SELECT item_id FROM profile_item WHERE account_id = ?)"
         var catalog = Catalog(items: try ReplicaRows.items(db, browsed, [profile]), watch: try watch(profile, db))
         catalog.hold(
@@ -121,7 +121,7 @@ public final class CatalogModel {
     }
 
     /// The profile's watch states of what it browses, as listWatchStates answers.
-    private nonisolated static func watch(_ profile: Int64, _ db: Database) throws -> [WatchState] {
+    private nonisolated static func watch(_ profile: UID, _ db: Database) throws -> [WatchState] {
         try Row.fetchAll(
             db,
             sql: """
@@ -258,21 +258,21 @@ public final class CatalogModel {
     /// Movies, shows, episodes and people as the server's search finds
     /// them for the profile's browsing, each list best first.
     private nonisolated static func search(
-        _ query: String, _ limit: Int, _ profile: Int64, _ db: Database
+        _ query: String, _ limit: Int, _ profile: UID, _ db: Database
     ) throws -> SearchResult {
         let itemOrder = try ReplicaSearch.items(matching: query, in: db)
         let items = Dictionary(
             uniqueKeysWithValues: try ReplicaRows.items(
                 db,
-                "i.id IN (SELECT value FROM json_each(?))"
+                "i.id IN (SELECT unhex(value, '-') FROM json_each(?))"
                     + " AND i.id IN (SELECT item_id FROM profile_item WHERE account_id = ?)",
-                ["\(itemOrder)", profile]
+                [ReplicaRows.json(itemOrder), profile]
             ).map { ($0.id, $0) })
         let personOrder = try ReplicaSearch.people(matching: query, in: db)
         let people = Dictionary(
             uniqueKeysWithValues: try Row.fetchAll(
-                db, sql: Self.peopleSQL + " AND p.id IN (SELECT value FROM json_each(?))",
-                arguments: [profile, "\(personOrder)"]
+                db, sql: Self.peopleSQL + " AND p.id IN (SELECT unhex(value, '-') FROM json_each(?))",
+                arguments: [profile, ReplicaRows.json(personOrder)]
             ).map(ReplicaRows.person).map { ($0.id, $0) })
         let found = itemOrder.compactMap { items[$0] }
         let kind = { (kind: ItemKind) in Array(found.filter { $0.kind == kind }.prefix(limit)) }

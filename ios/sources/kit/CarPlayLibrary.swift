@@ -59,7 +59,7 @@ public final class CarPlayLibrary {
     }
 
     /// Albums only, newest first; Play replaces Popular.
-    public func artist(_ id: Int64, _ limits: CarPlayLimits) async throws -> CarPlayList {
+    public func artist(_ id: UID, _ limits: CarPlayLimits) async throws -> CarPlayList {
         let detail = try await music.artist(id)
         let artist = detail.artist
         let rows = detail.albums.map {
@@ -77,7 +77,7 @@ public final class CarPlayLibrary {
     }
 
     /// Tracks by title only, in disc then track order.
-    public func album(_ id: Int64, _ limits: CarPlayLimits) async throws -> CarPlayList {
+    public func album(_ id: UID, _ limits: CarPlayLimits) async throws -> CarPlayList {
         let detail = try await music.album(id)
         let album = detail.album
         let rows = detail.songs.enumerated().map { index, song in
@@ -96,7 +96,7 @@ public final class CarPlayLibrary {
         ).capped(limits)
     }
 
-    public func playlist(_ id: Int64, _ limits: CarPlayLimits) async throws -> CarPlayList {
+    public func playlist(_ id: UID, _ limits: CarPlayLimits) async throws -> CarPlayList {
         let (playlist, queue) = try await playlistQueue(id)
         let rows = queue.songs.enumerated().map { index, song in
             CarPlayRow(
@@ -203,7 +203,7 @@ public final class CarPlayLibrary {
     }
 
     /// One the profile neither owns nor is reached by is not found.
-    private func playlistQueue(_ id: Int64) async throws -> (Playlist, CarPlayQueue) {
+    private func playlistQueue(_ id: UID) async throws -> (Playlist, CarPlayQueue) {
         let (playlist, rows) = try await music.read { db, me in
             (
                 try found([PlaylistRows.playlist(db, profile: me, id: id)].compactMap { $0 }),

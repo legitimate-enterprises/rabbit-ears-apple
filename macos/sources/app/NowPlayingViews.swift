@@ -279,7 +279,8 @@ struct NowPlayingScreen: View {
                 ArtOrDetails(song: song, audio: player.stream?.audio)
                 identity(song)
             } else {
-                StationIdentity(name: station.name, aspect: 1, radius: 10, imageUrl: station.imageUrl).frame(width: 300)
+                StationIdentity(id: station.id, name: station.name, aspect: 1, radius: 10, imageUrl: station.imageUrl)
+                    .frame(width: 300)
                 Text(station.name).font(.system(size: 20, weight: .bold))
                 Text(StationText.waiting(station.onAir, kind: .music)).font(.system(size: 13))
                     .foregroundStyle(Theme.secondary)

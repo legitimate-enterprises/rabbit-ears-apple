@@ -6,16 +6,18 @@ import XCTest
 @testable import RabbitEarsKit
 
 extension Fixtures {
-    static func album(_ id: Int64, _ title: String, year: Int = 2007, played: String? = nil) -> String {
+    static func album(_ id: UID, _ title: String, year: Int = 2007, played: String? = nil) -> String {
         let last = played.map { #","lastPlayedAt":"\#($0)""# } ?? ""
-        return #"{"id":\#(id),"libraryId":3,"artistId":40,"artistName":"Radiohead","title":"\#(title)","#
+        return #"{"id":"\#(id)","libraryId":"\#(UID.n(3))","artistId":"\#(UID.n(40))","artistName":"Radiohead","#
+            + #""title":"\#(title)","#
             + #""year":\#(year),"songCount":10,"durationMs":2532000,"lossless":true,"genres":[],"#
             + #""addedAt":"2026-01-01T00:00:00Z"\#(last)}"#
     }
 
     static let artist =
-        #"{"id":40,"libraryId":3,"name":"Radiohead","sortName":"Radiohead","albumCount":9,"songCount":112,"#
-        + #""genres":[{"id":5,"name":"Alternative rock"}],"addedAt":"2026-01-01T00:00:00Z"}"#
+        #"{"id":"\#(UID.n(40))","libraryId":"\#(UID.n(3))","name":"Radiohead","sortName":"Radiohead","albumCount":9,"#
+        + #""songCount":112,"genres":[{"id":"\#(UID.n(5))","name":"Alternative rock"}],"#
+        + #""addedAt":"2026-01-01T00:00:00Z"}"#
 }
 
 @MainActor
@@ -63,7 +65,7 @@ final class MusicModelTests: XCTestCase {
         }
     }
 
-    private func model(_ replica: Replica, _ profile: Int64 = 1) -> MusicModel {
+    private func model(_ replica: Replica, _ profile: UID = 1) -> MusicModel {
         MusicModel(
             client: ServerEndpoint(userInput: "192.168.1.9")!.client(token: "t", transport: transport),
             replica: replica, profileId: profile)
@@ -120,7 +122,7 @@ final class MusicModelTests: XCTestCase {
         XCTAssertEqual(detail.artist.albumCount, 3)
         XCTAssertEqual(detail.artist.songCount, 5)
         XCTAssertEqual(detail.popular.map(\.id), [3])
-        XCTAssertEqual(transport.queries(.get, "/music/songs"), ["artistId=40&sort=popular&limit=5"])
+        XCTAssertEqual(transport.queries(.get, "/music/songs"), ["artistId=\(UID.n(40))&sort=popular&limit=5"])
         XCTAssertEqual(detail.albums.map(\.id), [50, 51, 54])
         let guest = try await model(library()).artist(42)
         XCTAssertEqual([guest.artist.albumCount, guest.artist.songCount], [0, 1], "a performer on another's album")
@@ -171,12 +173,13 @@ final class MusicModelTests: XCTestCase {
     func testHomeIsRecentlyPlayedFromTheServerAndRecentlyAddedAlbums() async throws {
         let recent =
             #"{"kind":"album","playedAt":"2026-05-01T00:00:00Z","album":\#(Fixtures.album(50, "In Rainbows"))}"#
-        transport.routes["GET /profiles/1/music/recently-played"] = (.ok, Fixtures.page([recent]))
+        transport.routes["GET /profiles/\(UID.n(1))/music/recently-played"] = (.ok, Fixtures.page([recent]))
         let home = try await model(library()).home(limit: 2)
         XCTAssertEqual(home.recentlyPlayed.map(\.album?.id), [50])
         XCTAssertEqual(home.recentlyAdded.map(\.id), [53, 51])
         _ = try await model(library()).recentlyPlayed(kind: .artist, limit: 12)
-        XCTAssertEqual(transport.queries(.get, "/profiles/1/music/recently-played").last, "kind=artist&limit=12")
+        XCTAssertEqual(
+            transport.queries(.get, "/profiles/\(UID.n(1))/music/recently-played").last, "kind=artist&limit=12")
     }
 
     func testLettersFileUnderTheSortNameAToZThenHash() async throws {

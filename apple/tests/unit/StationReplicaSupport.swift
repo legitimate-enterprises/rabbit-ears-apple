@@ -12,54 +12,71 @@ extension Database {
     /// minutes of the day. Its household is the owner's, as the server
     /// ships it, or `household` for an owner the replica lacks.
     func station(
-        _ id: Int64, _ name: String, owner: Int64 = 1, kind: String = "movies", visibility: String = "household",
+        _ id: Int, _ name: String, owner: UID = 1, kind: String = "movies", visibility: String = "household",
         timing: String = "hour", shuffled: Bool = false, rating: String? = nil, days: [Int] = [],
         times: [(Int, Int)] = [], created: String = "2026-01-01T00:00:00Z", updated: String = "2026-01-02T00:00:00Z",
-        household: Int64? = nil
+        household: UID? = nil
     ) throws {
         try execute(
-            sql: "INSERT INTO playlist VALUES (?, ?, ?, ?, NULL, 0, 0, 1)", arguments: [id + 100, owner, name, kind])
+            sql: """
+                INSERT INTO playlist(id, account_id, name, kind, created_at, modified_at, station_owned)
+                VALUES (?, ?, ?, ?, 0, 0, 1)
+                """, arguments: [UID.n(id + 100), owner, name, kind])
         try execute(
             sql: """
-                INSERT INTO station VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?,
-                    COALESCE(?, (SELECT household_id FROM account WHERE id = ?2), 0))
+                INSERT INTO station(id, account_id, playlist_id, name, shuffled, visibility, rating, loop, created_at,
+                    modified_at, timing, household_id)
+                VALUES (?, ?2, ?, ?, ?, ?, ?, 0, ?, ?, ?, COALESCE(?, (SELECT household_id FROM account WHERE id = ?2)))
                 """,
             arguments: [
-                id, owner, id + 100, name, shuffled, visibility, rating, Self.ms(created), Self.ms(updated), timing,
-                household,
+                UID.n(id), owner, UID.n(id + 100), name, shuffled, visibility, rating, Self.ms(created),
+                Self.ms(updated), timing, household,
             ])
-        for day in days { try execute(sql: "INSERT INTO station_day VALUES (?, ?)", arguments: [id, day]) }
+        for day in days {
+            try execute(
+                sql: "INSERT INTO station_day(station_id, weekday) VALUES (?, ?)", arguments: [UID.n(id), day])
+        }
         for (index, range) in times.enumerated() {
             try execute(
-                sql: "INSERT INTO station_time VALUES (?, ?, ?, ?)",
-                arguments: [id * 10 + Int64(index), id, range.0, range.1])
+                sql: "INSERT INTO station_time(id, station_id, from_minute, to_minute) VALUES (?, ?, ?, ?)",
+                arguments: [UID.n(id * 10 + index), UID.n(id), range.0, range.1])
         }
     }
 
-    func program(_ id: Int64, station: Int64, item: Int64, edition: Int64? = nil, starts: String, ends: String) throws {
+    /// Its edition is the item's id times ten unless given.
+    func program(_ id: UID, station: UID, item: Int, edition: UID? = nil, starts: String, ends: String) throws {
         try execute(
-            sql: "INSERT INTO station_program VALUES (?, ?, ?, ?, NULL, 0, 0, ?, ?)",
-            arguments: [id, station, item, edition ?? item * 10, Self.ms(starts), Self.ms(ends)])
+            sql: """
+                INSERT INTO station_program(id, station_id, item_id, edition_id, loop, position, starts_at, ends_at)
+                VALUES (?, ?, ?, ?, 0, 0, ?, ?)
+                """,
+            arguments: [id, station, UID.n(item), edition ?? UID.n(item * 10), Self.ms(starts), Self.ms(ends)])
     }
 
     /// An entry of the station's playlist, which its kid filter and cover read.
-    func entry(_ id: Int64, station: Int64, item: Int64) throws {
+    func entry(_ id: UID, station: Int, item: UID) throws {
         try execute(
             sql: "INSERT INTO playlist_entry(id, playlist_id, item_id, rank, added_at) VALUES (?, ?, ?, ?, 0)",
-            arguments: [id, station + 100, item, "a\(id)"])
+            arguments: [id, UID.n(station + 100), item, "a\(id)"])
     }
 
     /// An edition of `item` with one file, long `runtime` or, without it, as long as the file.
     func edition(
-        _ id: Int64, item: Int64, tag: String? = nil, runtime: Int64? = nil, fileMs: Int64 = 6_000_000
+        _ id: Int, item: UID, tag: String? = nil, runtime: Int64? = nil, fileMs: Int64 = 6_000_000
     ) throws {
-        try execute(sql: "INSERT INTO edition VALUES (?, ?, ?, ?)", arguments: [id, item, tag, runtime])
         try execute(
-            sql: "INSERT INTO media_file VALUES (?, 1000, 'mkv', ?, 0, NULL)", arguments: [id + 5000, fileMs])
-        try execute(sql: "INSERT INTO edition_file VALUES (?, ?)", arguments: [id, id + 5000])
+            sql: "INSERT INTO edition(id, item_id, tag, runtime_ms) VALUES (?, ?, ?, ?)",
+            arguments: [UID.n(id), item, tag, runtime])
+        try execute(
+            sql:
+                "INSERT INTO media_file(id, size_bytes, container, duration_ms, bitrate) VALUES (?, 1000, 'mkv', ?, 0)",
+            arguments: [UID.n(id + 5000), fileMs])
+        try execute(
+            sql: "INSERT INTO edition_file(edition_id, media_file_id) VALUES (?, ?)",
+            arguments: [UID.n(id), UID.n(id + 5000)])
     }
 
-    func cover(_ id: Int64, station: Int64, item: Int64?) throws {
+    func cover(_ id: UID, station: UID, item: UID?) throws {
         try execute(
             sql: "INSERT INTO cover(id, station_id, item_id, backdrop, created_at) VALUES (?, ?, ?, 0, 0)",
             arguments: [id, station, item])
@@ -78,18 +95,16 @@ extension XCTestCase {
     /// A model over `replica`, as profile `profile` sees it at `now`, its queue held until the test ends.
     @MainActor
     func stationsModel(
-        _ replica: Replica, profile: Int64 = 1, transport: RoutingTransport = RoutingTransport(),
+        _ replica: Replica, profile: UID = 1, transport: RoutingTransport = RoutingTransport(),
         now: String = "2026-11-15T15:12:00Z", calendar: Calendar = utcCalendar,
         sleep: @escaping @MainActor (Date) async throws -> Void = { _ in try await Task.sleep(for: .seconds(3600)) }
     ) -> StationsModel {
         let client = ServerEndpoint.default.client(token: "t", transport: transport)
         let instant = ISO8601DateFormatter().date(from: now)!
-        let engine = SyncEngine(
-            replica: replica, endpoint: .default, token: "t", transport: transport, flush: {}, signOut: {})
         let queue = ActionQueue(
             replica: replica, client: client, debounce: { try? await Task.sleep(for: .seconds(3600)) })
         return StationsModel(
-            client: client, replica: replica, queue: queue, engine: engine, profileId: profile, now: { instant },
+            client: client, replica: replica, queue: queue, profileId: profile, now: { instant },
             calendar: calendar, sleep: sleep)
     }
 }
@@ -142,7 +157,7 @@ extension XCTestCase {
             try db.account(3, "Kit", kind: "kid", movies: "PG", tv: "TV-Y7")
             try db.account(4, "Jo", hidingKids: true)
             try db.account(5, "Remy")
-            try db.execute(sql: "UPDATE account SET household_id = 9 WHERE id = 5")
+            try db.execute(sql: "UPDATE account SET household_id = ? WHERE id = ?", arguments: [UID.n(9), UID.n(5)])
             try db.item(20, "movie", "The Lantern Keeper", rating: "PG-13")
             try db.item(21, "movie", "Salt and Ember", rating: "PG")
             try db.item(22, "movie", "Moon Pie", rating: "G")
@@ -153,11 +168,13 @@ extension XCTestCase {
             try db.item(40, "artist", "Radiohead", library: 3)
             try db.item(50, "album", "In Rainbows", parent: 40, year: 2007, library: 3)
             try db.item(30, "song", "Paper Lanterns", parent: 50, library: 3)
-            try db.execute(sql: "UPDATE item SET disc_number = 1, track_number = 4, explicit = 0 WHERE id = 30")
+            try db.execute(
+                sql: "UPDATE item SET disc_number = 1, track_number = 4, explicit = 0 WHERE id = ?",
+                arguments: [UID.n(30)])
             try db.edition(300, item: 30, fileMs: 240_000)
             try db.execute(
                 sql: "INSERT INTO track(id, media_file_id, stream_index, kind, codec) VALUES (?, ?, 0, 'audio', ?)",
-                arguments: [1, 5300, "flac"])
+                arguments: [UID.n(1), UID.n(5300), "flac"])
             try db.station(
                 5, "The Big Screen", shuffled: true, rating: "PG-13", days: [5, 1], times: [(1320, 120), (600, 660)])
             try db.entry(1, station: 5, item: 20)

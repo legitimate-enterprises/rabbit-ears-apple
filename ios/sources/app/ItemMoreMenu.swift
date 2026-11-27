@@ -8,7 +8,7 @@ struct ItemMoreMenu: View {
     @Environment(AppModel.self) private var app
     let item: Item
     var together: WatchTogetherModel?
-    var editionId: Int64?
+    var editionId: UID?
     @Binding var target: PlaylistTarget?
     var addToCollection: (() -> Void)?
 
@@ -35,7 +35,7 @@ struct ItemMenuContent: View {
     @Environment(CatalogModel.self) private var model
     let item: Item
     var together: WatchTogetherModel?
-    var editionId: Int64?
+    var editionId: UID?
     @Binding var target: PlaylistTarget?
     var addToCollection: (() -> Void)?
 
@@ -89,7 +89,7 @@ struct ItemMenuContent: View {
 @Observable
 final class TitleMenuState {
     var target: PlaylistTarget?
-    var collecting: Int64?
+    var collecting: UID?
 }
 
 extension View {
@@ -108,7 +108,7 @@ private struct TitleMenuHost: ViewModifier {
             }
     }
 
-    private struct Collecting: Identifiable { let id: Int64 }
+    private struct Collecting: Identifiable { let id: UID }
 }
 
 /// A title's long-press menu: Select and Play, what More on its details offers, then the tile's own.
@@ -140,7 +140,7 @@ struct ItemContextMenu: View {
 /// One checkbox per kid on a manual allow list, checked when their list holds the title or channel.
 struct AllowedForKids: View {
     @Environment(AppModel.self) private var app
-    let itemId: Int64
+    let itemId: UID
     @Binding var allowed: Set<Account.ID>
 
     var body: some View {
@@ -152,7 +152,7 @@ struct AllowedForKids: View {
     }
 
     /// Who allows it now; none when there is no kid on a list to ask about.
-    static func load(_ itemId: Int64, _ app: AppModel) async -> Set<Account.ID> {
+    static func load(_ itemId: UID, _ app: AppModel) async -> Set<Account.ID> {
         guard !app.allowListKids.isEmpty else { return [] }
         return (try? await HouseholdModel(app: app).allowedFor(itemId)) ?? []
     }

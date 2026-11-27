@@ -32,23 +32,24 @@ final class ReplicaRowsTests: XCTestCase {
             XCTAssertNoThrow(try db.read { try Row.fetchAll($0, sql: "SELECT * FROM \(view) LIMIT 1") }, view)
         }
         let shown = try db.read {
-            try Int.fetchOne($0, sql: "SELECT count(*) FROM profile_item WHERE account_id = 103")
+            try Int.fetchOne($0, sql: "SELECT count(*) FROM profile_item WHERE account_id = \(sqlID(103))")
         }
         XCTAssertGreaterThan(shown ?? 0, 0, "the sample's views find rows")
         XCTAssertEqual(try db.read { try String.fetchOne($0, sql: "SELECT sqlite_version()") }, "3.54.1")
     }
 
-    private func items(_ replica: Replica, _ ids: [Int64]) async throws -> [Int64: Item] {
+    private func items(_ replica: Replica, _ ids: [UID]) async throws -> [UID: Item] {
         let list = try await replica.read { db in
-            try ReplicaRows.items(db, "i.id IN (SELECT value FROM json_each(?))", ["\(ids)"])
+            try ReplicaRows.items(db, "i.id IN (SELECT unhex(value, '-') FROM json_each(?))", [ReplicaRows.json(ids)])
         }
         return Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
     }
 
+    /// The replica keeps no instants of an item's row: both are its addedAt.
     private func item(_ fields: String, library: Int = 1, genres: String = "[]") -> Item {
         Fixtures.decode(
-            #"{"libraryId":\#(library),"addedAt":"1970-01-01T00:00:00Z","updatedAt":"1970-01-01T00:00:00Z","#
-                + #""genres":\#(genres),\#(fields)}"#)
+            #"{"libraryId":\#(jsonID(library)),"addedAt":"1970-01-01T00:00:00Z","createdAt":"1970-01-01T00:00:00Z","#
+                + #""modifiedAt":"1970-01-01T00:00:00Z","genres":\#(genres),\#(fields)}"#)
     }
 
     /// The sample's server settings show local metadata first, then TMDB's.
@@ -58,27 +59,28 @@ final class ReplicaRowsTests: XCTestCase {
         XCTAssertEqual(
             found[2],
             item(
-                #""id":2,"kind":"movie","parsedTitle":"PG Movie","kidsContent":false,"#
+                #""id":\#(jsonID(2)),"kind":"movie","parsedTitle":"PG Movie","kidsContent":false,"#
                     + #""metadata":{"provider":"tmdb","status":"unmatched","contentRating":"PG"}"#),
             "the rating is the local row's, the provider and status the remote row's")
         XCTAssertEqual(
             found[3],
             item(
-                #""id":3,"kind":"movie","parsedTitle":"PG-13 Movie","kidsContent":false,"#
+                #""id":\#(jsonID(3)),"kind":"movie","parsedTitle":"PG-13 Movie","kidsContent":false,"#
                     + #""metadata":{"status":"unmatched","contentRating":"PG-13"}"#))
         XCTAssertEqual(
             found[1],
             item(
-                #""id":1,"kind":"movie","parsedTitle":"G Movie","kidsContent":true,"#
+                #""id":\#(jsonID(1)),"kind":"movie","parsedTitle":"G Movie","kidsContent":true,"#
                     + #""metadata":{"status":"unmatched","contentRating":"G"}"#,
-                genres: #"[{"id":1,"name":"Drama"}]"#))
+                genres: #"[{"id":\#(jsonID(1)),"name":"Drama"}]"#))
         XCTAssertEqual(found[9]?.kidsContent, true, "rated R, marked for kids")
         XCTAssertEqual(found[9]?.kidsContentOverride, true)
         XCTAssertEqual(found[8]?.kidsContent, false, "rated G, marked not for kids")
         XCTAssertEqual(found[8]?.kidsContentOverride, false)
         XCTAssertEqual(found[17]?.kidsContent, true)
         XCTAssertEqual(
-            found[11], item(#""id":11,"parentId":10,"kind":"season","parsedTitle":"Tots""#, library: 2),
+            found[11],
+            item(#""id":\#(jsonID(11)),"parentId":\#(jsonID(10)),"kind":"season","parsedTitle":"Tots""#, library: 2),
             "only movies and shows say whether they are kids' content")
     }
 
@@ -88,30 +90,37 @@ final class ReplicaRowsTests: XCTestCase {
                 sql: """
                     INSERT INTO item(id, library_id, parent_id, kind, parsed_title, parsed_year, season_number,
                         episode_number, added_at, kids_content) VALUES
-                        (31, 4, 30, 'episode', 'Dune Day', 2023, 2, 7, 1714521600250, NULL),
-                        (32, 4, NULL, 'movie', 'Dune Two', 2024, NULL, NULL, 1714521600000, NULL),
-                        (33, 4, NULL, 'movie', 'Leap', NULL, NULL, NULL, 0, NULL);
+                        (\(sqlID(31)), \(sqlID(4)), \(sqlID(30)), 'episode', 'Dune Day', 2023, 2, 7, 1714521600250,
+                            NULL),
+                        (\(sqlID(32)), \(sqlID(4)), NULL, 'movie', 'Dune Two', 2024, NULL, NULL, 1714521600000, NULL),
+                        (\(sqlID(33)), \(sqlID(4)), NULL, 'movie', 'Leap', NULL, NULL, NULL, 0, NULL);
                     INSERT INTO item_metadata(item_id, source, provider, provider_id, status, title, overview,
                         release_date, runtime_minutes, content_rating, poster_path, backdrop_path) VALUES
-                        (31, 'remote', 'tmdb', 693134, 'matched', 'Arrakis', 'Sand.', '2024-02-27', 166, 'PG-13',
-                            '/p.jpg', '/b.jpg'),
-                        (32, 'remote', 'tmdb', 5, 'matched', '', '', '2024', NULL, '', NULL, NULL),
-                        (33, 'remote', 'tmdb', 6, 'matched', NULL, NULL, '2023-02-29', NULL, 'G', NULL, NULL);
-                    INSERT INTO genre VALUES (878, 'Science Fiction', 878), (12, 'adventure', NULL);
-                    INSERT INTO item_genre VALUES (31, 878, 'remote'), (31, 12, 'remote'), (32, 12, 'local');
-                    INSERT INTO edition(id, item_id) VALUES (1, 31), (2, 32);
-                    INSERT INTO edition_file VALUES (1, 1), (2, 2), (2, 3);
-                    INSERT INTO media_file(id, missing_at) VALUES (1, 5), (2, 5), (3, NULL);
+                        (\(sqlID(31)), 'remote', 'tmdb', 693134, 'matched', 'Arrakis', 'Sand.', '2024-02-27', 166,
+                            'PG-13', '/p.jpg', '/b.jpg'),
+                        (\(sqlID(32)), 'remote', 'tmdb', 5, 'matched', '', '', '2024', NULL, '', NULL, NULL),
+                        (\(sqlID(33)), 'remote', 'tmdb', 6, 'matched', NULL, NULL, '2023-02-29', NULL, 'G', NULL, NULL);
+                    INSERT INTO genre(id, name, tmdb_id) VALUES (\(sqlID(878)), 'Science Fiction', 878),
+                        (\(sqlID(12)), 'adventure', NULL);
+                    INSERT INTO item_genre(item_id, genre_id, source) VALUES (\(sqlID(31)), \(sqlID(878)), 'remote'),
+                        (\(sqlID(31)), \(sqlID(12)), 'remote'), (\(sqlID(32)), \(sqlID(12)), 'local');
+                    INSERT INTO edition(id, item_id) VALUES (\(sqlID(1)), \(sqlID(31))), (\(sqlID(2)), \(sqlID(32)));
+                    INSERT INTO edition_file(edition_id, media_file_id) VALUES (\(sqlID(1)), \(sqlID(1))),
+                        (\(sqlID(2)), \(sqlID(2))), (\(sqlID(2)), \(sqlID(3)));
+                    INSERT INTO media_file(id, missing_at)
+                        VALUES (\(sqlID(1)), 5), (\(sqlID(2)), 5), (\(sqlID(3)), NULL);
                     """)
         }
         let found = try await items(replica, [31, 32, 33])
         XCTAssertEqual(
             found[31],
             Fixtures.decode(
-                #"{"id":31,"libraryId":4,"parentId":30,"kind":"episode","parsedTitle":"Dune Day","parsedYear":2023,"#
+                #"{"id":\#(jsonID(31)),"libraryId":\#(jsonID(4)),"parentId":\#(jsonID(30)),"kind":"episode","#
+                    + #""parsedTitle":"Dune Day","parsedYear":2023,"#
                     + #""seasonNumber":2,"episodeNumber":7,"addedAt":"2024-05-01T00:00:00.25Z","#
-                    + #""updatedAt":"2024-05-01T00:00:00.25Z","genres":[{"id":12,"name":"adventure"},"#
-                    + #"{"id":878,"name":"Science Fiction","tmdbId":878}],"metadata":{"provider":"tmdb","#
+                    + #""createdAt":"2024-05-01T00:00:00.25Z","modifiedAt":"2024-05-01T00:00:00.25Z","#
+                    + #""genres":[{"id":\#(jsonID(12)),"name":"adventure"},"#
+                    + #"{"id":\#(jsonID(878)),"name":"Science Fiction","tmdbId":878}],"metadata":{"provider":"tmdb","#
                     + #""providerId":693134,"status":"matched","title":"Arrakis","overview":"Sand.","#
                     + #""releaseDate":"2024-02-27","runtimeMinutes":166,"contentRating":"PG-13","posterPath":"/p.jpg","#
                     + #""backdropPath":"/b.jpg"},"unavailable":true}"#, as: Item.self),
@@ -129,20 +138,29 @@ final class ReplicaRowsTests: XCTestCase {
     func testAWatchStateReadsAsTheServerAnswersIt() async throws {
         let replica = try fixture.v1(sample: true) { db in
             try db.execute(
-                sql: "INSERT INTO watch_state VALUES (101, 20, 61000, 1, 3, 1777593600250, 1777680000000, 6)")
+                sql: "INSERT INTO watch_state VALUES (?, ?, 61000, 1, 3, 1777593600250, 1777680000000, ?)",
+                arguments: [UID.n(101), UID.n(20), UID.n(6)])
         }
         let states = try await replica.read { db in
-            try Row.fetchAll(db, sql: "SELECT * FROM watch_state WHERE account_id IN (101, 103) ORDER BY item_id")
-                .map(ReplicaRows.watchState)
+            try Row.fetchAll(
+                db, sql: "SELECT * FROM watch_state WHERE account_id IN (?, ?) ORDER BY item_id",
+                arguments: [UID.n(101), UID.n(103)]
+            ).map(ReplicaRows.watchState)
         }
         XCTAssertEqual(
             states,
             [
                 Fixtures.decode(
-                    #"{"itemId":2,"positionMs":7,"watched":false,"playCount":0,"updatedAt":"1970-01-01T00:00:00Z"}"#),
+                    #"{"itemId":\#(jsonID(2)),"positionMs":7,"watched":false,"playCount":0,"#
+                        + #""changedAt":"1970-01-01T00:00:00Z"}"#
+                ),
                 Fixtures.decode(
-                    #"{"itemId":20,"positionMs":61000,"editionId":6,"watched":true,"playCount":3,"#
-                        + #""lastPlayedAt":"2026-05-01T00:00:00.25Z","updatedAt":"2026-05-02T00:00:00Z"}"#),
+                    #"{"itemId":\#(jsonID(20)),"positionMs":61000,"editionId":\#(jsonID(6)),"watched":true,"#
+                        + #""playCount":3,"#
+                        + #""lastPlayedAt":"2026-05-01T00:00:00.25Z","changedAt":"2026-05-02T00:00:00Z"}"#),
             ])
     }
 }
+
+/// Test id `number` as a JSON string.
+private func jsonID(_ number: Int) -> String { "\"\(UID.n(number))\"" }

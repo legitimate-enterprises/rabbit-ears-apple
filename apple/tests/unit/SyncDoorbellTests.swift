@@ -2,6 +2,7 @@ import Foundation
 import GRDB
 import HTTPTypes
 import OpenAPIRuntime
+import RabbitEarsAPI
 import XCTest
 
 @testable import RabbitEarsKit
@@ -130,9 +131,11 @@ extension SyncEngineTests {
                     version: 6,
                     tables: [
                         .init(
-                            "watch_state", #"["account_id","item_id","position_ms","watched","updated_at"]"#,
-                            #"[[1,1,2.5,1,9007199254740993],[1,2,-3,0,5]]"#),
-                        .init("account_card", #"["id","name","kind","color"]"#, #"[[2,"Robin","kid",null]]"#),
+                            "watch_state", #"["account_id","item_id","position_ms","watched","changed_at"]"#,
+                            #"[[\#(jsonID(1)),\#(jsonID(1)),2.5,1,9007199254740993],"#
+                                + #"[\#(jsonID(1)),\#(jsonID(2)),-3,0,5]]"#),
+                        .init(
+                            "account_card", #"["id","name","kind","color"]"#, #"[[\#(jsonID(2)),"Robin","kid",null]]"#),
                     ])
             )
         }
@@ -140,7 +143,7 @@ extension SyncEngineTests {
         try await engine().catchUp()
 
         try await expectRows(
-            "SELECT typeof(position_ms), position_ms, updated_at FROM watch_state ORDER BY item_id",
+            "SELECT typeof(position_ms), position_ms, changed_at FROM watch_state ORDER BY item_id",
             ["real 2.5 9007199254740993", "integer -3 5"], "a fraction is REAL, an integer INTEGER and exact")
         try await expectRows("SELECT name, typeof(color) FROM account_card", ["Robin null"])
     }
@@ -153,7 +156,9 @@ extension SyncEngineTests {
                     .ok,
                     SyncFixture.diff(
                         version: 8,
-                        tables: [.init("item", #"["id","kind","parsed_title"]"#, #"[[3,"movie",\#(cell)]]"#)])
+                        tables: [
+                            .init("item", #"["id","kind","parsed_title"]"#, #"[[\#(jsonID(3)),"movie",\#(cell)]]"#)
+                        ])
                 )
             }
 
@@ -164,7 +169,10 @@ extension SyncEngineTests {
                 XCTAssertTrue(error is SyncEngine.Failure, "\(cell): \(error)")
             }
 
-            try await expectRows("SELECT id FROM item ORDER BY id", ["1"], cell)
+            try await expectRows("SELECT parsed_title FROM item", ["Antenna"], cell)
         }
     }
 }
+
+/// Test id `number` as a JSON string.
+private func jsonID(_ number: Int) -> String { "\"\(UID.n(number))\"" }

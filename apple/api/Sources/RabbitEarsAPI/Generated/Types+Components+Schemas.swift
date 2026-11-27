@@ -11,7 +11,7 @@ extension Components {
     /// Types generated from the `#/components/schemas` section of the OpenAPI document.
     public enum Schemas {
         /// - Remark: Generated from `#/components/schemas/Id`.
-        public typealias Id = Swift.Int64
+        public typealias Id = UID
         /// - Remark: Generated from `#/components/schemas/Error`.
         public struct _Error: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/Error/code`.
@@ -740,8 +740,16 @@ extension Components {
             public var revokedAt: Foundation.Date?
             /// - Remark: Generated from `#/components/schemas/Account/createdAt`.
             public var createdAt: Foundation.Date
-            /// - Remark: Generated from `#/components/schemas/Account/updatedAt`.
-            public var updatedAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Account/modifiedAt`.
+            public var modifiedAt: Foundation.Date
+            /// The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Account/createdBy`.
+            public var createdBy: Components.Schemas.Id?
+            /// The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Account/modifiedBy`.
+            public var modifiedBy: Components.Schemas.Id?
             /// Creates a new `Account`.
             ///
             /// - Parameters:
@@ -768,7 +776,9 @@ extension Components {
             ///   - autoplay: Always present. Whether Up next plays the next item when a movie, episode or video ends, after a 10-second countdown; on for a new profile. Set with setProfilePreferences.
             ///   - revokedAt:
             ///   - createdAt:
-            ///   - updatedAt:
+            ///   - modifiedAt:
+            ///   - createdBy: The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///   - modifiedBy: The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
             public init(
                 id: Components.Schemas.Id,
                 kind: Components.Schemas.AccountKind,
@@ -793,7 +803,9 @@ extension Components {
                 autoplay: Swift.Bool? = nil,
                 revokedAt: Foundation.Date? = nil,
                 createdAt: Foundation.Date,
-                updatedAt: Foundation.Date
+                modifiedAt: Foundation.Date,
+                createdBy: Components.Schemas.Id? = nil,
+                modifiedBy: Components.Schemas.Id? = nil
             ) {
                 self.id = id
                 self.kind = kind
@@ -818,7 +830,9 @@ extension Components {
                 self.autoplay = autoplay
                 self.revokedAt = revokedAt
                 self.createdAt = createdAt
-                self.updatedAt = updatedAt
+                self.modifiedAt = modifiedAt
+                self.createdBy = createdBy
+                self.modifiedBy = modifiedBy
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -844,7 +858,9 @@ extension Components {
                 case autoplay
                 case revokedAt
                 case createdAt
-                case updatedAt
+                case modifiedAt
+                case createdBy
+                case modifiedBy
             }
         }
         /// One of the server's eight profile colors: #3C4170, #2E6B5B, #6B3A2E, #5B4A8A, #8A5A2B, #2E5B8A, #6B2E5A, #4A6B2E. Any other value is a bad_request.
@@ -890,6 +906,10 @@ extension Components {
         ///
         /// - Remark: Generated from `#/components/schemas/AccountInput`.
         public struct AccountInput: Codable, Hashable, Sendable {
+            /// On createAccount: the new account's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceAccount, an id other than the path's answers 400.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AccountInput/id`.
+            public var id: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/AccountInput/kind`.
             public var kind: Components.Schemas.AccountKind
             /// Required for adults.
@@ -923,6 +943,7 @@ extension Components {
             /// Creates a new `AccountInput`.
             ///
             /// - Parameters:
+            ///   - id: On createAccount: the new account's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceAccount, an id other than the path's answers 400.
             ///   - kind:
             ///   - email: Required for adults.
             ///   - name:
@@ -933,6 +954,7 @@ extension Components {
             ///   - tvCeiling: Kids only. Absent under ratings is the ceiling suggested for the kid's age, when the kid has a birthday.
             ///   - revoked: True revokes the account and its devices, false restores the account, and absent keeps it as it is.
             public init(
+                id: Components.Schemas.Id? = nil,
                 kind: Components.Schemas.AccountKind,
                 email: Swift.String? = nil,
                 name: Swift.String,
@@ -943,6 +965,7 @@ extension Components {
                 tvCeiling: Components.Schemas.TvRating? = nil,
                 revoked: Swift.Bool? = nil
             ) {
+                self.id = id
                 self.kind = kind
                 self.email = email
                 self.name = name
@@ -954,6 +977,7 @@ extension Components {
                 self.revoked = revoked
             }
             public enum CodingKeys: String, CodingKey {
+                case id
                 case kind
                 case email
                 case name
@@ -967,6 +991,10 @@ extension Components {
         }
         /// - Remark: Generated from `#/components/schemas/ProfileInput`.
         public struct ProfileInput: Codable, Hashable, Sendable {
+            /// On createProfile: the new kid's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceProfile, an id other than the path's answers 400.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ProfileInput/id`.
+            public var id: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/ProfileInput/name`.
             public var name: Swift.String
             /// - Remark: Generated from `#/components/schemas/ProfileInput/birthday`.
@@ -986,6 +1014,7 @@ extension Components {
             /// Creates a new `ProfileInput`.
             ///
             /// - Parameters:
+            ///   - id: On createProfile: the new kid's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceProfile, an id other than the path's answers 400.
             ///   - name:
             ///   - birthday:
             ///   - filterMode: Absent keeps the stored mode; ratings for a new kid.
@@ -993,6 +1022,7 @@ extension Components {
             ///   - tvCeiling:
             ///   - color: Absent gives a new kid the color least used in the household and keeps an existing kid's.
             public init(
+                id: Components.Schemas.Id? = nil,
                 name: Swift.String,
                 birthday: Swift.String,
                 filterMode: Components.Schemas.FilterMode? = nil,
@@ -1000,6 +1030,7 @@ extension Components {
                 tvCeiling: Components.Schemas.TvRating? = nil,
                 color: Components.Schemas.ProfileColor? = nil
             ) {
+                self.id = id
                 self.name = name
                 self.birthday = birthday
                 self.filterMode = filterMode
@@ -1008,6 +1039,7 @@ extension Components {
                 self.color = color
             }
             public enum CodingKeys: String, CodingKey {
+                case id
                 case name
                 case birthday
                 case filterMode
@@ -1083,6 +1115,16 @@ extension Components {
             public var adultId: Components.Schemas.Id
             /// - Remark: Generated from `#/components/schemas/Household/createdAt`.
             public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Household/modifiedAt`.
+            public var modifiedAt: Foundation.Date
+            /// The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Household/createdBy`.
+            public var createdBy: Components.Schemas.Id?
+            /// The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Household/modifiedBy`.
+            public var modifiedBy: Components.Schemas.Id?
             /// Creates a new `Household`.
             ///
             /// - Parameters:
@@ -1090,26 +1132,42 @@ extension Components {
             ///   - name:
             ///   - adultId: The owner.
             ///   - createdAt:
+            ///   - modifiedAt:
+            ///   - createdBy: The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///   - modifiedBy: The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
             public init(
                 id: Components.Schemas.Id,
                 name: Swift.String,
                 adultId: Components.Schemas.Id,
-                createdAt: Foundation.Date
+                createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date,
+                createdBy: Components.Schemas.Id? = nil,
+                modifiedBy: Components.Schemas.Id? = nil
             ) {
                 self.id = id
                 self.name = name
                 self.adultId = adultId
                 self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
+                self.createdBy = createdBy
+                self.modifiedBy = modifiedBy
             }
             public enum CodingKeys: String, CodingKey {
                 case id
                 case name
                 case adultId
                 case createdAt
+                case modifiedAt
+                case createdBy
+                case modifiedBy
             }
         }
         /// - Remark: Generated from `#/components/schemas/HouseholdInput`.
         public struct HouseholdInput: Codable, Hashable, Sendable {
+            /// On createHousehold: the new household's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceHousehold, an id other than the path's answers 400.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdInput/id`.
+            public var id: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/HouseholdInput/name`.
             public var name: Swift.String
             /// - Remark: Generated from `#/components/schemas/HouseholdInput/adultId`.
@@ -1117,16 +1175,20 @@ extension Components {
             /// Creates a new `HouseholdInput`.
             ///
             /// - Parameters:
+            ///   - id: On createHousehold: the new household's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceHousehold, an id other than the path's answers 400.
             ///   - name:
             ///   - adultId:
             public init(
+                id: Components.Schemas.Id? = nil,
                 name: Swift.String,
                 adultId: Components.Schemas.Id
             ) {
+                self.id = id
                 self.name = name
                 self.adultId = adultId
             }
             public enum CodingKeys: String, CodingKey {
+                case id
                 case name
                 case adultId
             }
@@ -1163,6 +1225,16 @@ extension Components {
             public var toName: Swift.String
             /// - Remark: Generated from `#/components/schemas/ProfileOffer/createdAt`.
             public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/ProfileOffer/modifiedAt`.
+            public var modifiedAt: Foundation.Date
+            /// The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ProfileOffer/createdBy`.
+            public var createdBy: Components.Schemas.Id?
+            /// The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ProfileOffer/modifiedBy`.
+            public var modifiedBy: Components.Schemas.Id?
             /// Creates a new `ProfileOffer`.
             ///
             /// - Parameters:
@@ -1177,6 +1249,9 @@ extension Components {
             ///   - toProfileId: The adult offered to.
             ///   - toName:
             ///   - createdAt:
+            ///   - modifiedAt:
+            ///   - createdBy: The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///   - modifiedBy: The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
             public init(
                 id: Components.Schemas.Id,
                 profileId: Components.Schemas.Id,
@@ -1188,7 +1263,10 @@ extension Components {
                 fromName: Swift.String,
                 toProfileId: Components.Schemas.Id,
                 toName: Swift.String,
-                createdAt: Foundation.Date
+                createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date,
+                createdBy: Components.Schemas.Id? = nil,
+                modifiedBy: Components.Schemas.Id? = nil
             ) {
                 self.id = id
                 self.profileId = profileId
@@ -1201,6 +1279,9 @@ extension Components {
                 self.toProfileId = toProfileId
                 self.toName = toName
                 self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
+                self.createdBy = createdBy
+                self.modifiedBy = modifiedBy
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -1214,10 +1295,17 @@ extension Components {
                 case toProfileId
                 case toName
                 case createdAt
+                case modifiedAt
+                case createdBy
+                case modifiedBy
             }
         }
         /// - Remark: Generated from `#/components/schemas/ProfileOfferInput`.
         public struct ProfileOfferInput: Codable, Hashable, Sendable {
+            /// On createProfileOffer: the new offer's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ProfileOfferInput/id`.
+            public var id: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/ProfileOfferInput/profileId`.
             public var profileId: Components.Schemas.Id
             /// A linked adult.
@@ -1227,16 +1315,20 @@ extension Components {
             /// Creates a new `ProfileOfferInput`.
             ///
             /// - Parameters:
+            ///   - id: On createProfileOffer: the new offer's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409.
             ///   - profileId:
             ///   - toProfileId: A linked adult.
             public init(
+                id: Components.Schemas.Id? = nil,
                 profileId: Components.Schemas.Id,
                 toProfileId: Components.Schemas.Id
             ) {
+                self.id = id
                 self.profileId = profileId
                 self.toProfileId = toProfileId
             }
             public enum CodingKeys: String, CodingKey {
+                case id
                 case profileId
                 case toProfileId
             }
@@ -1417,6 +1509,8 @@ extension Components {
             public var revokedAt: Foundation.Date?
             /// - Remark: Generated from `#/components/schemas/Device/createdAt`.
             public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Device/modifiedAt`.
+            public var modifiedAt: Foundation.Date
             /// Creates a new `Device`.
             ///
             /// - Parameters:
@@ -1428,6 +1522,7 @@ extension Components {
             ///   - lastSeenAt:
             ///   - revokedAt:
             ///   - createdAt:
+            ///   - modifiedAt:
             public init(
                 id: Components.Schemas.Id,
                 name: Swift.String,
@@ -1436,7 +1531,8 @@ extension Components {
                 householdId: Components.Schemas.Id,
                 lastSeenAt: Foundation.Date? = nil,
                 revokedAt: Foundation.Date? = nil,
-                createdAt: Foundation.Date
+                createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date
             ) {
                 self.id = id
                 self.name = name
@@ -1446,6 +1542,7 @@ extension Components {
                 self.lastSeenAt = lastSeenAt
                 self.revokedAt = revokedAt
                 self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -1456,6 +1553,7 @@ extension Components {
                 case lastSeenAt
                 case revokedAt
                 case createdAt
+                case modifiedAt
             }
         }
         /// - Remark: Generated from `#/components/schemas/DeviceInput`.
@@ -1526,6 +1624,16 @@ extension Components {
             public var revokedAt: Foundation.Date?
             /// - Remark: Generated from `#/components/schemas/JoinCode/createdAt`.
             public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/JoinCode/modifiedAt`.
+            public var modifiedAt: Foundation.Date
+            /// The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/JoinCode/createdBy`.
+            public var createdBy: Components.Schemas.Id?
+            /// The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/JoinCode/modifiedBy`.
+            public var modifiedBy: Components.Schemas.Id?
             /// Creates a new `JoinCode`.
             ///
             /// - Parameters:
@@ -1537,6 +1645,9 @@ extension Components {
             ///   - usedAt:
             ///   - revokedAt:
             ///   - createdAt:
+            ///   - modifiedAt:
+            ///   - createdBy: The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///   - modifiedBy: The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
             public init(
                 id: Components.Schemas.Id,
                 code: Swift.String,
@@ -1545,7 +1656,10 @@ extension Components {
                 expiresAt: Foundation.Date,
                 usedAt: Foundation.Date? = nil,
                 revokedAt: Foundation.Date? = nil,
-                createdAt: Foundation.Date
+                createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date,
+                createdBy: Components.Schemas.Id? = nil,
+                modifiedBy: Components.Schemas.Id? = nil
             ) {
                 self.id = id
                 self.code = code
@@ -1555,6 +1669,9 @@ extension Components {
                 self.usedAt = usedAt
                 self.revokedAt = revokedAt
                 self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
+                self.createdBy = createdBy
+                self.modifiedBy = modifiedBy
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -1565,6 +1682,9 @@ extension Components {
                 case usedAt
                 case revokedAt
                 case createdAt
+                case modifiedAt
+                case createdBy
+                case modifiedBy
             }
         }
         /// Pending until an adult approves or denies the code. Expired once its
@@ -1769,6 +1889,8 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/DeviceLinkPreview/createdAt`.
             public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/DeviceLinkPreview/modifiedAt`.
+            public var modifiedAt: Foundation.Date
             /// - Remark: Generated from `#/components/schemas/DeviceLinkPreview/expiresAt`.
             public var expiresAt: Foundation.Date
             /// Creates a new `DeviceLinkPreview`.
@@ -1777,22 +1899,26 @@ extension Components {
             ///   - deviceName:
             ///   - platform:
             ///   - createdAt: When the device asked.
+            ///   - modifiedAt:
             ///   - expiresAt:
             public init(
                 deviceName: Swift.String,
                 platform: Components.Schemas.Platform,
                 createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date,
                 expiresAt: Foundation.Date
             ) {
                 self.deviceName = deviceName
                 self.platform = platform
                 self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
                 self.expiresAt = expiresAt
             }
             public enum CodingKeys: String, CodingKey {
                 case deviceName
                 case platform
                 case createdAt
+                case modifiedAt
                 case expiresAt
             }
         }
@@ -1826,6 +1952,8 @@ extension Components {
             public var expiresAt: Foundation.Date
             /// - Remark: Generated from `#/components/schemas/DeviceLink/createdAt`.
             public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/DeviceLink/modifiedAt`.
+            public var modifiedAt: Foundation.Date
             /// Creates a new `DeviceLink`.
             ///
             /// - Parameters:
@@ -1840,6 +1968,7 @@ extension Components {
             ///   - decidedAt:
             ///   - expiresAt:
             ///   - createdAt:
+            ///   - modifiedAt:
             public init(
                 id: Components.Schemas.Id,
                 code: Swift.String,
@@ -1851,7 +1980,8 @@ extension Components {
                 deviceId: Components.Schemas.Id? = nil,
                 decidedAt: Foundation.Date? = nil,
                 expiresAt: Foundation.Date,
-                createdAt: Foundation.Date
+                createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date
             ) {
                 self.id = id
                 self.code = code
@@ -1864,6 +1994,7 @@ extension Components {
                 self.decidedAt = decidedAt
                 self.expiresAt = expiresAt
                 self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -1877,6 +2008,7 @@ extension Components {
                 case decidedAt
                 case expiresAt
                 case createdAt
+                case modifiedAt
             }
         }
         /// - Remark: Generated from `#/components/schemas/DeviceLinkPage`.
@@ -1904,6 +2036,14 @@ extension Components {
         }
         /// - Remark: Generated from `#/components/schemas/HouseholdAdultInput`.
         public struct HouseholdAdultInput: Codable, Hashable, Sendable {
+            /// The new adult's account id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdAdultInput/id`.
+            public var id: Components.Schemas.Id?
+            /// The new join code's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdAdultInput/joinCodeId`.
+            public var joinCodeId: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/HouseholdAdultInput/name`.
             public var name: Swift.String
             /// - Remark: Generated from `#/components/schemas/HouseholdAdultInput/email`.
@@ -1919,19 +2059,27 @@ extension Components {
             /// Creates a new `HouseholdAdultInput`.
             ///
             /// - Parameters:
+            ///   - id: The new adult's account id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409.
+            ///   - joinCodeId: The new join code's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409.
             ///   - name:
             ///   - email:
             ///   - expiresInDays:
             public init(
+                id: Components.Schemas.Id? = nil,
+                joinCodeId: Components.Schemas.Id? = nil,
                 name: Swift.String,
                 email: Swift.String,
                 expiresInDays: Components.Schemas.HouseholdAdultInput.ExpiresInDaysPayload? = nil
             ) {
+                self.id = id
+                self.joinCodeId = joinCodeId
                 self.name = name
                 self.email = email
                 self.expiresInDays = expiresInDays
             }
             public enum CodingKeys: String, CodingKey {
+                case id
+                case joinCodeId
                 case name
                 case email
                 case expiresInDays
@@ -1962,6 +2110,10 @@ extension Components {
         }
         /// - Remark: Generated from `#/components/schemas/MakeAdultInput`.
         public struct MakeAdultInput: Codable, Hashable, Sendable {
+            /// The new join code's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MakeAdultInput/joinCodeId`.
+            public var joinCodeId: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/MakeAdultInput/email`.
             public var email: Swift.String
             /// - Remark: Generated from `#/components/schemas/MakeAdultInput/expiresInDays`.
@@ -1975,22 +2127,30 @@ extension Components {
             /// Creates a new `MakeAdultInput`.
             ///
             /// - Parameters:
+            ///   - joinCodeId: The new join code's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409.
             ///   - email:
             ///   - expiresInDays:
             public init(
+                joinCodeId: Components.Schemas.Id? = nil,
                 email: Swift.String,
                 expiresInDays: Components.Schemas.MakeAdultInput.ExpiresInDaysPayload? = nil
             ) {
+                self.joinCodeId = joinCodeId
                 self.email = email
                 self.expiresInDays = expiresInDays
             }
             public enum CodingKeys: String, CodingKey {
+                case joinCodeId
                 case email
                 case expiresInDays
             }
         }
         /// - Remark: Generated from `#/components/schemas/JoinCodeInput`.
         public struct JoinCodeInput: Codable, Hashable, Sendable {
+            /// On createJoinCode: the new join code's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409.
+            ///
+            /// - Remark: Generated from `#/components/schemas/JoinCodeInput/id`.
+            public var id: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/JoinCodeInput/accountId`.
             public var accountId: Components.Schemas.Id
             /// - Remark: Generated from `#/components/schemas/JoinCodeInput/expiresInDays`.
@@ -2004,18 +2164,39 @@ extension Components {
             /// Creates a new `JoinCodeInput`.
             ///
             /// - Parameters:
+            ///   - id: On createJoinCode: the new join code's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409.
             ///   - accountId:
             ///   - expiresInDays:
             public init(
+                id: Components.Schemas.Id? = nil,
                 accountId: Components.Schemas.Id,
                 expiresInDays: Components.Schemas.JoinCodeInput.ExpiresInDaysPayload? = nil
             ) {
+                self.id = id
                 self.accountId = accountId
                 self.expiresInDays = expiresInDays
             }
             public enum CodingKeys: String, CodingKey {
+                case id
                 case accountId
                 case expiresInDays
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/JoinCodeResendInput`.
+        public struct JoinCodeResendInput: Codable, Hashable, Sendable {
+            /// The new join code's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409.
+            ///
+            /// - Remark: Generated from `#/components/schemas/JoinCodeResendInput/joinCodeId`.
+            public var joinCodeId: Components.Schemas.Id?
+            /// Creates a new `JoinCodeResendInput`.
+            ///
+            /// - Parameters:
+            ///   - joinCodeId: The new join code's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409.
+            public init(joinCodeId: Components.Schemas.Id? = nil) {
+                self.joinCodeId = joinCodeId
+            }
+            public enum CodingKeys: String, CodingKey {
+                case joinCodeId
             }
         }
         /// - Remark: Generated from `#/components/schemas/JoinCodePage`.
@@ -2072,8 +2253,16 @@ extension Components {
             public var lastScannedAt: Foundation.Date?
             /// - Remark: Generated from `#/components/schemas/Library/createdAt`.
             public var createdAt: Foundation.Date
-            /// - Remark: Generated from `#/components/schemas/Library/updatedAt`.
-            public var updatedAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Library/modifiedAt`.
+            public var modifiedAt: Foundation.Date
+            /// The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Library/createdBy`.
+            public var createdBy: Components.Schemas.Id?
+            /// The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Library/modifiedBy`.
+            public var modifiedBy: Components.Schemas.Id?
             /// Creates a new `Library`.
             ///
             /// - Parameters:
@@ -2086,7 +2275,9 @@ extension Components {
             ///   - stats:
             ///   - lastScannedAt:
             ///   - createdAt:
-            ///   - updatedAt:
+            ///   - modifiedAt:
+            ///   - createdBy: The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///   - modifiedBy: The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
             public init(
                 id: Components.Schemas.Id,
                 name: Swift.String,
@@ -2097,7 +2288,9 @@ extension Components {
                 stats: Components.Schemas.LibraryStats,
                 lastScannedAt: Foundation.Date? = nil,
                 createdAt: Foundation.Date,
-                updatedAt: Foundation.Date
+                modifiedAt: Foundation.Date,
+                createdBy: Components.Schemas.Id? = nil,
+                modifiedBy: Components.Schemas.Id? = nil
             ) {
                 self.id = id
                 self.name = name
@@ -2108,7 +2301,9 @@ extension Components {
                 self.stats = stats
                 self.lastScannedAt = lastScannedAt
                 self.createdAt = createdAt
-                self.updatedAt = updatedAt
+                self.modifiedAt = modifiedAt
+                self.createdBy = createdBy
+                self.modifiedBy = modifiedBy
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -2120,7 +2315,9 @@ extension Components {
                 case stats
                 case lastScannedAt
                 case createdAt
-                case updatedAt
+                case modifiedAt
+                case createdBy
+                case modifiedBy
             }
         }
         /// Read-only summary of what a library holds; counts of kinds the library does not have are 0.
@@ -2216,6 +2413,10 @@ extension Components {
         }
         /// - Remark: Generated from `#/components/schemas/LibraryInput`.
         public struct LibraryInput: Codable, Hashable, Sendable {
+            /// On createLibrary: the new library's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceLibrary, an id other than the path's answers 400.
+            ///
+            /// - Remark: Generated from `#/components/schemas/LibraryInput/id`.
+            public var id: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/LibraryInput/name`.
             public var name: Swift.String
             /// - Remark: Generated from `#/components/schemas/LibraryInput/kind`.
@@ -2227,22 +2428,26 @@ extension Components {
             /// Creates a new `LibraryInput`.
             ///
             /// - Parameters:
+            ///   - id: On createLibrary: the new library's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceLibrary, an id other than the path's answers 400.
             ///   - name:
             ///   - kind:
             ///   - scanHour:
             ///   - watchFiles:
             public init(
+                id: Components.Schemas.Id? = nil,
                 name: Swift.String,
                 kind: Components.Schemas.LibraryKind,
                 scanHour: Swift.Int? = nil,
                 watchFiles: Swift.Bool? = nil
             ) {
+                self.id = id
                 self.name = name
                 self.kind = kind
                 self.scanHour = scanHour
                 self.watchFiles = watchFiles
             }
             public enum CodingKeys: String, CodingKey {
+                case id
                 case name
                 case kind
                 case scanHour
@@ -2280,25 +2485,53 @@ extension Components {
             public var libraryId: Components.Schemas.Id
             /// - Remark: Generated from `#/components/schemas/Folder/path`.
             public var path: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Folder/createdAt`.
+            public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Folder/modifiedAt`.
+            public var modifiedAt: Foundation.Date
+            /// The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Folder/createdBy`.
+            public var createdBy: Components.Schemas.Id?
+            /// The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Folder/modifiedBy`.
+            public var modifiedBy: Components.Schemas.Id?
             /// Creates a new `Folder`.
             ///
             /// - Parameters:
             ///   - id:
             ///   - libraryId:
             ///   - path:
+            ///   - createdAt:
+            ///   - modifiedAt:
+            ///   - createdBy: The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///   - modifiedBy: The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
             public init(
                 id: Components.Schemas.Id,
                 libraryId: Components.Schemas.Id,
-                path: Swift.String
+                path: Swift.String,
+                createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date,
+                createdBy: Components.Schemas.Id? = nil,
+                modifiedBy: Components.Schemas.Id? = nil
             ) {
                 self.id = id
                 self.libraryId = libraryId
                 self.path = path
+                self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
+                self.createdBy = createdBy
+                self.modifiedBy = modifiedBy
             }
             public enum CodingKeys: String, CodingKey {
                 case id
                 case libraryId
                 case path
+                case createdAt
+                case modifiedAt
+                case createdBy
+                case modifiedBy
             }
         }
         /// - Remark: Generated from `#/components/schemas/FolderPage`.
@@ -2318,16 +2551,26 @@ extension Components {
         }
         /// - Remark: Generated from `#/components/schemas/FolderInput`.
         public struct FolderInput: Codable, Hashable, Sendable {
+            /// On addLibraryFolder: the new folder's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceLibraryFolder, an id other than the path's answers 400.
+            ///
+            /// - Remark: Generated from `#/components/schemas/FolderInput/id`.
+            public var id: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/FolderInput/path`.
             public var path: Swift.String
             /// Creates a new `FolderInput`.
             ///
             /// - Parameters:
+            ///   - id: On addLibraryFolder: the new folder's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceLibraryFolder, an id other than the path's answers 400.
             ///   - path:
-            public init(path: Swift.String) {
+            public init(
+                id: Components.Schemas.Id? = nil,
+                path: Swift.String
+            ) {
+                self.id = id
                 self.path = path
             }
             public enum CodingKeys: String, CodingKey {
+                case id
                 case path
             }
         }
@@ -2395,8 +2638,10 @@ extension Components {
             public var editions: [Components.Schemas.Edition]?
             /// - Remark: Generated from `#/components/schemas/Item/addedAt`.
             public var addedAt: Foundation.Date
-            /// - Remark: Generated from `#/components/schemas/Item/updatedAt`.
-            public var updatedAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Item/createdAt`.
+            public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Item/modifiedAt`.
+            public var modifiedAt: Foundation.Date
             /// A movie or episode with files, every one of them marked missing (MediaFile.missingAt): it stays listed and startPlayback answers 409 until a file is back. Absent means false.
             ///
             /// - Remark: Generated from `#/components/schemas/Item/unavailable`.
@@ -2426,7 +2671,8 @@ extension Components {
             ///   - collections: On getItem of a movie only: the collections it is in that the active profile may see, by name.
             ///   - editions: On getItem of a movie or episode only: its editions that have files, the default first, then by name. An episode has one.
             ///   - addedAt:
-            ///   - updatedAt:
+            ///   - createdAt:
+            ///   - modifiedAt:
             ///   - unavailable: A movie or episode with files, every one of them marked missing (MediaFile.missingAt): it stays listed and startPlayback answers 409 until a file is back. Absent means false.
             ///   - kidsContent: Movies and shows only: whether it is kids' content, which an adult with hideKidsContent does not browse. It is kidsContentOverride when set, else whether it is rated G (a movie) or TV-Y, TV-Y7 or TV-G (a show). A show's seasons and episodes follow it.
             ///   - kidsContentOverride: Movies and shows only. An adult's setKidsContent; absent when none is set and the rating decides.
@@ -2445,7 +2691,8 @@ extension Components {
                 collections: [Components.Schemas.Collection]? = nil,
                 editions: [Components.Schemas.Edition]? = nil,
                 addedAt: Foundation.Date,
-                updatedAt: Foundation.Date,
+                createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date,
                 unavailable: Swift.Bool? = nil,
                 kidsContent: Swift.Bool? = nil,
                 kidsContentOverride: Swift.Bool? = nil
@@ -2464,7 +2711,8 @@ extension Components {
                 self.collections = collections
                 self.editions = editions
                 self.addedAt = addedAt
-                self.updatedAt = updatedAt
+                self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
                 self.unavailable = unavailable
                 self.kidsContent = kidsContent
                 self.kidsContentOverride = kidsContentOverride
@@ -2484,7 +2732,8 @@ extension Components {
                 case collections
                 case editions
                 case addedAt
-                case updatedAt
+                case createdAt
+                case modifiedAt
                 case unavailable
                 case kidsContent
                 case kidsContentOverride
@@ -2961,6 +3210,18 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Occasion/colors`.
             public var colors: [Swift.String]?
+            /// - Remark: Generated from `#/components/schemas/Occasion/createdAt`.
+            public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Occasion/modifiedAt`.
+            public var modifiedAt: Foundation.Date
+            /// The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Occasion/createdBy`.
+            public var createdBy: Components.Schemas.Id?
+            /// The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Occasion/modifiedBy`.
+            public var modifiedBy: Components.Schemas.Id?
             /// Creates a new `Occasion`.
             ///
             /// - Parameters:
@@ -2974,6 +3235,10 @@ extension Components {
             ///   - keywordIds: TMDB keyword ids; movies and shows carrying any are members.
             ///   - phrases: Phrases to title the occasion's Home row in place of its name, in the order given; ActiveOccasion.headline is one of them.
             ///   - colors: Three colors, as #RRGGBB, for the wash behind the occasion's screen; absent or empty keeps the plain background.
+            ///   - createdAt:
+            ///   - modifiedAt:
+            ///   - createdBy: The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///   - modifiedBy: The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
             public init(
                 id: Components.Schemas.Id,
                 name: Swift.String,
@@ -2984,7 +3249,11 @@ extension Components {
                 daysAfter: Swift.Int,
                 keywordIds: [Swift.Int64],
                 phrases: [Swift.String],
-                colors: [Swift.String]? = nil
+                colors: [Swift.String]? = nil,
+                createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date,
+                createdBy: Components.Schemas.Id? = nil,
+                modifiedBy: Components.Schemas.Id? = nil
             ) {
                 self.id = id
                 self.name = name
@@ -2996,6 +3265,10 @@ extension Components {
                 self.keywordIds = keywordIds
                 self.phrases = phrases
                 self.colors = colors
+                self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
+                self.createdBy = createdBy
+                self.modifiedBy = modifiedBy
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -3008,12 +3281,20 @@ extension Components {
                 case keywordIds
                 case phrases
                 case colors
+                case createdAt
+                case modifiedAt
+                case createdBy
+                case modifiedBy
             }
         }
         /// Exactly one of holiday, or month with day. February 29 anchors only leap years. phrases are trimmed, and a phrase equal to an earlier one ignoring case is dropped; a phrase blank once trimmed is refused. colors are none or exactly three. On createOccasion, phrases or colors absent give an occasion anchored to a holiday that holiday's built-in phrases or colors, and any other occasion none; an empty array gives none. On replaceOccasion, phrases or colors absent are left as stored, and an empty array clears them.
         ///
         /// - Remark: Generated from `#/components/schemas/OccasionInput`.
         public struct OccasionInput: Codable, Hashable, Sendable {
+            /// On createOccasion: the new occasion's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceOccasion, an id other than the path's answers 400.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OccasionInput/id`.
+            public var id: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/OccasionInput/name`.
             public var name: Swift.String
             /// A key of listHolidays.
@@ -3039,6 +3320,7 @@ extension Components {
             /// Creates a new `OccasionInput`.
             ///
             /// - Parameters:
+            ///   - id: On createOccasion: the new occasion's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceOccasion, an id other than the path's answers 400.
             ///   - name:
             ///   - holiday: A key of listHolidays.
             ///   - month:
@@ -3049,6 +3331,7 @@ extension Components {
             ///   - phrases:
             ///   - colors: Three colors, as #RRGGBB, for the wash behind the occasion's screen; absent or empty keeps the plain background.
             public init(
+                id: Components.Schemas.Id? = nil,
                 name: Swift.String,
                 holiday: Swift.String? = nil,
                 month: Swift.Int? = nil,
@@ -3059,6 +3342,7 @@ extension Components {
                 phrases: [Swift.String]? = nil,
                 colors: [Swift.String]? = nil
             ) {
+                self.id = id
                 self.name = name
                 self.holiday = holiday
                 self.month = month
@@ -3070,6 +3354,7 @@ extension Components {
                 self.colors = colors
             }
             public enum CodingKeys: String, CodingKey {
+                case id
                 case name
                 case holiday
                 case month
@@ -3516,18 +3801,20 @@ extension Components {
         public struct MediaFile: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/MediaFile/id`.
             public var id: Components.Schemas.Id
-            /// The first item it belongs to; a file holding several episodes belongs to each. listMediaFiles lists it under every one.
+            /// The first item it belongs to; a file holding several episodes belongs to each. listMediaFiles lists it under every one. Absent for a file of no item.
             ///
             /// - Remark: Generated from `#/components/schemas/MediaFile/itemId`.
-            public var itemId: Components.Schemas.Id
+            public var itemId: Components.Schemas.Id?
             /// The base name unless the caller is an admin.
             ///
             /// - Remark: Generated from `#/components/schemas/MediaFile/path`.
             public var path: Swift.String
             /// - Remark: Generated from `#/components/schemas/MediaFile/sizeBytes`.
             public var sizeBytes: Swift.Int64
-            /// - Remark: Generated from `#/components/schemas/MediaFile/modifiedAt`.
-            public var modifiedAt: Foundation.Date
+            /// The file's modification time on disk.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MediaFile/fileModifiedAt`.
+            public var fileModifiedAt: Foundation.Date
             /// - Remark: Generated from `#/components/schemas/MediaFile/container`.
             public var container: Swift.String?
             /// - Remark: Generated from `#/components/schemas/MediaFile/durationMs`.
@@ -3564,14 +3851,18 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/MediaFile/title`.
             public var title: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/MediaFile/createdAt`.
+            public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/MediaFile/modifiedAt`.
+            public var modifiedAt: Foundation.Date
             /// Creates a new `MediaFile`.
             ///
             /// - Parameters:
             ///   - id:
-            ///   - itemId: The first item it belongs to; a file holding several episodes belongs to each. listMediaFiles lists it under every one.
+            ///   - itemId: The first item it belongs to; a file holding several episodes belongs to each. listMediaFiles lists it under every one. Absent for a file of no item.
             ///   - path: The base name unless the caller is an admin.
             ///   - sizeBytes:
-            ///   - modifiedAt:
+            ///   - fileModifiedAt: The file's modification time on disk.
             ///   - container:
             ///   - durationMs:
             ///   - bitrate: Bits per second.
@@ -3583,12 +3874,14 @@ extension Components {
             ///   - probeError: What ffprobe said when it last failed; admins only.
             ///   - libraryId: On listMediaFiles by problem only, the library of the first item it belongs to.
             ///   - title: On listMediaFiles by problem only, the shown title of the first item it belongs to.
+            ///   - createdAt:
+            ///   - modifiedAt:
             public init(
                 id: Components.Schemas.Id,
-                itemId: Components.Schemas.Id,
+                itemId: Components.Schemas.Id? = nil,
                 path: Swift.String,
                 sizeBytes: Swift.Int64,
-                modifiedAt: Foundation.Date,
+                fileModifiedAt: Foundation.Date,
                 container: Swift.String? = nil,
                 durationMs: Swift.Int64? = nil,
                 bitrate: Swift.Int64? = nil,
@@ -3599,13 +3892,15 @@ extension Components {
                 probeFailedAt: Foundation.Date? = nil,
                 probeError: Swift.String? = nil,
                 libraryId: Components.Schemas.Id? = nil,
-                title: Swift.String? = nil
+                title: Swift.String? = nil,
+                createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date
             ) {
                 self.id = id
                 self.itemId = itemId
                 self.path = path
                 self.sizeBytes = sizeBytes
-                self.modifiedAt = modifiedAt
+                self.fileModifiedAt = fileModifiedAt
                 self.container = container
                 self.durationMs = durationMs
                 self.bitrate = bitrate
@@ -3617,13 +3912,15 @@ extension Components {
                 self.probeError = probeError
                 self.libraryId = libraryId
                 self.title = title
+                self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
             }
             public enum CodingKeys: String, CodingKey {
                 case id
                 case itemId
                 case path
                 case sizeBytes
-                case modifiedAt
+                case fileModifiedAt
                 case container
                 case durationMs
                 case bitrate
@@ -3635,6 +3932,8 @@ extension Components {
                 case probeError
                 case libraryId
                 case title
+                case createdAt
+                case modifiedAt
             }
         }
         /// - Remark: Generated from `#/components/schemas/MediaFileInput`.
@@ -3647,8 +3946,10 @@ extension Components {
             public var path: Swift.String
             /// - Remark: Generated from `#/components/schemas/MediaFileInput/sizeBytes`.
             public var sizeBytes: Swift.Int64
-            /// - Remark: Generated from `#/components/schemas/MediaFileInput/modifiedAt`.
-            public var modifiedAt: Foundation.Date
+            /// The file's modification time on disk.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MediaFileInput/fileModifiedAt`.
+            public var fileModifiedAt: Foundation.Date
             /// - Remark: Generated from `#/components/schemas/MediaFileInput/container`.
             public var container: Swift.String?
             /// - Remark: Generated from `#/components/schemas/MediaFileInput/durationMs`.
@@ -3661,7 +3962,7 @@ extension Components {
             ///   - itemId: The file joins this item's first untagged edition and leaves any other item's.
             ///   - path:
             ///   - sizeBytes:
-            ///   - modifiedAt:
+            ///   - fileModifiedAt: The file's modification time on disk.
             ///   - container:
             ///   - durationMs:
             ///   - bitrate:
@@ -3669,7 +3970,7 @@ extension Components {
                 itemId: Components.Schemas.Id,
                 path: Swift.String,
                 sizeBytes: Swift.Int64,
-                modifiedAt: Foundation.Date,
+                fileModifiedAt: Foundation.Date,
                 container: Swift.String? = nil,
                 durationMs: Swift.Int64? = nil,
                 bitrate: Swift.Int64? = nil
@@ -3677,7 +3978,7 @@ extension Components {
                 self.itemId = itemId
                 self.path = path
                 self.sizeBytes = sizeBytes
-                self.modifiedAt = modifiedAt
+                self.fileModifiedAt = fileModifiedAt
                 self.container = container
                 self.durationMs = durationMs
                 self.bitrate = bitrate
@@ -3686,7 +3987,7 @@ extension Components {
                 case itemId
                 case path
                 case sizeBytes
-                case modifiedAt
+                case fileModifiedAt
                 case container
                 case durationMs
                 case bitrate
@@ -3786,6 +4087,8 @@ extension Components {
             public var height: Swift.Int
             /// - Remark: Generated from `#/components/schemas/SeekPreview/createdAt`.
             public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SeekPreview/modifiedAt`.
+            public var modifiedAt: Foundation.Date
             /// Creates a new `SeekPreview`.
             ///
             /// - Parameters:
@@ -3796,6 +4099,7 @@ extension Components {
             ///   - width:
             ///   - height:
             ///   - createdAt:
+            ///   - modifiedAt:
             public init(
                 id: Components.Schemas.Id,
                 mediaFileId: Components.Schemas.Id,
@@ -3803,7 +4107,8 @@ extension Components {
                 count: Swift.Int,
                 width: Swift.Int,
                 height: Swift.Int,
-                createdAt: Foundation.Date
+                createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date
             ) {
                 self.id = id
                 self.mediaFileId = mediaFileId
@@ -3812,6 +4117,7 @@ extension Components {
                 self.width = width
                 self.height = height
                 self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -3821,6 +4127,7 @@ extension Components {
                 case width
                 case height
                 case createdAt
+                case modifiedAt
             }
         }
         /// - Remark: Generated from `#/components/schemas/SeekPreviewPage`.
@@ -4298,8 +4605,10 @@ extension Components {
             public var playCount: Swift.Int
             /// - Remark: Generated from `#/components/schemas/WatchState/lastPlayedAt`.
             public var lastPlayedAt: Foundation.Date?
-            /// - Remark: Generated from `#/components/schemas/WatchState/updatedAt`.
-            public var updatedAt: Foundation.Date
+            /// The instant of the write that set it, as the client gave it; the latest wins.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WatchState/changedAt`.
+            public var changedAt: Foundation.Date
             /// Creates a new `WatchState`.
             ///
             /// - Parameters:
@@ -4309,7 +4618,7 @@ extension Components {
             ///   - watched: Per title, whichever edition was played.
             ///   - playCount:
             ///   - lastPlayedAt:
-            ///   - updatedAt:
+            ///   - changedAt: The instant of the write that set it, as the client gave it; the latest wins.
             public init(
                 itemId: Components.Schemas.Id,
                 positionMs: Swift.Int64,
@@ -4317,7 +4626,7 @@ extension Components {
                 watched: Swift.Bool,
                 playCount: Swift.Int,
                 lastPlayedAt: Foundation.Date? = nil,
-                updatedAt: Foundation.Date
+                changedAt: Foundation.Date
             ) {
                 self.itemId = itemId
                 self.positionMs = positionMs
@@ -4325,7 +4634,7 @@ extension Components {
                 self.watched = watched
                 self.playCount = playCount
                 self.lastPlayedAt = lastPlayedAt
-                self.updatedAt = updatedAt
+                self.changedAt = changedAt
             }
             public enum CodingKeys: String, CodingKey {
                 case itemId
@@ -4334,7 +4643,7 @@ extension Components {
                 case watched
                 case playCount
                 case lastPlayedAt
-                case updatedAt
+                case changedAt
             }
         }
         /// - Remark: Generated from `#/components/schemas/WatchStateInput`.
@@ -4607,6 +4916,8 @@ extension Components {
             public var lastRun: Components.Schemas.TaskRun?
             /// - Remark: Generated from `#/components/schemas/Task/createdAt`.
             public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Task/modifiedAt`.
+            public var modifiedAt: Foundation.Date
             /// Creates a new `Task`.
             ///
             /// - Parameters:
@@ -4619,6 +4930,7 @@ extension Components {
             ///   - runRequestedAt: Set while a Run now waits to start. Read-only.
             ///   - lastRun:
             ///   - createdAt:
+            ///   - modifiedAt:
             public init(
                 id: Components.Schemas.Id,
                 name: Swift.String,
@@ -4628,7 +4940,8 @@ extension Components {
                 nextRunAt: Foundation.Date? = nil,
                 runRequestedAt: Foundation.Date? = nil,
                 lastRun: Components.Schemas.TaskRun? = nil,
-                createdAt: Foundation.Date
+                createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date
             ) {
                 self.id = id
                 self.name = name
@@ -4639,6 +4952,7 @@ extension Components {
                 self.runRequestedAt = runRequestedAt
                 self.lastRun = lastRun
                 self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -4650,6 +4964,7 @@ extension Components {
                 case runRequestedAt
                 case lastRun
                 case createdAt
+                case modifiedAt
             }
         }
         /// - Remark: Generated from `#/components/schemas/TaskInput`.
@@ -4939,8 +5254,10 @@ extension Components {
             public var transcodeReason: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Session/startedAt`.
             public var startedAt: Foundation.Date
-            /// - Remark: Generated from `#/components/schemas/Session/updatedAt`.
-            public var updatedAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Session/createdAt`.
+            public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Session/modifiedAt`.
+            public var modifiedAt: Foundation.Date
             /// - Remark: Generated from `#/components/schemas/Session/endedAt`.
             public var endedAt: Foundation.Date?
             /// Creates a new `Session`.
@@ -4957,7 +5274,8 @@ extension Components {
             ///   - encoder: Video encoder of the entry in use; none for direct play and copied video.
             ///   - transcodeReason: Why the entry in use is not direct play. Known only for sessions this server process started.
             ///   - startedAt:
-            ///   - updatedAt:
+            ///   - createdAt:
+            ///   - modifiedAt:
             ///   - endedAt:
             public init(
                 id: Components.Schemas.Id,
@@ -4971,7 +5289,8 @@ extension Components {
                 encoder: Components.Schemas.Session.EncoderPayload,
                 transcodeReason: Swift.String? = nil,
                 startedAt: Foundation.Date,
-                updatedAt: Foundation.Date,
+                createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date,
                 endedAt: Foundation.Date? = nil
             ) {
                 self.id = id
@@ -4985,7 +5304,8 @@ extension Components {
                 self.encoder = encoder
                 self.transcodeReason = transcodeReason
                 self.startedAt = startedAt
-                self.updatedAt = updatedAt
+                self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
                 self.endedAt = endedAt
             }
             public enum CodingKeys: String, CodingKey {
@@ -5000,7 +5320,8 @@ extension Components {
                 case encoder
                 case transcodeReason
                 case startedAt
-                case updatedAt
+                case createdAt
+                case modifiedAt
                 case endedAt
             }
         }
@@ -7556,8 +7877,16 @@ extension Components {
             public var imageUrl: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Playlist/createdAt`.
             public var createdAt: Foundation.Date
-            /// - Remark: Generated from `#/components/schemas/Playlist/updatedAt`.
-            public var updatedAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Playlist/modifiedAt`.
+            public var modifiedAt: Foundation.Date
+            /// The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Playlist/createdBy`.
+            public var createdBy: Components.Schemas.Id?
+            /// The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Playlist/modifiedBy`.
+            public var modifiedBy: Components.Schemas.Id?
             /// Creates a new `Playlist`.
             ///
             /// - Parameters:
@@ -7574,7 +7903,9 @@ extension Components {
             ///   - lastPlayedAt: When playback last started with this playlistId.
             ///   - imageUrl: Server-relative URL of the custom image the owner set, served by getPlaylistImage with the device token like artwork; it changes whenever the image does. Absent while none is set, and while getPlaylistImage would not find it; the client then shows artItemId's poster.
             ///   - createdAt:
-            ///   - updatedAt:
+            ///   - modifiedAt:
+            ///   - createdBy: The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///   - modifiedBy: The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
             public init(
                 id: Components.Schemas.Id,
                 profileId: Components.Schemas.Id,
@@ -7589,7 +7920,9 @@ extension Components {
                 lastPlayedAt: Foundation.Date? = nil,
                 imageUrl: Swift.String? = nil,
                 createdAt: Foundation.Date,
-                updatedAt: Foundation.Date
+                modifiedAt: Foundation.Date,
+                createdBy: Components.Schemas.Id? = nil,
+                modifiedBy: Components.Schemas.Id? = nil
             ) {
                 self.id = id
                 self.profileId = profileId
@@ -7604,7 +7937,9 @@ extension Components {
                 self.lastPlayedAt = lastPlayedAt
                 self.imageUrl = imageUrl
                 self.createdAt = createdAt
-                self.updatedAt = updatedAt
+                self.modifiedAt = modifiedAt
+                self.createdBy = createdBy
+                self.modifiedBy = modifiedBy
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -7620,7 +7955,9 @@ extension Components {
                 case lastPlayedAt
                 case imageUrl
                 case createdAt
-                case updatedAt
+                case modifiedAt
+                case createdBy
+                case modifiedBy
             }
         }
         /// A custom image other than an uploaded file: exactly one of itemId and url. itemId names the title of one of the playlist's entries, which the owner may see and which has that artwork; the image follows the title's artwork, and is not shown while the title is out of the playlist, or to a profile that may not see it. url is an http or https link the server fetches once, within 10 seconds and 16 MiB, from a public address: not loopback, link-local, a private network or the server's own, before or after a redirect.
@@ -8014,6 +8351,10 @@ extension Components {
         }
         /// - Remark: Generated from `#/components/schemas/PlaylistInput`.
         public struct PlaylistInput: Codable, Hashable, Sendable {
+            /// On createPlaylist: the new playlist's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replacePlaylist, an id other than the path's answers 400.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PlaylistInput/id`.
+            public var id: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/PlaylistInput/name`.
             public var name: Swift.String
             /// - Remark: Generated from `#/components/schemas/PlaylistInput/kind`.
@@ -8021,16 +8362,20 @@ extension Components {
             /// Creates a new `PlaylistInput`.
             ///
             /// - Parameters:
+            ///   - id: On createPlaylist: the new playlist's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replacePlaylist, an id other than the path's answers 400.
             ///   - name:
             ///   - kind:
             public init(
+                id: Components.Schemas.Id? = nil,
                 name: Swift.String,
                 kind: Components.Schemas.PlaylistKind
             ) {
+                self.id = id
                 self.name = name
                 self.kind = kind
             }
             public enum CodingKeys: String, CodingKey {
+                case id
                 case name
                 case kind
             }
@@ -8144,6 +8489,18 @@ extension Components {
             public var collection: Components.Schemas.Collection?
             /// - Remark: Generated from `#/components/schemas/PlaylistEntry/addedAt`.
             public var addedAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/PlaylistEntry/createdAt`.
+            public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/PlaylistEntry/modifiedAt`.
+            public var modifiedAt: Foundation.Date
+            /// The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PlaylistEntry/createdBy`.
+            public var createdBy: Components.Schemas.Id?
+            /// The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PlaylistEntry/modifiedBy`.
+            public var modifiedBy: Components.Schemas.Id?
             /// Creates a new `PlaylistEntry`.
             ///
             /// - Parameters:
@@ -8165,6 +8522,10 @@ extension Components {
             ///   - song:
             ///   - collection:
             ///   - addedAt:
+            ///   - createdAt:
+            ///   - modifiedAt:
+            ///   - createdBy: The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///   - modifiedBy: The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
             public init(
                 id: Components.Schemas.Id,
                 playlistId: Components.Schemas.Id,
@@ -8183,7 +8544,11 @@ extension Components {
                 album: Components.Schemas.MusicAlbum? = nil,
                 song: Components.Schemas.MusicSong? = nil,
                 collection: Components.Schemas.Collection? = nil,
-                addedAt: Foundation.Date
+                addedAt: Foundation.Date,
+                createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date,
+                createdBy: Components.Schemas.Id? = nil,
+                modifiedBy: Components.Schemas.Id? = nil
             ) {
                 self.id = id
                 self.playlistId = playlistId
@@ -8203,6 +8568,10 @@ extension Components {
                 self.song = song
                 self.collection = collection
                 self.addedAt = addedAt
+                self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
+                self.createdBy = createdBy
+                self.modifiedBy = modifiedBy
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -8223,12 +8592,20 @@ extension Components {
                 case song
                 case collection
                 case addedAt
+                case createdAt
+                case modifiedAt
+                case createdBy
+                case modifiedBy
             }
         }
         /// Exactly one of itemId and collectionId; both or neither answers 400. On replacePlaylistEntry an editionId other than the entry's answers 400 and an absent one keeps it.
         ///
         /// - Remark: Generated from `#/components/schemas/PlaylistEntryInput`.
         public struct PlaylistEntryInput: Codable, Hashable, Sendable {
+            /// On addPlaylistEntry and addPlaylistEntries: the new entry's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use, or given twice in one batch, answers 409. On replacePlaylistEntry, an id other than the path's answers 400.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PlaylistEntryInput/id`.
+            public var id: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/PlaylistEntryInput/itemId`.
             public var itemId: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/PlaylistEntryInput/collectionId`.
@@ -8248,18 +8625,21 @@ extension Components {
             /// Creates a new `PlaylistEntryInput`.
             ///
             /// - Parameters:
+            ///   - id: On addPlaylistEntry and addPlaylistEntries: the new entry's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use, or given twice in one batch, answers 409. On replacePlaylistEntry, an id other than the path's answers 400.
             ///   - itemId:
             ///   - collectionId:
             ///   - position: Where it goes, from 0; past the end or absent puts it last. It takes a rank between its new neighbours', so a late replay can land elsewhere; between two of equal rank it goes after both.
             ///   - rank: Where it goes, as PlaylistEntry.rank orders it: a key that generateKeyBetween of rocicorp/fractional-indexing makes with its default alphabet from the neighbours' ranks. Taken as given; not with position. A string that is not such a key answers 400.
             ///   - editionId: An edition of itemId; required when that movie, episode or song has more than one.
             public init(
+                id: Components.Schemas.Id? = nil,
                 itemId: Components.Schemas.Id? = nil,
                 collectionId: Components.Schemas.Id? = nil,
                 position: Swift.Int? = nil,
                 rank: Swift.String? = nil,
                 editionId: Components.Schemas.Id? = nil
             ) {
+                self.id = id
                 self.itemId = itemId
                 self.collectionId = collectionId
                 self.position = position
@@ -8267,6 +8647,7 @@ extension Components {
                 self.editionId = editionId
             }
             public enum CodingKeys: String, CodingKey {
+                case id
                 case itemId
                 case collectionId
                 case position
@@ -8437,8 +8818,16 @@ extension Components {
             public var customOrder: Swift.Bool?
             /// - Remark: Generated from `#/components/schemas/Collection/createdAt`.
             public var createdAt: Foundation.Date
-            /// - Remark: Generated from `#/components/schemas/Collection/updatedAt`.
-            public var updatedAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Collection/modifiedAt`.
+            public var modifiedAt: Foundation.Date
+            /// The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Collection/createdBy`.
+            public var createdBy: Components.Schemas.Id?
+            /// The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Collection/modifiedBy`.
+            public var modifiedBy: Components.Schemas.Id?
             /// Creates a new `Collection`.
             ///
             /// - Parameters:
@@ -8451,7 +8840,9 @@ extension Components {
             ///   - movieCount: Its movies the active profile may see.
             ///   - customOrder: True while a custom collection's movies are in a hand order, set by replaceCollectionMoviePosition; false for release order, and always for TMDB. Always sent; optional so a copy a client stored before the field existed still reads.
             ///   - createdAt:
-            ///   - updatedAt:
+            ///   - modifiedAt:
+            ///   - createdBy: The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///   - modifiedBy: The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
             public init(
                 id: Components.Schemas.Id,
                 source: Components.Schemas.CollectionSource,
@@ -8462,7 +8853,9 @@ extension Components {
                 movieCount: Swift.Int,
                 customOrder: Swift.Bool? = nil,
                 createdAt: Foundation.Date,
-                updatedAt: Foundation.Date
+                modifiedAt: Foundation.Date,
+                createdBy: Components.Schemas.Id? = nil,
+                modifiedBy: Components.Schemas.Id? = nil
             ) {
                 self.id = id
                 self.source = source
@@ -8473,7 +8866,9 @@ extension Components {
                 self.movieCount = movieCount
                 self.customOrder = customOrder
                 self.createdAt = createdAt
-                self.updatedAt = updatedAt
+                self.modifiedAt = modifiedAt
+                self.createdBy = createdBy
+                self.modifiedBy = modifiedBy
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -8485,7 +8880,9 @@ extension Components {
                 case movieCount
                 case customOrder
                 case createdAt
-                case updatedAt
+                case modifiedAt
+                case createdBy
+                case modifiedBy
             }
         }
         /// - Remark: Generated from `#/components/schemas/CollectionMoviePositionInput`.
@@ -8507,16 +8904,26 @@ extension Components {
         }
         /// - Remark: Generated from `#/components/schemas/CollectionInput`.
         public struct CollectionInput: Codable, Hashable, Sendable {
+            /// On createCollection: the new collection's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceCollection, an id other than the path's answers 400.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CollectionInput/id`.
+            public var id: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/CollectionInput/name`.
             public var name: Swift.String
             /// Creates a new `CollectionInput`.
             ///
             /// - Parameters:
+            ///   - id: On createCollection: the new collection's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceCollection, an id other than the path's answers 400.
             ///   - name:
-            public init(name: Swift.String) {
+            public init(
+                id: Components.Schemas.Id? = nil,
+                name: Swift.String
+            ) {
+                self.id = id
                 self.name = name
             }
             public enum CodingKeys: String, CodingKey {
+                case id
                 case name
             }
         }
@@ -8944,6 +9351,10 @@ extension Components {
         ///
         /// - Remark: Generated from `#/components/schemas/StationTimeRange`.
         public struct StationTimeRange: Codable, Hashable, Sendable {
+            /// Always sent. On createStation and replaceStation: the range's id, a UUIDv7 the client chose; absent, the server chooses one. A range replaceStation is given keeps its id when it sends it again; an id in use by another station's range, or given twice, answers 409.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StationTimeRange/id`.
+            public var id: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/StationTimeRange/from`.
             public var from: Swift.String
             /// - Remark: Generated from `#/components/schemas/StationTimeRange/to`.
@@ -8951,16 +9362,20 @@ extension Components {
             /// Creates a new `StationTimeRange`.
             ///
             /// - Parameters:
+            ///   - id: Always sent. On createStation and replaceStation: the range's id, a UUIDv7 the client chose; absent, the server chooses one. A range replaceStation is given keeps its id when it sends it again; an id in use by another station's range, or given twice, answers 409.
             ///   - from:
             ///   - to:
             public init(
+                id: Components.Schemas.Id? = nil,
                 from: Swift.String,
                 to: Swift.String
             ) {
+                self.id = id
                 self.from = from
                 self.to = to
             }
             public enum CodingKeys: String, CodingKey {
+                case id
                 case from
                 case to
             }
@@ -9021,8 +9436,16 @@ extension Components {
             public var imageUrl: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Station/createdAt`.
             public var createdAt: Foundation.Date
-            /// - Remark: Generated from `#/components/schemas/Station/updatedAt`.
-            public var updatedAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Station/modifiedAt`.
+            public var modifiedAt: Foundation.Date
+            /// The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Station/createdBy`.
+            public var createdBy: Components.Schemas.Id?
+            /// The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Station/modifiedBy`.
+            public var modifiedBy: Components.Schemas.Id?
             /// Creates a new `Station`.
             ///
             /// - Parameters:
@@ -9041,7 +9464,9 @@ extension Components {
             ///   - onAir:
             ///   - imageUrl: Server-relative URL of the custom image the owner set, served by getStationImage with the device token like artwork; it changes whenever the image does. Absent while none is set, and while getStationImage would not find it.
             ///   - createdAt:
-            ///   - updatedAt:
+            ///   - modifiedAt:
+            ///   - createdBy: The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///   - modifiedBy: The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
             public init(
                 id: Components.Schemas.Id,
                 name: Swift.String,
@@ -9058,7 +9483,9 @@ extension Components {
                 onAir: Components.Schemas.StationOnAir,
                 imageUrl: Swift.String? = nil,
                 createdAt: Foundation.Date,
-                updatedAt: Foundation.Date
+                modifiedAt: Foundation.Date,
+                createdBy: Components.Schemas.Id? = nil,
+                modifiedBy: Components.Schemas.Id? = nil
             ) {
                 self.id = id
                 self.name = name
@@ -9075,7 +9502,9 @@ extension Components {
                 self.onAir = onAir
                 self.imageUrl = imageUrl
                 self.createdAt = createdAt
-                self.updatedAt = updatedAt
+                self.modifiedAt = modifiedAt
+                self.createdBy = createdBy
+                self.modifiedBy = modifiedBy
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -9093,11 +9522,21 @@ extension Components {
                 case onAir
                 case imageUrl
                 case createdAt
-                case updatedAt
+                case modifiedAt
+                case createdBy
+                case modifiedBy
             }
         }
         /// - Remark: Generated from `#/components/schemas/StationInput`.
         public struct StationInput: Codable, Hashable, Sendable {
+            /// On createStation only: the new station's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceStation, an id other than the path's answers 400.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StationInput/id`.
+            public var id: Components.Schemas.Id?
+            /// On createStation without playlistId only: the id of the playlist the station owns, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409; with playlistId, or on replaceStation, it answers 400.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StationInput/ownPlaylistId`.
+            public var ownPlaylistId: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/StationInput/name`.
             public var name: Swift.String
             /// One of the active adult's playlists, or one shared with them. Absent on create makes the station its own empty playlist of kind; absent on replace keeps the station's.
@@ -9136,6 +9575,8 @@ extension Components {
             /// Creates a new `StationInput`.
             ///
             /// - Parameters:
+            ///   - id: On createStation only: the new station's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceStation, an id other than the path's answers 400.
+            ///   - ownPlaylistId: On createStation without playlistId only: the id of the playlist the station owns, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409; with playlistId, or on replaceStation, it answers 400.
             ///   - name:
             ///   - playlistId: One of the active adult's playlists, or one shared with them. Absent on create makes the station its own empty playlist of kind; absent on replace keeps the station's.
             ///   - order:
@@ -9145,6 +9586,8 @@ extension Components {
             ///   - times: Absent or empty is all day. Under hour or half_hour timing each range must hold a start boundary (a whole hour, or a half hour), as 20:00 to 20:25 does and 20:05 to 20:25 does not; one that holds none never airs and is refused (400).
             ///   - kind: Required on create without playlistId. With a playlistId it must be that playlist's kind. On replace, a station that owns its playlist changes kind only while that playlist is empty (409 otherwise); one playing another playlist takes a new playlistId instead.
             public init(
+                id: Components.Schemas.Id? = nil,
+                ownPlaylistId: Components.Schemas.Id? = nil,
                 name: Swift.String,
                 playlistId: Components.Schemas.Id? = nil,
                 order: Components.Schemas.StationOrder? = nil,
@@ -9154,6 +9597,8 @@ extension Components {
                 times: [Components.Schemas.StationTimeRange]? = nil,
                 kind: Components.Schemas.PlaylistKind? = nil
             ) {
+                self.id = id
+                self.ownPlaylistId = ownPlaylistId
                 self.name = name
                 self.playlistId = playlistId
                 self.order = order
@@ -9164,6 +9609,8 @@ extension Components {
                 self.kind = kind
             }
             public enum CodingKeys: String, CodingKey {
+                case id
+                case ownPlaylistId
                 case name
                 case playlistId
                 case order
@@ -9524,8 +9971,16 @@ extension Components {
             public var enabled: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/SsoProvider/createdAt`.
             public var createdAt: Foundation.Date
-            /// - Remark: Generated from `#/components/schemas/SsoProvider/updatedAt`.
-            public var updatedAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SsoProvider/modifiedAt`.
+            public var modifiedAt: Foundation.Date
+            /// The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SsoProvider/createdBy`.
+            public var createdBy: Components.Schemas.Id?
+            /// The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SsoProvider/modifiedBy`.
+            public var modifiedBy: Components.Schemas.Id?
             /// Creates a new `SsoProvider`.
             ///
             /// - Parameters:
@@ -9538,7 +9993,9 @@ extension Components {
             ///   - linksByEmail: The operator controls this provider's accounts, so a first sign-in links the one account with the ID token's email when the token's email_verified claim is true.
             ///   - enabled:
             ///   - createdAt:
-            ///   - updatedAt:
+            ///   - modifiedAt:
+            ///   - createdBy: The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///   - modifiedBy: The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
             public init(
                 id: Components.Schemas.Id,
                 name: Swift.String,
@@ -9549,7 +10006,9 @@ extension Components {
                 linksByEmail: Swift.Bool,
                 enabled: Swift.Bool,
                 createdAt: Foundation.Date,
-                updatedAt: Foundation.Date
+                modifiedAt: Foundation.Date,
+                createdBy: Components.Schemas.Id? = nil,
+                modifiedBy: Components.Schemas.Id? = nil
             ) {
                 self.id = id
                 self.name = name
@@ -9560,7 +10019,9 @@ extension Components {
                 self.linksByEmail = linksByEmail
                 self.enabled = enabled
                 self.createdAt = createdAt
-                self.updatedAt = updatedAt
+                self.modifiedAt = modifiedAt
+                self.createdBy = createdBy
+                self.modifiedBy = modifiedBy
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -9572,11 +10033,17 @@ extension Components {
                 case linksByEmail
                 case enabled
                 case createdAt
-                case updatedAt
+                case modifiedAt
+                case createdBy
+                case modifiedBy
             }
         }
         /// - Remark: Generated from `#/components/schemas/SsoProviderInput`.
         public struct SsoProviderInput: Codable, Hashable, Sendable {
+            /// On createSsoProvider: the new provider's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceSsoProvider, an id other than the path's answers 400.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SsoProviderInput/id`.
+            public var id: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/SsoProviderInput/name`.
             public var name: Swift.String
             /// - Remark: Generated from `#/components/schemas/SsoProviderInput/issuer`.
@@ -9600,6 +10067,7 @@ extension Components {
             /// Creates a new `SsoProviderInput`.
             ///
             /// - Parameters:
+            ///   - id: On createSsoProvider: the new provider's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409. On replaceSsoProvider, an id other than the path's answers 400.
             ///   - name:
             ///   - issuer:
             ///   - clientId:
@@ -9608,6 +10076,7 @@ extension Components {
             ///   - linksByEmail:
             ///   - enabled:
             public init(
+                id: Components.Schemas.Id? = nil,
                 name: Swift.String,
                 issuer: Swift.String,
                 clientId: Swift.String,
@@ -9616,6 +10085,7 @@ extension Components {
                 linksByEmail: Swift.Bool? = nil,
                 enabled: Swift.Bool? = nil
             ) {
+                self.id = id
                 self.name = name
                 self.issuer = issuer
                 self.clientId = clientId
@@ -9625,6 +10095,7 @@ extension Components {
                 self.enabled = enabled
             }
             public enum CodingKeys: String, CodingKey {
+                case id
                 case name
                 case issuer
                 case clientId
@@ -9675,6 +10146,8 @@ extension Components {
             public var email: Swift.String?
             /// - Remark: Generated from `#/components/schemas/AccountIdentity/createdAt`.
             public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/AccountIdentity/modifiedAt`.
+            public var modifiedAt: Foundation.Date
             /// Creates a new `AccountIdentity`.
             ///
             /// - Parameters:
@@ -9684,13 +10157,15 @@ extension Components {
             ///   - subject: The provider's ID for the user.
             ///   - email: As the provider gave it when the identity was linked.
             ///   - createdAt:
+            ///   - modifiedAt:
             public init(
                 id: Components.Schemas.Id,
                 accountId: Components.Schemas.Id,
                 providerId: Components.Schemas.Id,
                 subject: Swift.String,
                 email: Swift.String? = nil,
-                createdAt: Foundation.Date
+                createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date
             ) {
                 self.id = id
                 self.accountId = accountId
@@ -9698,6 +10173,7 @@ extension Components {
                 self.subject = subject
                 self.email = email
                 self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -9706,6 +10182,7 @@ extension Components {
                 case subject
                 case email
                 case createdAt
+                case modifiedAt
             }
         }
         /// - Remark: Generated from `#/components/schemas/AccountIdentityPage`.
@@ -9904,7 +10381,7 @@ extension Components {
                 case schemaMax
             }
         }
-        /// A column value as SQLite holds it: a JSON integer, number, string or null, never a boolean, array or object; true and false are 1 and 0. A key part is never null.
+        /// A column value as SQLite holds it: a JSON integer, number, string or null, never a boolean, array or object; true and false are 1 and 0. A key part is never null. A BLOB column (an id) is its canonical lowercase UUID string.
         ///
         /// - Remark: Generated from `#/components/schemas/SyncScalar`.
         public typealias SyncScalar = OpenAPIRuntime.OpenAPIValueContainer
@@ -10077,7 +10554,7 @@ extension Components {
                 case actions
             }
         }
-        /// A row of the sync schema an action may change, by its primary key, its columns in the table's key order.
+        /// A row of the sync schema an action may change, by its primary key, its columns in the table's key order: a JSON integer for an INTEGER key column, a canonical lowercase UUID string for an id (BLOB) one, a string for a TEXT one.
         ///
         /// - Remark: Generated from `#/components/schemas/SyncTouched`.
         public struct SyncTouched: Codable, Hashable, Sendable {
@@ -10124,7 +10601,7 @@ extension Components {
             }
             /// - Remark: Generated from `#/components/schemas/SyncAction/method`.
             public var method: Components.Schemas.SyncAction.MethodPayload
-            /// Relative to /api/v1, path parameters filled in and query included.
+            /// Relative to /api/v2, path parameters filled in and query included.
             ///
             /// - Remark: Generated from `#/components/schemas/SyncAction/path`.
             public var path: Swift.String
@@ -10149,7 +10626,7 @@ extension Components {
             ///   - seq: Its place in the client's queue.
             ///   - operationId:
             ///   - method:
-            ///   - path: Relative to /api/v1, path parameters filled in and query included.
+            ///   - path: Relative to /api/v2, path parameters filled in and query included.
             ///   - body: The request body; absent for none.
             ///   - actingProfileId:
             ///   - at: When the action was taken on the device. An operation that orders writes by time reads its own instant, the `at` of its body or query, which the client sets to the same.
@@ -10270,10 +10747,12 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/PlaybackSession/positionMs`.
             public var positionMs: Swift.Int64
+            /// - Remark: Generated from `#/components/schemas/PlaybackSession/createdAt`.
+            public var createdAt: Foundation.Date
             /// When the device last reported.
             ///
-            /// - Remark: Generated from `#/components/schemas/PlaybackSession/updatedAt`.
-            public var updatedAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/PlaybackSession/modifiedAt`.
+            public var modifiedAt: Foundation.Date
             /// - Remark: Generated from `#/components/schemas/PlaybackSession/endedAt`.
             public var endedAt: Foundation.Date?
             /// The device Move here took it to, as Moved to Kitchen iPad; set only on a session ended that way.
@@ -10290,7 +10769,8 @@ extension Components {
             ///   - platform:
             ///   - thisDevice: The calling device plays it.
             ///   - positionMs: The last position the device reported.
-            ///   - updatedAt: When the device last reported.
+            ///   - createdAt:
+            ///   - modifiedAt: When the device last reported.
             ///   - endedAt:
             ///   - movedToDeviceName: The device Move here took it to, as Moved to Kitchen iPad; set only on a session ended that way.
             public init(
@@ -10301,7 +10781,8 @@ extension Components {
                 platform: Components.Schemas.Platform,
                 thisDevice: Swift.Bool,
                 positionMs: Swift.Int64,
-                updatedAt: Foundation.Date,
+                createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date,
                 endedAt: Foundation.Date? = nil,
                 movedToDeviceName: Swift.String? = nil
             ) {
@@ -10312,7 +10793,8 @@ extension Components {
                 self.platform = platform
                 self.thisDevice = thisDevice
                 self.positionMs = positionMs
-                self.updatedAt = updatedAt
+                self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
                 self.endedAt = endedAt
                 self.movedToDeviceName = movedToDeviceName
             }
@@ -10324,7 +10806,8 @@ extension Components {
                 case platform
                 case thisDevice
                 case positionMs
-                case updatedAt
+                case createdAt
+                case modifiedAt
                 case endedAt
                 case movedToDeviceName
             }
@@ -10596,6 +11079,10 @@ extension Components {
         }
         /// - Remark: Generated from `#/components/schemas/DownloadInput`.
         public struct DownloadInput: Codable, Hashable, Sendable {
+            /// The new download's id, a UUIDv7 the client chose; absent, the server chooses one. Used only when a new download is made: a file already claimed answers its download, with that download's id. An id already in use by another download answers 409.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DownloadInput/id`.
+            public var id: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/DownloadInput/itemId`.
             public var itemId: Components.Schemas.Id
             /// An edition of the item; absent is the default.
@@ -10613,18 +11100,21 @@ extension Components {
             /// Creates a new `DownloadInput`.
             ///
             /// - Parameters:
+            ///   - id: The new download's id, a UUIDv7 the client chose; absent, the server chooses one. Used only when a new download is made: a file already claimed answers its download, with that download's id. An id already in use by another download answers 409.
             ///   - itemId:
             ///   - editionId: An edition of the item; absent is the default.
             ///   - audioTrackId: The audio a conversion keeps; absent is the default track. The file itself keeps all of its own.
             ///   - quality:
             ///   - snapshot:
             public init(
+                id: Components.Schemas.Id? = nil,
                 itemId: Components.Schemas.Id,
                 editionId: Components.Schemas.Id? = nil,
                 audioTrackId: Components.Schemas.Id? = nil,
                 quality: Components.Schemas.DownloadQuality,
                 snapshot: Components.Schemas.CapabilitySnapshot
             ) {
+                self.id = id
                 self.itemId = itemId
                 self.editionId = editionId
                 self.audioTrackId = audioTrackId
@@ -10632,6 +11122,7 @@ extension Components {
                 self.snapshot = snapshot
             }
             public enum CodingKeys: String, CodingKey {
+                case id
                 case itemId
                 case editionId
                 case audioTrackId
@@ -10641,6 +11132,10 @@ extension Components {
         }
         /// - Remark: Generated from `#/components/schemas/DownloadBatchTitle`.
         public struct DownloadBatchTitle: Codable, Hashable, Sendable {
+            /// The new download's id, a UUIDv7 the client chose; absent, the server chooses one. Used only when a new download is made: a file already claimed answers its download, with that download's id. An id already in use by another download answers 409, as that title's error conflict.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DownloadBatchTitle/id`.
+            public var id: Components.Schemas.Id?
             /// - Remark: Generated from `#/components/schemas/DownloadBatchTitle/itemId`.
             public var itemId: Components.Schemas.Id
             /// An edition of the item; absent is the default.
@@ -10654,19 +11149,23 @@ extension Components {
             /// Creates a new `DownloadBatchTitle`.
             ///
             /// - Parameters:
+            ///   - id: The new download's id, a UUIDv7 the client chose; absent, the server chooses one. Used only when a new download is made: a file already claimed answers its download, with that download's id. An id already in use by another download answers 409, as that title's error conflict.
             ///   - itemId:
             ///   - editionId: An edition of the item; absent is the default.
             ///   - audioTrackId: The audio a conversion keeps; absent is the default track.
             public init(
+                id: Components.Schemas.Id? = nil,
                 itemId: Components.Schemas.Id,
                 editionId: Components.Schemas.Id? = nil,
                 audioTrackId: Components.Schemas.Id? = nil
             ) {
+                self.id = id
                 self.itemId = itemId
                 self.editionId = editionId
                 self.audioTrackId = audioTrackId
             }
             public enum CodingKeys: String, CodingKey {
+                case id
                 case itemId
                 case editionId
                 case audioTrackId
@@ -10806,7 +11305,7 @@ extension Components {
         /// share of a conversion made.
         ///
         /// Instead of polling, a client may fetch the file before it is ready
-        /// with `?wait=1`, at `/api/v1/downloads/{id}/file`, url's path once
+        /// with `?wait=1`, at `/api/v2/downloads/{id}/file`, url's path once
         /// ready: the request is held until the conversion is ready and then
         /// served as above. A conversion that failed, or fails while held,
         /// answers 500 internal with its error as the message. A download that
@@ -10859,6 +11358,16 @@ extension Components {
             public var subtitles: [Components.Schemas.DownloadSubtitle]
             /// - Remark: Generated from `#/components/schemas/Download/createdAt`.
             public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Download/modifiedAt`.
+            public var modifiedAt: Foundation.Date
+            /// The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Download/createdBy`.
+            public var createdBy: Components.Schemas.Id?
+            /// The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Download/modifiedBy`.
+            public var modifiedBy: Components.Schemas.Id?
             /// Absent while the conversion is still to finish.
             ///
             /// - Remark: Generated from `#/components/schemas/Download/expiresAt`.
@@ -10882,6 +11391,9 @@ extension Components {
             ///   - url: Set once ready.
             ///   - subtitles:
             ///   - createdAt:
+            ///   - modifiedAt:
+            ///   - createdBy: The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
+            ///   - modifiedBy: The profile that last changed it; absent when none did, as for what the server made, or when that profile is gone.
             ///   - expiresAt: Absent while the conversion is still to finish.
             public init(
                 id: Components.Schemas.Id,
@@ -10900,6 +11412,9 @@ extension Components {
                 url: Swift.String? = nil,
                 subtitles: [Components.Schemas.DownloadSubtitle],
                 createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date,
+                createdBy: Components.Schemas.Id? = nil,
+                modifiedBy: Components.Schemas.Id? = nil,
                 expiresAt: Foundation.Date? = nil
             ) {
                 self.id = id
@@ -10918,6 +11433,9 @@ extension Components {
                 self.url = url
                 self.subtitles = subtitles
                 self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
+                self.createdBy = createdBy
+                self.modifiedBy = modifiedBy
                 self.expiresAt = expiresAt
             }
             public enum CodingKeys: String, CodingKey {
@@ -10937,6 +11455,9 @@ extension Components {
                 case url
                 case subtitles
                 case createdAt
+                case modifiedAt
+                case createdBy
+                case modifiedBy
                 case expiresAt
             }
         }
@@ -11011,6 +11532,8 @@ extension Components {
             public var error: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Conversion/createdAt`.
             public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Conversion/modifiedAt`.
+            public var modifiedAt: Foundation.Date
             /// - Remark: Generated from `#/components/schemas/Conversion/startedAt`.
             public var startedAt: Foundation.Date?
             /// - Remark: Generated from `#/components/schemas/Conversion/finishedAt`.
@@ -11032,6 +11555,7 @@ extension Components {
             ///   - downloads: The downloads that need it.
             ///   - error:
             ///   - createdAt:
+            ///   - modifiedAt:
             ///   - startedAt:
             ///   - finishedAt:
             public init(
@@ -11049,6 +11573,7 @@ extension Components {
                 downloads: Swift.Int,
                 error: Swift.String? = nil,
                 createdAt: Foundation.Date,
+                modifiedAt: Foundation.Date,
                 startedAt: Foundation.Date? = nil,
                 finishedAt: Foundation.Date? = nil
             ) {
@@ -11066,6 +11591,7 @@ extension Components {
                 self.downloads = downloads
                 self.error = error
                 self.createdAt = createdAt
+                self.modifiedAt = modifiedAt
                 self.startedAt = startedAt
                 self.finishedAt = finishedAt
             }
@@ -11084,6 +11610,7 @@ extension Components {
                 case downloads
                 case error
                 case createdAt
+                case modifiedAt
                 case startedAt
                 case finishedAt
             }

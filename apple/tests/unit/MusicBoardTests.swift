@@ -18,9 +18,9 @@ final class MusicBoardTests: XCTestCase {
             try db.account(1, "Avery")
             try db.library(3, "music")
             try db.artist(40, "Radiohead")
-            for id in Int64(100)...300 {
-                try db.album(id, "Album \(id)", artist: 40, year: Int(id))
-                try db.song(id + 1000, "Song \(id)", album: id)
+            for number in 100...300 {
+                try db.album(.n(number), "Album \(number)", artist: 40, year: number)
+                try db.song(.n(number + 1000), "Song \(number)", album: .n(number))
             }
             try db.genre(5, "Jazz", on: 100)
             try db.genre(5, "Jazz", on: 101)
@@ -71,7 +71,7 @@ final class MusicBoardTests: XCTestCase {
         let (albums, songs) = (board.albums, board.songs)
         try await replica.write { db in
             try db.genre(5, "Jazz", on: 102)
-            try db.execute(sql: "DELETE FROM item_genre WHERE item_id = 100")
+            try db.execute(sql: "DELETE FROM item_genre WHERE item_id = \(sqlID(100))")
         }
 
         await board.refresh(.albums)

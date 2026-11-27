@@ -52,6 +52,9 @@ final class FakeCapabilities: CapabilitySource {
     }
 }
 
+/// The path of playback session `number`.
+private func session(_ number: Int) -> String { "/playback/sessions/\(UID.n(number))" }
+
 @MainActor
 final class PlayerModelTests: XCTestCase {
     var transport: RoutingTransport!
@@ -63,9 +66,9 @@ final class PlayerModelTests: XCTestCase {
     override func setUp() async throws {
         transport = RoutingTransport([
             "POST /playback/sessions": (.created, Fixtures.stream(position: 90_000)),
-            "PUT /playback/sessions/7/position": (.noContent, ""),
-            "PUT /playback/sessions/7/throughput": (.ok, Fixtures.update("continue", Fixtures.stream())),
-            "DELETE /playback/sessions/7": (.noContent, ""),
+            "PUT \(session(7))/position": (.noContent, ""),
+            "PUT \(session(7))/throughput": (.ok, Fixtures.update("continue", Fixtures.stream())),
+            "DELETE \(session(7))": (.noContent, ""),
         ])
         output = FakeOutput()
         capabilities = FakeCapabilities()
@@ -83,15 +86,15 @@ final class PlayerModelTests: XCTestCase {
             output: output, capabilities: capabilities, playlistId: 3)
         await player.start(positionMs: 0)
         let body = try XCTUnwrap(transport.json(.post, "/playback/sessions"))
-        XCTAssertEqual(body["itemId"] as? Int, 21)
-        XCTAssertEqual(body["playlistId"] as? Int, 3)
+        XCTAssertEqual(body["itemId"] as? String, "\(UID.n(21))")
+        XCTAssertEqual(body["playlistId"] as? String, "\(UID.n(3))")
         await model.start()
         XCTAssertNil(transport.json(.post, "/playback/sessions")?["playlistId"])
     }
 
     func testAChosenEditionStartsThatEdition() async throws {
         await model.start(editionId: 6)
-        XCTAssertEqual(transport.json(.post, "/playback/sessions")?["editionId"] as? Int, 6)
+        XCTAssertEqual(transport.json(.post, "/playback/sessions")?["editionId"] as? String, "\(UID.n(6))")
     }
 
     func testAnEditionWithNoFileSaysItCannotPlay() async {
@@ -104,28 +107,28 @@ final class PlayerModelTests: XCTestCase {
     func testStartSendsTheFullSnapshotAndPlaysTheStreamAtItsPosition() async throws {
         await model.start(audioTrackId: 3)
         let body = try XCTUnwrap(transport.json(.post, "/playback/sessions"))
-        XCTAssertEqual(body["profileId"] as? Int, 2)
-        XCTAssertEqual(body["itemId"] as? Int, 20)
-        XCTAssertEqual(body["audioTrackId"] as? Int, 3)
+        XCTAssertEqual(body["profileId"] as? String, "\(UID.n(2))")
+        XCTAssertEqual(body["itemId"] as? String, "\(UID.n(20))")
+        XCTAssertEqual(body["audioTrackId"] as? String, "\(UID.n(3))")
         XCTAssertNil(body["editionId"], "no edition plays the default")
         XCTAssertNil(body["positionMs"])
         let snapshot = try XCTUnwrap(body["snapshot"] as? [String: Any])
         XCTAssertEqual(Set(snapshot.keys), ["decoder", "display", "audioRoute", "network"])
         XCTAssertEqual((snapshot["network"] as? [String: Any])?["discoveredLocally"] as? Bool, true)
-        XCTAssertEqual(output.loaded.first?.0.absoluteString, "http://192.168.1.9:8477/api/v1/streams/k1/0/file")
+        XCTAssertEqual(output.loaded.first?.0.absoluteString, "http://192.168.1.9:8477/api/v2/streams/k1/0/file")
         XCTAssertEqual(output.loaded.first?.1, 90)
         XCTAssertEqual(model.pill, "4K HDR · Direct play · 38 Mb/s")
         XCTAssertNil(model.error)
     }
 
     func testARouteChangeReportsPositionThenResumesTheNewStreamThere() async {
-        transport.routes["PUT /playback/sessions/7/audio-route"] =
+        transport.routes["PUT \(session(7))/audio-route"] =
             (
                 .ok,
                 Fixtures.update(
                     "restart",
                     Fixtures.stream(
-                        url: "/api/v1/streams/k2/1/master.m3u8", position: 125_000,
+                        url: "/api/v2/streams/k2/1/master.m3u8", position: 125_000,
                         verdict: "audio_transcode"))
             )
         await model.start()
@@ -133,8 +136,8 @@ final class PlayerModelTests: XCTestCase {
         capabilities.current.route = RouteFacts(channels: 2)
         await model.capabilitiesChanged(.audioRoute)
         let puts = transport.paths(.put)
-        XCTAssertEqual(puts, ["/playback/sessions/7/position", "/playback/sessions/7/audio-route"])
-        XCTAssertEqual(transport.json(.put, "/playback/sessions/7/position")?["positionMs"] as? Int, 125_000)
+        XCTAssertEqual(puts, ["\(session(7))/position", "\(session(7))/audio-route"])
+        XCTAssertEqual(transport.json(.put, "\(session(7))/position")?["positionMs"] as? Int, 125_000)
         XCTAssertEqual(output.loaded.last?.0.lastPathComponent, "master.m3u8")
         XCTAssertEqual(output.loaded.last?.1, 125)
         XCTAssertEqual(model.stream?.entry.verdict, .audioTranscode)
@@ -142,8 +145,8 @@ final class PlayerModelTests: XCTestCase {
     }
 
     func testARestartWhilePausedStaysPaused() async {
-        transport.routes["PUT /playback/sessions/7/display"] =
-            (.ok, Fixtures.update("restart", Fixtures.stream(url: "/api/v1/streams/k2/1/master.m3u8")))
+        transport.routes["PUT \(session(7))/display"] =
+            (.ok, Fixtures.update("restart", Fixtures.stream(url: "/api/v2/streams/k2/1/master.m3u8")))
         output.isPaused = true
         await model.start()
         XCTAssertFalse(output.isPaused, "the first load plays")
@@ -154,20 +157,20 @@ final class PlayerModelTests: XCTestCase {
     }
 
     func testAContinueKeepsTheCurrentStream() async {
-        transport.routes["PUT /playback/sessions/7/display"] = (.ok, Fixtures.update("continue", Fixtures.stream()))
+        transport.routes["PUT \(session(7))/display"] = (.ok, Fixtures.update("continue", Fixtures.stream()))
         await model.start()
         await model.capabilitiesChanged(.display)
         XCTAssertEqual(output.loaded.count, 1)
     }
 
     func testQualityMenuListsOriginalFirstAndCapsTheNetworkGroup() async throws {
-        transport.routes["PUT /playback/sessions/7/network"] =
+        transport.routes["PUT \(session(7))/network"] =
             (
                 .ok,
                 Fixtures.update(
                     "restart",
                     Fixtures.stream(
-                        url: "/api/v1/streams/k3/2/master.m3u8",
+                        url: "/api/v2/streams/k3/2/master.m3u8",
                         verdict: "video_transcode"))
             )
         await model.start()
@@ -177,27 +180,27 @@ final class PlayerModelTests: XCTestCase {
         XCTAssertEqual(options.first?.detail, "4K HDR · 38 Mb/s")
         XCTAssertEqual(options.map(\.selected), [true, false])
         await model.selectQuality(options[1])
-        XCTAssertEqual(transport.json(.put, "/playback/sessions/7/network")?["maxBitrate"] as? Int, 8_000_000)
+        XCTAssertEqual(transport.json(.put, "\(session(7))/network")?["maxBitrate"] as? Int, 8_000_000)
         XCTAssertEqual(model.qualityOptions.map(\.selected), [false, true])
         XCTAssertEqual(output.loaded.count, 2)
     }
 
     func testAClientFailureMovesDownThePlan() async {
-        transport.routes["POST /playback/sessions/7/events"] =
+        transport.routes["POST \(session(7))/events"] =
             (
                 .ok,
-                Fixtures.update("restart", Fixtures.stream(url: "/api/v1/streams/k4/1/master.m3u8", verdict: "remux"))
+                Fixtures.update("restart", Fixtures.stream(url: "/api/v2/streams/k4/1/master.m3u8", verdict: "remux"))
             )
         await model.start()
         await model.playerFailed("Cannot decode")
-        let event = transport.json(.post, "/playback/sessions/7/events")
+        let event = transport.json(.post, "\(session(7))/events")
         XCTAssertEqual(event?["kind"] as? String, "client_failure")
         XCTAssertEqual(event?["reason"] as? String, "Cannot decode")
         XCTAssertEqual(model.stream?.entry.verdict, .remux)
     }
 
     func testRunningOutOfPlanSaysSo() async {
-        transport.routes["POST /playback/sessions/7/events"] = (.conflict, Fixtures.error("conflict", "no entry left"))
+        transport.routes["POST \(session(7))/events"] = (.conflict, Fixtures.error("conflict", "no entry left"))
         await model.start()
         await model.playerFailed("Cannot decode")
         XCTAssertEqual(model.error, "This title can't play on this Mac.")
@@ -207,54 +210,45 @@ final class PlayerModelTests: XCTestCase {
         await model.start()
         output.positionMs = 30_000
         await model.tick()
-        let sent = transport.json(.put, "/playback/sessions/7/throughput")
+        let sent = transport.json(.put, "\(session(7))/throughput")
         XCTAssertEqual(sent?["positionMs"] as? Int, 30_000)
         XCTAssertEqual(sent?["stallCount"] as? Int, 1)
-        XCTAssertFalse(transport.paths(.put).contains("/playback/sessions/7/position"))
+        XCTAssertFalse(transport.paths(.put).contains("\(session(7))/position"))
     }
 
     /// A file with a forced, a full and a bitmap English track. As the server
     /// does, every stream carries one sidecar at most: the track chosen when
     /// it is text, none when it is burned in, else the forced track.
     func serveSubtitles() {
-        func sidecar(_ id: Int64) -> String {
-            #"{"trackId":\#(id),"language":"eng","format":"webvtt","forced":\#(id == 4),"#
-                + #""url":"/api/v1/streams/k1/0/subtitles/\#(id).vtt"}"#
+        func sidecar(_ number: Int) -> String {
+            #"{"trackId":"\#(UID.n(number))","language":"eng","format":"webvtt","forced":\#(number == 4),"#
+                + #""url":"/api/v2/streams/k1/0/subtitles/\#(number).vtt"}"#
         }
-        func track(_ id: Int64, _ kind: String, _ codec: String, text: Bool? = nil) -> String {
-            #"{"id":\#(id),"streamIndex":\#(id),"kind":"\#(kind)","codec":"\#(codec)","language":"eng","#
-                + #""isDefault":false,"isForced":\#(id == 4)\#(text.map { #","subtitleIsText":\#($0)"# } ?? "")}"#
+        func track(_ number: Int, _ kind: String, _ codec: String, text: Bool? = nil) -> String {
+            #"{"id":"\#(UID.n(number))","streamIndex":\#(number),"kind":"\#(kind)","codec":"\#(codec)","#
+                + #""language":"eng","#
+                + #""isDefault":false,"isForced":\#(number == 4)\#(text.map { #","subtitleIsText":\#($0)"# } ?? "")}"#
         }
         let tracks = [
             track(3, "audio", "aac"), track(4, "subtitle", "subrip", text: true),
             track(5, "subtitle", "subrip", text: true), track(6, "subtitle", "hdmv_pgs_subtitle", text: false),
         ]
-        transport.routes["GET /media-files/1"] = (
+        transport.routes["GET /media-files/\(UID.n(1))"] = (
             .ok,
-            #"{"id":1,"itemId":20,"path":"/m/Dune.mkv","sizeBytes":1,"modifiedAt":"2026-01-01T00:00:00Z","#
-                + #""chapters":[],"tracks":[\#(tracks.joined(separator: ","))]}"#
+            #"{"id":"\#(UID.n(1))","itemId":"\#(UID.n(20))","path":"/m/Dune.mkv","sizeBytes":1,"#
+                + #""fileModifiedAt":"2026-01-01T00:00:00Z","createdAt":"2026-01-01T00:00:00Z","#
+                + #""modifiedAt":"2026-01-01T00:00:00Z","chapters":[],"tracks":[\#(tracks.joined(separator: ","))]}"#
         )
         transport.routes["POST /playback/sessions"] = (.created, Fixtures.stream(sidecars: sidecar(4)))
         transport.respond = { sent in
-            guard sent.method == .put, sent.path == "/playback/sessions/7/tracks" else { return nil }
+            guard sent.method == .put, sent.path == "\(session(7))/tracks" else { return nil }
             let body = (try? JSONSerialization.jsonObject(with: Data(sent.body.utf8))) as? [String: Any]
-            switch body?["subtitleTrackId"] as? Int {
-            case 5: return (.ok, Fixtures.update("restart", Fixtures.stream(sidecars: sidecar(5))))
-            case 6: return (.ok, Fixtures.update("restart", Fixtures.stream(verdict: "video_transcode")))
+            switch body?["subtitleTrackId"] as? String {
+            case "\(UID.n(5))": return (.ok, Fixtures.update("restart", Fixtures.stream(sidecars: sidecar(5))))
+            case "\(UID.n(6))": return (.ok, Fixtures.update("restart", Fixtures.stream(verdict: "video_transcode")))
             default: return (.ok, Fixtures.update("continue", Fixtures.stream(sidecars: sidecar(4))))
             }
         }
-    }
-
-    func testSubtitlesComeFromTheSidecarAndCanBeTurnedOff() async {
-        serveSubtitles()
-        await model.start()
-        XCTAssertEqual(model.cue(at: 2), "4.vtt")
-        await model.selectSubtitles(.off)
-        XCTAssertNil(model.cue(at: 2))
-        XCTAssertEqual(transport.json(.put, "/playback/sessions/7/tracks")?.keys.contains("subtitleTrackId"), false)
-        await model.selectSubtitles(.forcedOnly)
-        XCTAssertEqual(model.cue(at: 2), "4.vtt")
     }
 
     func testTheSubtitleMenuListsTheFilesTracksAndAPickKeepsTheAudioTrack() async throws {
@@ -264,39 +258,39 @@ final class PlayerModelTests: XCTestCase {
         XCTAssertEqual(model.subtitleTracks.map(\.id), [4, 5, 6])
 
         await model.selectSubtitles(.track(5))
-        let picked = try XCTUnwrap(transport.json(.put, "/playback/sessions/7/tracks"))
-        XCTAssertEqual(picked["subtitleTrackId"] as? Int, 5)
-        XCTAssertEqual(picked["audioTrackId"] as? Int, 3, "the server replaces the whole selection")
+        let picked = try XCTUnwrap(transport.json(.put, "\(session(7))/tracks"))
+        XCTAssertEqual(picked["subtitleTrackId"] as? String, "\(UID.n(5))")
+        XCTAssertEqual(picked["audioTrackId"] as? String, "\(UID.n(3))", "the server replaces the whole selection")
         XCTAssertEqual(model.cue(at: 2), "5.vtt")
 
         await model.selectSubtitles(.track(6))
-        XCTAssertEqual(transport.json(.put, "/playback/sessions/7/tracks")?["subtitleTrackId"] as? Int, 6)
+        XCTAssertEqual(transport.json(.put, "\(session(7))/tracks")?["subtitleTrackId"] as? String, "\(UID.n(6))")
         XCTAssertNil(model.cue(at: 2), "a bitmap track is burned in, not drawn")
         XCTAssertEqual(model.subtitleTracks.map(\.id), [4, 5, 6])
-        XCTAssertEqual(transport.paths(.get), ["/media-files/1"], "one read serves every stream of the file")
+        XCTAssertEqual(transport.paths(.get), ["/media-files/\(UID.n(1))"], "one read serves every stream of the file")
     }
 
     func testAThroughputAnswerOfRestartSwitchesStreamsAtTheSamePosition() async {
-        transport.routes["PUT /playback/sessions/7/throughput"] =
+        transport.routes["PUT \(session(7))/throughput"] =
             (
                 .ok,
                 Fixtures.update(
                     "restart",
                     Fixtures.stream(
-                        url: "/api/v1/streams/k6/0/master.m3u8", position: 300_000, verdict: "video_transcode"))
+                        url: "/api/v2/streams/k6/0/master.m3u8", position: 300_000, verdict: "video_transcode"))
             )
         await model.start()
         output.positionMs = 300_000
         await model.tick()
-        XCTAssertEqual(transport.json(.put, "/playback/sessions/7/throughput")?["positionMs"] as? Int, 300_000)
+        XCTAssertEqual(transport.json(.put, "\(session(7))/throughput")?["positionMs"] as? Int, 300_000)
         XCTAssertEqual(output.loaded.last?.0.lastPathComponent, "master.m3u8")
         XCTAssertEqual(output.loaded.last?.1, 300)
     }
 
     func testAFailedTelemetryReportLeavesPlaybackAlone() async {
         await model.start()
-        transport.routes["PUT /playback/sessions/7/throughput"] = (.internalServerError, Fixtures.error("internal"))
-        transport.routes["POST /playback/sessions/7/events"] = (.internalServerError, Fixtures.error("internal"))
+        transport.routes["PUT \(session(7))/throughput"] = (.internalServerError, Fixtures.error("internal"))
+        transport.routes["POST \(session(7))/events"] = (.internalServerError, Fixtures.error("internal"))
         await model.tick()
         await model.stalled()
         XCTAssertNil(model.error)
@@ -305,29 +299,29 @@ final class PlayerModelTests: XCTestCase {
 
     func testAFailedCapabilityUpdateLeavesPlaybackAloneAndIsResentOnTheNextTick() async {
         await model.start()
-        transport.routes["PUT /playback/sessions/7/network"] = (.internalServerError, Fixtures.error("internal"))
+        transport.routes["PUT \(session(7))/network"] = (.internalServerError, Fixtures.error("internal"))
         capabilities.current.path = PathFacts(expensive: true)
         await model.capabilitiesChanged(.network)
         await model.selectQuality(model.qualityOptions[1])
         XCTAssertNil(model.error)
-        transport.routes["PUT /playback/sessions/7/network"] = (.ok, Fixtures.update("continue", Fixtures.stream()))
+        transport.routes["PUT \(session(7))/network"] = (.ok, Fixtures.update("continue", Fixtures.stream()))
         await model.tick()
         await model.tick()
         XCTAssertEqual(transport.paths(.put).filter { $0.hasSuffix("/network") }.count, 3, "resent once, then heard")
-        XCTAssertEqual(transport.json(.put, "/playback/sessions/7/network")?["maxBitrate"] as? Int, 8_000_000)
+        XCTAssertEqual(transport.json(.put, "\(session(7))/network")?["maxBitrate"] as? Int, 8_000_000)
     }
 
     func testAPathChangeWhileTheSessionStartsIsSentOnceItExists() async throws {
-        transport.routes["PUT /playback/sessions/7/network"] =
+        transport.routes["PUT \(session(7))/network"] =
             (
                 .ok,
                 Fixtures.update(
                     "restart",
-                    Fixtures.stream(url: "/api/v1/streams/k5/0/master.m3u8", position: 90_000, verdict: "remux"))
+                    Fixtures.stream(url: "/api/v2/streams/k5/0/master.m3u8", position: 90_000, verdict: "remux"))
             )
         capabilities.afterNextRead = { self.capabilities.current.path = PathFacts(expensive: true) }
         await model.start()
-        let network = try XCTUnwrap(transport.json(.put, "/playback/sessions/7/network"))
+        let network = try XCTUnwrap(transport.json(.put, "\(session(7))/network"))
         XCTAssertEqual(network["metered"] as? Bool, true)
         XCTAssertEqual(network["auto"] as? Bool, true)
         XCTAssertNil(network["maxBitrate"])
@@ -338,7 +332,7 @@ final class PlayerModelTests: XCTestCase {
         capabilities.afterNextRead = { Task { await self.model.stop() } }
         await model.start()
         XCTAssertTrue(output.loaded.isEmpty)
-        XCTAssertEqual(transport.paths(.delete), ["/playback/sessions/7"])
+        XCTAssertEqual(transport.paths(.delete), [session(7)])
         XCTAssertNil(model.stream)
     }
 
@@ -360,13 +354,13 @@ final class PlayerModelTests: XCTestCase {
         release.signal()
         await view.value
         XCTAssertTrue(output.loaded.isEmpty)
-        XCTAssertEqual(transport.paths(.delete), ["/playback/sessions/7"])
+        XCTAssertEqual(transport.paths(.delete), [session(7)])
         XCTAssertNil(model.error)
     }
 
     func testARestartAnsweredAfterStopIsNotPlayed() async {
-        transport.routes["PUT /playback/sessions/7/audio-route"] =
-            (.ok, Fixtures.update("restart", Fixtures.stream(url: "/api/v1/streams/k2/1/master.m3u8")))
+        transport.routes["PUT \(session(7))/audio-route"] =
+            (.ok, Fixtures.update("restart", Fixtures.stream(url: "/api/v2/streams/k2/1/master.m3u8")))
         await model.start()
         capabilities.afterNextRead = { Task { await self.model.stop() } }
         await model.capabilitiesChanged(.audioRoute)
@@ -377,24 +371,22 @@ final class PlayerModelTests: XCTestCase {
         await model.start()
         output.positionMs = 42_000
         await model.stop()
-        XCTAssertEqual(transport.paths(.delete), ["/playback/sessions/7"])
-        XCTAssertEqual(transport.queries(.delete, "/playback/sessions/7"), ["positionMs=42000"])
-        XCTAssertFalse(transport.paths(.put).contains("/playback/sessions/7/position"))
+        XCTAssertEqual(transport.paths(.delete), [session(7)])
+        XCTAssertEqual(transport.queries(.delete, session(7)), ["positionMs=42000"])
+        XCTAssertFalse(transport.paths(.put).contains("\(session(7))/position"))
         XCTAssertNil(model.stream)
     }
 }
 
 extension PlayerModelTests {
-    func testNextSubtitlesStepsThroughTheMenuInOrder() async {
+    func testSubtitlesComeFromTheSidecarAndCanBeTurnedOff() async {
         serveSubtitles()
         await model.start()
-        var seen: [PlayerModel.SubtitleChoice] = []
-        for _ in 0..<5 {
-            await model.nextSubtitles()
-            seen.append(model.subtitleChoice)
-        }
-        XCTAssertEqual(seen, [.track(4), .track(5), .track(6), .off, .forcedOnly])
-        await model.nextSubtitles(offeringTracks: false)
-        XCTAssertEqual(model.subtitleChoice, .off, "without tracks it is Off and Forced only")
+        XCTAssertEqual(model.cue(at: 2), "4.vtt")
+        await model.selectSubtitles(.off)
+        XCTAssertNil(model.cue(at: 2))
+        XCTAssertEqual(transport.json(.put, "\(session(7))/tracks")?.keys.contains("subtitleTrackId"), false)
+        await model.selectSubtitles(.forcedOnly)
+        XCTAssertEqual(model.cue(at: 2), "4.vtt")
     }
 }

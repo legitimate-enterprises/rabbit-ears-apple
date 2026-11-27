@@ -6,7 +6,7 @@ struct StationView: View {
     @Environment(Services.self) private var services
     @Environment(AppModel.self) private var app
     @Environment(Browser.self) private var browser
-    let id: Int64
+    let id: UID
     @State private var station: Station?
     @State private var programs: [StationProgram]?
     @State private var entries: [PlaylistEntry]?
@@ -74,7 +74,8 @@ struct StationView: View {
     private func header(_ station: Station) -> some View {
         VStack(spacing: 12) {
             StationIdentity(
-                name: station.name, aspect: station.kind == .music ? 1 : 16 / 9, radius: 10, imageUrl: station.imageUrl
+                id: station.id, name: station.name, aspect: station.kind == .music ? 1 : 16 / 9, radius: 10,
+                imageUrl: station.imageUrl
             )
             .frame(width: station.kind == .music ? 160 : 240)
             Text(station.name).font(.system(size: 26, weight: .bold)).multilineTextAlignment(.center)

@@ -8,7 +8,7 @@ import SwiftUI
 public struct HandoffGate<Player: View>: View {
     let request: PlayRequest
     let client: Client
-    let profileId: Int64
+    let profileId: UID
     let browser: any VideoBrowser
     let close: () -> Void
     @ViewBuilder let player: () -> Player
@@ -17,7 +17,7 @@ public struct HandoffGate<Player: View>: View {
     @State private var asked = false
 
     public init(
-        request: PlayRequest, client: Client, profileId: Int64, browser: any VideoBrowser,
+        request: PlayRequest, client: Client, profileId: UID, browser: any VideoBrowser,
         close: @escaping () -> Void, @ViewBuilder player: @escaping () -> Player
     ) {
         self.request = request

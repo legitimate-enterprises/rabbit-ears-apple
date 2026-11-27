@@ -26,8 +26,8 @@ final class PlatformTests: XCTestCase {
     func testRunningOutOfPlanNamesThisIPhone() async {
         let transport = RoutingTransport([
             "POST /playback/sessions": (.created, Fixtures.stream()),
-            "PUT /playback/sessions/7/position": (.noContent, ""),
-            "POST /playback/sessions/7/events": (.conflict, Fixtures.error("conflict", "no entry left")),
+            "PUT /playback/sessions/\(UID.n(7))/position": (.noContent, ""),
+            "POST /playback/sessions/\(UID.n(7))/events": (.conflict, Fixtures.error("conflict", "no entry left")),
         ])
         let endpoint = ServerEndpoint(userInput: "media.example.test")!
         let item = Fixtures.decode(Fixtures.item(5, "movie", "Arrival"), as: Item.self)

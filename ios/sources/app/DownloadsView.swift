@@ -7,7 +7,7 @@ import SwiftUI
 struct DownloadsView: View {
     @Environment(AppModel.self) private var model
     let store: DownloadStore
-    let profile: Int64
+    let profile: UID
 
     static let allowances: [Int64] = [5, 10, 20, 50, 100, 200, 500].map { $0 << 30 }
 

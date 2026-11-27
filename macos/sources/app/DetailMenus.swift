@@ -7,7 +7,7 @@ import SwiftUI
 struct DetailMoreMenu: View {
     @Environment(AppModel.self) private var app
     let item: Item
-    var editionId: Int64?
+    var editionId: UID?
 
     var body: some View {
         Menu {
@@ -30,7 +30,7 @@ struct ItemMenuContent: View {
     @Environment(CatalogModel.self) private var model
     @Environment(AppModel.self) private var app
     let item: Item
-    var editionId: Int64?
+    var editionId: UID?
 
     var body: some View {
         let actions = app.itemMenuActions(item.kind)
@@ -105,10 +105,10 @@ struct VideoContextMenu: View {
 /// with no such kid. Its host loads `allowed`, since a menu's items never appear.
 struct AllowedForKids: View {
     @Environment(AppModel.self) private var app
-    let itemId: Int64
+    let itemId: UID
     @Binding var allowed: Set<Account.ID>
 
-    static func load(_ itemId: Int64, _ app: AppModel) async -> Set<Account.ID> {
+    static func load(_ itemId: UID, _ app: AppModel) async -> Set<Account.ID> {
         guard app.isAdult, !app.allowListKids.isEmpty else { return [] }
         return (try? await HouseholdModel(app: app).allowedFor(itemId)) ?? []
     }

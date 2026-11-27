@@ -47,7 +47,7 @@ public final class Replica: Sendable {
             method TEXT NOT NULL,
             path TEXT NOT NULL,
             body BLOB,
-            profile_id INTEGER NOT NULL,
+            profile_id BLOB NOT NULL,
             at INTEGER NOT NULL
         );
         CREATE TABLE IF NOT EXISTS action_touch (
@@ -274,6 +274,12 @@ public final class Replica: Sendable {
         configuration.busyMode = .timeout(2)
         try DatabaseQueue(path: queueFile.path(percentEncoded: false), configuration: configuration).write { db in
             guard try String.fetchOne(db, sql: "PRAGMA quick_check") == "ok" else { throw Failure.damaged }
+            // A queue of integer profile ids holds actions no server replays: they go.
+            let profile = try String.fetchOne(
+                db, sql: "SELECT type FROM pragma_table_info('action') WHERE name = 'profile_id'")
+            if let profile, profile != "BLOB" {
+                try db.execute(sql: "DROP TABLE IF EXISTS action; DROP TABLE IF EXISTS action_touch")
+            }
             try db.execute(sql: Self.queueSchema)
         }
     }
@@ -283,8 +289,8 @@ public final class Replica: Sendable {
         guard try String.fetchOne(db, sql: "PRAGMA main.quick_check") == "ok",
             let meta = try Row.fetchOne(
                 db,
-                sql: "SELECT schema, version FROM replica_meta "
-                    + "WHERE typeof(schema) = 'integer' AND typeof(version) = 'integer'")
+                sql: "SELECT schema, version FROM replica_meta WHERE typeof(schema) = 'integer' "
+                    + "AND typeof(version) = 'integer' AND typeof(household_id) = 'blob'")
         else { throw Failure.damaged }
         let schema: Int64 = meta["schema"]
         guard schemas.contains(schema) else { throw Failure.unsupported(schema: schema) }

@@ -7,17 +7,17 @@ struct LocalPlays {
     /// putWatchState: where the profile left the item, watched as it was.
     let progress:
         @MainActor (
-            _ profile: Int64, _ item: Int64, _ edition: Int64?, _ positionMs: Int64, _ watched: Bool, _ at: Date
+            _ profile: UID, _ item: UID, _ edition: UID?, _ positionMs: Int64, _ watched: Bool, _ at: Date
         ) async -> Void
     /// recordPlay: one finished play, which the server counts and marks watched from the start.
-    let finished: @MainActor (_ profile: Int64, _ item: Int64, _ edition: Int64?, _ at: Date) async -> Void
+    let finished: @MainActor (_ profile: UID, _ item: UID, _ edition: UID?, _ at: Date) async -> Void
 }
 
 /// A title playing from its file on the device, which the server never hears of.
 struct LocalSession: Sendable {
-    let itemId: Int64
-    let profileId: Int64
-    let editionId: Int64?
+    let itemId: UID
+    let profileId: UID
+    let editionId: UID?
     let stream: PlaybackStream
     var savedMs: Int64?
     var finished = false
@@ -30,31 +30,32 @@ extension DownloadStore {
     /// than the request names and `anyEdition` is off.
     func startLocal(_ request: Components.Schemas.PlaybackRequest, anyEdition: Bool) async -> LocalAnswer? {
         guard let title = onDevice(request.itemId, profile: request.profileId), let file = file(of: title),
+            let mediaFileId = title.mediaFileId,
             anyEdition || request.editionId == nil || request.editionId == title.editionId
         else { return nil }
         let watch = await watchState(request.itemId, profile: request.profileId)
         let resume = watch.flatMap { $0.editionId == nil || $0.editionId == title.editionId ? $0.positionMs : nil }
-        nextSession -= 1
+        let id = UID.new()
         let sidecars = title.subtitles.map { subtitle in
             Components.Schemas.Sidecar(
                 trackId: subtitle.trackId, language: subtitle.language, title: subtitle.title, format: .webvtt,
                 forced: subtitle.isForced, url: media.appending(path: subtitle.file).absoluteString)
         }
         let stream = PlaybackStream(
-            sessionId: nextSession, mediaFileId: 0,
+            sessionId: id, mediaFileId: mediaFileId,
             entry: .init(
                 position: 0, verdict: .directPlay, videoAction: .copy, audioAction: .copy,
                 subtitleAction: sidecars.isEmpty ? .none : .sidecar, bad: false),
             streamUrl: file.absoluteString, streamKind: .file, positionMs: request.positionMs ?? resume ?? 0,
             negotiated: .init(verdict: .directPlay, width: 0, height: 0, bitrate: 0), rungs: [], sidecars: sidecars)
-        sessions[nextSession] = LocalSession(
+        sessions[id] = LocalSession(
             itemId: title.itemId, profileId: request.profileId, editionId: title.editionId, stream: stream)
         return .json(stream, status: 201)
     }
 
     /// What a local session's calls answer: its position is kept as watch
     /// state, and everything else carries on with the same file.
-    func session(_ id: Int64, _ call: LocalCall) async -> LocalAnswer {
+    func session(_ id: UID, _ call: LocalCall) async -> LocalAnswer {
         guard let session = sessions[id] else { return .notFound }
         switch call.operation {
         case "reportPlaybackPosition":
@@ -80,7 +81,7 @@ extension DownloadStore {
     /// session saves nothing more: the play marks it watched. Until then
     /// each new position is saved, watched as it was. Songs keep no watch
     /// state.
-    private func played(_ id: Int64, to positionMs: Int64) async {
+    private func played(_ id: UID, to positionMs: Int64) async {
         guard var session = sessions[id], !session.finished, session.savedMs != positionMs, let plays,
             let title = ledger.titles[session.itemId], title.kind != .song
         else { return }
@@ -94,6 +95,21 @@ extension DownloadStore {
         } else {
             let watched = await watchState(session.itemId, profile: session.profileId)?.watched ?? false
             await plays.progress(session.profileId, session.itemId, session.editionId, positionMs, watched, now())
+        }
+    }
+}
+
+extension PlaybackStream {
+    /// A local session's, whose file and sidecars are on the device.
+    var isOnDevice: Bool { URL(string: streamUrl)?.isFileURL == true }
+
+    /// The sidecars as the subtitle menu's tracks, all text.
+    var sidecarTracks: [Track] {
+        sidecars.map { sidecar in
+            Track(
+                id: sidecar.trackId, streamIndex: 0, kind: .subtitle, codec: sidecar.format.rawValue,
+                language: sidecar.language, title: sidecar.title, isDefault: false, isForced: sidecar.forced,
+                subtitleIsText: true)
         }
     }
 }

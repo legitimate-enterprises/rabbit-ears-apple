@@ -118,7 +118,7 @@ struct PausedNotice: View {
     var body: some View {
         HStack(spacing: 24) {
             Text(name.prefix(1).uppercased()).font(.system(size: 44, weight: .bold)).foregroundStyle(.white)
-                .frame(width: 84, height: 84).background(Theme.placeholder(Int64(name.count)), in: .circle)
+                .frame(width: 84, height: 84).background(Theme.placeholder(name.count), in: .circle)
             VStack(alignment: .leading, spacing: 2) {
                 Text(text).font(.system(size: 42, weight: .bold))
                 Text("Playing again resumes for both of you").font(.system(size: 30)).foregroundStyle(Theme.synopsis)

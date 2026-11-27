@@ -3,6 +3,25 @@ import XCTest
 @testable import RabbitEarsKit
 
 extension MusicPlayerTests {
+    func testAnInterruptionPausesAndItsEndResumesOnlyWhatWasPlaying() async {
+        await player.play(Fixtures.songs(2), source: "")
+        output.pause()
+        await player.interrupted(.began)
+        XCTAssertFalse(player.playing)
+        XCTAssertEqual(center.shown.last??.playing, false)
+        await player.toggle()
+        XCTAssertTrue(player.playing, "one tap plays again after a call")
+        XCTAssertFalse(output.isPaused)
+
+        await player.interrupted(.began)
+        await player.interrupted(.ended(shouldResume: true))
+        XCTAssertTrue(player.playing)
+        await player.pause()
+        await player.interrupted(.began)
+        await player.interrupted(.ended(shouldResume: true))
+        XCTAssertFalse(player.playing, "a song paused before the call stays paused")
+    }
+
     func testAPauseDuringAnInterruptionHoldsWhenTheSystemSaysResume() async {
         await player.play(Fixtures.songs(1), source: "")
         output.pause()

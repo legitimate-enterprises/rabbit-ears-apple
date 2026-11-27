@@ -109,3 +109,16 @@ public enum Format {
         return Locale(identifier: "en").localizedString(forLanguageCode: code) ?? code.uppercased()
     }
 }
+
+extension String {
+    /// The longest run of whole characters from the start within `limit`
+    /// Unicode scalars, which is what the spec's maxLength counts.
+    func prefix(scalars limit: Int) -> String {
+        var count = 0
+        let end = firstIndex { character in
+            count += character.unicodeScalars.count
+            return count > limit
+        }
+        return String(self[..<(end ?? endIndex)])
+    }
+}

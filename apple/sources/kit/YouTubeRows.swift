@@ -14,7 +14,7 @@ enum YouTubeRows {
     /// Channels with videos, by title, `latest` (newest video first) or `best` (a title starting with the query
     /// first); with an id, that one, with videos or none.
     static func channels(
-        _ db: Database, _ profile: Int64, sort: String? = nil, id: Int64? = nil, query: String? = nil,
+        _ db: Database, _ profile: UID, sort: String? = nil, id: UID? = nil, query: String? = nil,
         audience: Audience = .browse
     ) throws -> [YouTubeChannel] {
         let title = "c.parsed_title COLLATE NOCASE, c.id"
@@ -52,8 +52,8 @@ enum YouTubeRows {
 
     /// youtube.VideoFilter; nil is no constraint and `sort` nil is newest.
     struct VideoFilter {
-        var channelId: Int64?
-        var id: Int64?
+        var channelId: UID?
+        var id: UID?
         var unwatched = false
         var inProgress = false
         var query: String?
@@ -64,7 +64,7 @@ enum YouTubeRows {
     }
 
     /// One page of videos with the profile's watch state, and where the next starts.
-    static func videos(_ db: Database, _ profile: Int64, _ filter: VideoFilter) throws -> ([YouTubeVideo], Int?) {
+    static func videos(_ db: Database, _ profile: UID, _ filter: VideoFilter) throws -> ([YouTubeVideo], Int?) {
         let newest = "COALESCE(m.published_at, 0) DESC, v.added_at DESC, v.id DESC"
         let by =
             [

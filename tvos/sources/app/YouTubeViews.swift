@@ -9,7 +9,7 @@ struct YouTubeScreen: View {
     @Environment(Browser.self) private var browser
     @AppStorage("youtube.chip") private var tab = YouTubeTab.videos
     @AppStorage("youtube.sort") private var sort = YouTubeVideoSort.newest
-    @State private var channel: Int64?
+    @State private var channel: UID?
     @State private var board: YouTubeBoard?
 
     var body: some View {
@@ -38,7 +38,7 @@ struct YouTubeScreen: View {
                     if tab == .videos || tab == .unwatched, let channels = board?.channels, !channels.isEmpty {
                         Menu {
                             Picker("Channel", selection: $channel) {
-                                Text("Any").tag(Int64?.none)
+                                Text("Any").tag(UID?.none)
                                 ForEach(channels, id: \.id) { Text($0.title).tag(Optional($0.id)) }
                             }
                         } label: {
@@ -53,7 +53,7 @@ struct YouTubeScreen: View {
             .padding(EdgeInsets(top: shellTop + 8, leading: 80, bottom: 60, trailing: 80))
         }
         .scrollClipDisabled()
-        .task(id: "\(tab.rawValue)/\(sort.rawValue)/\(channel ?? 0)") {
+        .task(id: "\(tab.rawValue)/\(sort.rawValue)/\(channel?.description ?? "")") {
             guard let model = app.youTubeModel else { return }
             let board = board ?? YouTubeBoard(youTube: model)
             if self.board == nil {
@@ -154,7 +154,7 @@ struct ChannelTile: View {
 struct ChannelView: View {
     @Environment(AppModel.self) private var app
     @Environment(Browser.self) private var browser
-    let id: Int64
+    let id: UID
     @State private var detail: ChannelDetail?
     @State private var loaded = false
 

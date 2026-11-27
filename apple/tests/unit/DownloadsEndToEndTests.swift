@@ -16,7 +16,7 @@ final class DownloadsEndToEndTests: XCTestCase {
     private var token = ""
 
     private func call(_ method: String, _ path: String, _ body: [String: Any]? = nil) async throws -> Any? {
-        var request = URLRequest(url: try XCTUnwrap(URL(string: "api/v1\(path)", relativeTo: server)))
+        var request = URLRequest(url: try XCTUnwrap(URL(string: "api/v2\(path)", relativeTo: server)))
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         if let body {
@@ -36,7 +36,7 @@ final class DownloadsEndToEndTests: XCTestCase {
     }
 
     /// An admin, a Movies library over the fixtures, scanned: the movie to download.
-    private func seed(movies: String) async throws -> Int64 {
+    private func seed(movies: String) async throws -> UID {
         let account: [String: Any] = [
             "email": "ada@example.com", "password": "correct horse battery", "deviceName": "e2e", "platform": "macos",
         ]
@@ -49,22 +49,26 @@ final class DownloadsEndToEndTests: XCTestCase {
         var library = try await items("/libraries").first { $0["kind"] as? String == "movies" }
         if library == nil {
             library = try await call("POST", "/libraries", ["name": "Movies", "kind": "movies"]) as? [String: Any]
-            _ = try await call("POST", "/libraries/\(library?["id"] ?? 0)/folders", ["path": movies])
+            _ = try await call("POST", "/libraries/\(library?["id"] ?? "")/folders", ["path": movies])
         }
-        let libraryId = try XCTUnwrap(library?["id"] as? Int64)
+        let libraryId = try XCTUnwrap(library?["id"] as? String)
         for _ in 0..<60 {
             if let scan = try await items("/tasks").first(where: { $0["kind"] as? String == "scan:\(libraryId)" }),
                 scan["lastRun"] == nil
             {
                 _ = try await call(
-                    "PUT", "/tasks/\(scan["id"] ?? 0)",
+                    "PUT", "/tasks/\(scan["id"] ?? "")",
                     [
                         "name": scan["name"] ?? "", "kind": scan["kind"] ?? "",
                         "nextRunAt": ISO8601DateFormatter().string(from: Date()),
                     ])
             }
             let movie = try await items("/items?kind=movie").first { ($0["parsedTitle"] as? String) == "Toy Story" }
-            if let id = movie?["id"] as? Int64, try await !items("/media-files?itemId=\(id)").isEmpty { return id }
+            if let id = (movie?["id"] as? String).flatMap(UID.init),
+                try await !items("/media-files?itemId=\(id)").isEmpty
+            {
+                return id
+            }
             try await Task.sleep(for: .seconds(2))
         }
         throw XCTSkip("the fixtures did not scan in time")

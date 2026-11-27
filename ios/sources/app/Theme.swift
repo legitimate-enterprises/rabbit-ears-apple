@@ -1,3 +1,4 @@
+import RabbitEarsAPI
 import RabbitEarsKit
 import SwiftUI
 
@@ -18,7 +19,7 @@ enum Theme {
     static let border = Color.white.opacity(0.14)
 
     /// A person without a headshot, in the server's profile palette.
-    static func person(_ id: Int64) -> Color { Color(hex: ProfilePalette.placeholder(id)) }
+    static func person(_ id: UID) -> Color { Color(hex: ProfilePalette.placeholder(id)) }
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
@@ -135,7 +136,7 @@ struct ArtBlock: View {
 /// An album, artist, channel or video image at a fixed aspect, round for people and channels, never text over it.
 /// The server keeps every one of them as the item's poster.
 struct ArtSquare: View {
-    let id: Int64
+    let id: UID
     var aspect: CGFloat = 1
     var radius: CGFloat = 8
     var round = false

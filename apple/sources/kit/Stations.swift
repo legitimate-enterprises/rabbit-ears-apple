@@ -21,10 +21,9 @@ public final class StationsModel {
     /// The active profile's own stations, for the sidebar and Add to station; `loadMine` reads them.
     public private(set) var mine: [Station] = []
     public let client: Client
-    public let profileId: Int64
+    public let profileId: UID
     private let replica: Replica
     private let queue: ActionQueue
-    private let engine: SyncEngine
     private let now: @Sendable () -> Date
     /// Whose days and hours a schedule's days, ranges and today are.
     private let calendar: Calendar
@@ -34,7 +33,7 @@ public final class StationsModel {
 
     /// Tests pass a `sleep` that returns when they say; it throws when cancelled.
     public init(
-        client: Client, replica: Replica, queue: ActionQueue, engine: SyncEngine, profileId: Int64,
+        client: Client, replica: Replica, queue: ActionQueue, profileId: UID,
         now: @escaping @Sendable () -> Date = Date.init, calendar: Calendar = .autoupdatingCurrent,
         sleep: @escaping @MainActor (Date) async throws -> Void = { date in
             try await Task.sleep(for: .seconds(max(0, date.timeIntervalSinceNow)))
@@ -43,7 +42,6 @@ public final class StationsModel {
         self.client = client
         self.replica = replica
         self.queue = queue
-        self.engine = engine
         self.profileId = profileId
         self.now = now
         self.calendar = calendar
@@ -69,59 +67,80 @@ public final class StationsModel {
     public static func onNow(_ stations: [Station]) -> [Station] { stations.filter { $0.onAir.status == .onAir } }
 
     /// Nil when the profile may not see it, or it could not be read.
-    public func station(_ id: Int64) async -> Station? { await stations(id: id)?.first }
+    public func station(_ id: UID) async -> Station? { await stations(id: id)?.first }
 
     /// The programs that overlap this device's today. Nil when the station
     /// is not the profile's to see or could not be read.
-    public func schedule(of id: Int64) async -> [StationProgram]? {
+    public func schedule(of id: UID) async -> [StationProgram]? {
         await read { [profileId, calendar] db, at in
             try StationRows.schedule(db, station: id, profile: profileId, at: at, calendar: calendar)
         } ?? nil
     }
 
-    /// Makes a station, or replaces station `id`; nil when the form is
-    /// incomplete or the server refused, with `fieldErrors` set for a 400.
-    /// The replica has caught up with it on return, so it reads back.
-    public func save(_ form: StationForm, as id: Int64? = nil) async -> Station? {
-        guard let input = form.input else { return nil }
-        var saved: Station?
+    /// Makes a station, or replaces station `id`, queued: it reads back at
+    /// once, offline too; nil when the form is incomplete or the write could
+    /// not be queued. A range equal to one the station has keeps its id.
+    /// The server's refusal arrives as the queue's notice; `fieldErrors`
+    /// holds only what is checked here.
+    public func save(_ form: StationForm, as id: UID? = nil) async -> Station? {
         fieldErrors = [:]
-        await write {
-            do {
-                if let id {
-                    // shortcut: online until station_time rows have a key the client knows, so the times show at once.
-                    saved = try await client.replaceStation(path: .init(stationId: id), body: .json(input)).ok.body.json
-                } else {
-                    // shortcut: online-only until offline ids are decided
-                    saved = try await client.createStation(body: .json(input)).created.body.json
-                }
-            } catch {
-                fieldErrors = APIError.from(error)?.fieldMessages ?? [:]
-                throw error
+        guard var input = form.input else { return nil }
+        if let unaired = form.unairedTimes {
+            fieldErrors["times"] = unaired
+            return nil
+        }
+        let stored: Station? = if let id { await station(id) } else { nil }
+        let saved = id ?? UID.new()
+        input.times = Self.identified(input.times ?? [], keeping: stored?.times ?? [])
+        let queued = await write {
+            if let id {
+                try await queue.replaceStation(id, input, stored: stored, as: profileId)
+            } else {
+                try await queue.createStation(saved, ownPlaylist: UID.new(), input, as: profileId)
             }
         }
-        guard let saved else { return nil }
-        keep(saved)
-        try? await engine.catchUp()
-        return saved
+        guard queued, let station = await station(saved) else { return nil }
+        keep(station)
+        return station
+    }
+
+    /// Each range takes the id of an equal one in `stored`, each such id
+    /// once, and the rest new ids, as the server keeps a range's id.
+    private static func identified(
+        _ ranges: [StationTimeRange], keeping stored: [StationTimeRange]
+    ) -> [StationTimeRange] {
+        var free = stored
+        func same(_ lhs: StationTimeRange, _ rhs: StationTimeRange) -> Bool {
+            StationRows.minutes(lhs.from) == StationRows.minutes(rhs.from)
+                && StationRows.minutes(lhs.to) == StationRows.minutes(rhs.to)
+        }
+        return ranges.map { range in
+            var range = range
+            if let at = free.firstIndex(where: { $0.id != nil && same($0, range) }) {
+                range.id = free.remove(at: at).id
+            } else {
+                range.id = UID.new()
+            }
+            return range
+        }
     }
 
     /// Reschedule now, queued: the new schedule arrives once the server has made it.
     @discardableResult
-    public func reschedule(_ id: Int64) async -> Bool {
+    public func reschedule(_ id: UID) async -> Bool {
         await write { try await queue.rescheduleStation(id, as: profileId) }
     }
 
     /// Queued: gone here at once, and from the server when the queue reaches it.
     @discardableResult
-    public func delete(_ id: Int64) async -> Bool {
+    public func delete(_ id: UID) async -> Bool {
         await write {
             try await queue.deleteStation(id, as: profileId)
             mine.removeAll { $0.id == id }
         }
     }
 
-    private func stations(kind: PlaylistKind? = nil, id: Int64? = nil) async -> [Station]? {
+    private func stations(kind: PlaylistKind? = nil, id: UID? = nil) async -> [Station]? {
         let stations = await read { [profileId, calendar] db, at in
             try StationRows.stations(db, profile: profileId, kind: kind, id: id, at: at, calendar: calendar)
         }
@@ -320,77 +339,4 @@ public struct StationProgress: Equatable, Sendable {
     public let elapsed: TimeInterval
     public let remaining: TimeInterval
     public let fraction: Double
-}
-
-/// The station editor's fields, and the input they send.
-public struct StationForm: Equatable, Sendable {
-    public enum Schedule: Sendable { case continuous, chosen }
-
-    public var name = ""
-    /// Chosen when the station is made; its playlist holds only this kind.
-    public var kind: PlaylistKind
-    public var order = Components.Schemas.StationOrder.playlist
-    public var visibility = Components.Schemas.StationVisibility._private
-    public var timing: Components.Schemas.StationTiming
-    public var schedule = Schedule.continuous
-    public var days: Set<Weekday> = []
-    /// Ranges of the server's day as `HH:mm`, sent as entered.
-    public var times: [StationTimeRange] = []
-
-    public init(kind: PlaylistKind) {
-        self.kind = kind
-        timing = Self.timing(for: kind)
-    }
-
-    public init(_ station: Station) {
-        name = station.name
-        kind = station.kind
-        order = station.order
-        visibility = station.visibility
-        timing = station.timing
-        schedule = station.days.isEmpty && station.times.isEmpty ? .continuous : .chosen
-        days = Set(station.days)
-        times = station.times
-    }
-
-    /// Only an admin makes a station server wide or changes one back, so the editor shows it read-only.
-    public var serverWide: Bool { visibility == .server }
-
-    /// Nil until it has a name. It sends no playlist: the server makes the
-    /// station its own, and keeps it on a replace. Continuous sends no days
-    /// or times; a server station sends no visibility, which keeps it.
-    public var input: Components.Schemas.StationInput? {
-        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return nil }
-        let chosen = schedule == .chosen
-        return .init(
-            name: String(name.prefix(100)), order: order, visibility: .init(rawValue: visibility.rawValue),
-            timing: timing, days: chosen ? Weekday.allCases.filter(days.contains) : [], times: chosen ? times : [],
-            kind: kind)
-    }
-
-    public static func timing(for kind: PlaylistKind) -> Components.Schemas.StationTiming {
-        switch kind {
-        case .movies: .hour
-        case .tv: .halfHour
-        case .music: .continuous
-        }
-    }
-
-    /// An `HH:mm` as a date in a fixed UTC day, for a time picker shown in UTC, so no zone shifts it.
-    public static func date(_ clock: String) -> Date {
-        let parts = clock.split(separator: ":").compactMap { Int($0) }
-        let minutes = parts.count == 2 ? parts[0] * 60 + parts[1] : 0
-        return Date(timeIntervalSinceReferenceDate: Double(minutes * 60))
-    }
-
-    public static func clock(_ date: Date) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = zone
-        let parts = calendar.dateComponents([.hour, .minute], from: date)
-        return String(format: "%02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
-    }
-
-    /// The UTC zone `date` and `clock` read in.
-    public static let zone = TimeZone(identifier: "UTC")!
 }

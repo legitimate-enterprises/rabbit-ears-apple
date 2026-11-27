@@ -32,14 +32,14 @@ final class HouseholdActionsTests: XCTestCase {
             try db.item(35, "movie", "Animatrix", rating: "PG-13")
             try db.item(36, "show", "Mathletes", rating: "TV-14")
             try db.item(37, "season", "Mathletes", parent: 36, season: 1)
-            for (kid, item): (Int64, Int64) in [(2, 34), (2, 33), (2, 30), (4, 30), (5, 30), (6, 30)] {
+            for (kid, item): (UID, UID) in [(2, 34), (2, 33), (2, 30), (4, 30), (5, 30), (6, 30)] {
                 try db.allow(item, for: kid)
             }
             try db.item(20, "movie", "Dune", rating: "PG-13")
             try db.item(21, "show", "Bluey", rating: "TV-Y", kids: false)
             try db.item(5, "channel", "Crafts")
         }
-        app.routes.routes["POST /profiles/1/unlock"] = (.noContent, "")
+        app.routes.routes["POST /profiles/\(UID.n(1))/unlock"] = (.noContent, "")
     }
 
     override func tearDown() { app.remove() }
@@ -88,15 +88,22 @@ final class HouseholdActionsTests: XCTestCase {
         try await household.disallow(robin, 30)
         XCTAssertEqual(app.model.allowLists.kids(holding: 31), [2])
         XCTAssertEqual(app.model.allowLists.kids(holding: 30), [])
-        let held: [Int64] = try await sync.replica.read {
-            try Int64.fetchAll($0, sql: "SELECT item_id FROM account_allow WHERE account_id = 2 ORDER BY item_id")
+        let held: [UID] = try await sync.replica.read {
+            try UID.fetchAll(
+                $0, sql: "SELECT item_id FROM account_allow WHERE account_id = \(sqlID(2)) ORDER BY item_id")
         }
         XCTAssertEqual(held, [31, 33, 34])
         let queued = try await app.queued()
         XCTAssertEqual(
-            queued, ["allowItem PUT /profiles/2/allowed-items/31", "disallowItem DELETE /profiles/2/allowed-items/30"])
+            queued,
+            [
+                "allowItem PUT /profiles/\(UID.n(2))/allowed-items/\(UID.n(31))",
+                "disallowItem DELETE /profiles/\(UID.n(2))/allowed-items/\(UID.n(30))",
+            ])
         let touched = try await app.touched()
-        XCTAssertEqual(touched, ["account_allow 2/31", "account_allow 2/30"])
+        XCTAssertEqual(
+            touched, ["account_allow \(UID.n(2))/\(UID.n(31))", "account_allow \(UID.n(2))/\(UID.n(30))"],
+            "id key parts are their lowercase strings")
         app.routes.failure = nil
         let flushed = await sync.queue.flush()
         XCTAssertEqual(flushed, .done)
@@ -110,9 +117,9 @@ final class HouseholdActionsTests: XCTestCase {
         try await app.model.savePreferences(for: avery, color: "#5b4a8a", hideKidsContent: true)
         XCTAssertEqual(app.model.activeProfile?.color, "#5B4A8A")
         XCTAssertEqual(app.model.activeProfile?.hideKidsContent, true)
-        let color: String? = try await app.value("SELECT color FROM account WHERE id = 1")
-        let card: String? = try await app.value("SELECT color FROM account_card WHERE id = 1")
-        let hiding: Bool? = try await app.value("SELECT hide_kids_content FROM account WHERE id = 1")
+        let color: String? = try await app.value("SELECT color FROM account WHERE id = \(sqlID(1))")
+        let card: String? = try await app.value("SELECT color FROM account_card WHERE id = \(sqlID(1))")
+        let hiding: Bool? = try await app.value("SELECT hide_kids_content FROM account WHERE id = \(sqlID(1))")
         XCTAssertEqual([color, card], ["#5B4A8A", "#5B4A8A"])
         XCTAssertEqual(hiding, true)
 
@@ -121,14 +128,17 @@ final class HouseholdActionsTests: XCTestCase {
         XCTAssertEqual(kid.autoplay, false)
         XCTAssertEqual(kid.color, "#6B3A2E", "no color of its own shows the palette's for its id")
         XCTAssertNil(kid.hideKidsContent, "a kid has no Hide")
-        let stopped: Bool? = try await app.value("SELECT no_autoplay FROM account WHERE id = 2")
+        let stopped: Bool? = try await app.value("SELECT no_autoplay FROM account WHERE id = \(sqlID(2))")
         XCTAssertEqual(stopped, true)
         let queued = try await app.queued()
         XCTAssertEqual(
             queued,
-            ["setProfilePreferences PUT /profiles/1/preferences", "setProfilePreferences PUT /profiles/2/preferences"])
+            [
+                "setProfilePreferences PUT /profiles/\(UID.n(1))/preferences",
+                "setProfilePreferences PUT /profiles/\(UID.n(2))/preferences",
+            ])
         let touched = try await app.touched()
-        XCTAssertEqual(touched, ["account 1", "account_card 1", "account 2"])
+        XCTAssertEqual(touched, ["account \(UID.n(1))", "account_card \(UID.n(1))", "account \(UID.n(2))"])
 
         app.routes.failure = nil
         _ = await sync.queue.flush()
@@ -146,9 +156,9 @@ final class HouseholdActionsTests: XCTestCase {
         try await queue.setKidsContent(true, for: 20, as: 1)
         try await queue.setKidsContent(nil, for: 21, as: 1)
         try await queue.setYouTubeChannelForKids(true, channel: 5, as: 1)
-        let dune: Bool? = try await app.value("SELECT kids_content FROM item WHERE id = 20")
-        let bluey: Bool? = try await app.value("SELECT kids_content FROM item WHERE id = 21")
-        let crafts: Bool? = try await app.value("SELECT kids_content FROM item WHERE id = 5")
+        let dune: Bool? = try await app.value("SELECT kids_content FROM item WHERE id = \(sqlID(20))")
+        let bluey: Bool? = try await app.value("SELECT kids_content FROM item WHERE id = \(sqlID(21))")
+        let crafts: Bool? = try await app.value("SELECT kids_content FROM item WHERE id = \(sqlID(5))")
         XCTAssertEqual(dune, true)
         XCTAssertNil(bluey, "the rating decides again")
         XCTAssertEqual(crafts, true)
@@ -156,33 +166,34 @@ final class HouseholdActionsTests: XCTestCase {
         XCTAssertEqual(
             queued,
             [
-                "setKidsContent PUT /items/20/kids-content", "clearKidsContent DELETE /items/21/kids-content",
-                "setYouTubeChannelForKids PUT /youtube/channels/5/for-kids",
+                "setKidsContent PUT /items/\(UID.n(20))/kids-content",
+                "clearKidsContent DELETE /items/\(UID.n(21))/kids-content",
+                "setYouTubeChannelForKids PUT /youtube/channels/\(UID.n(5))/for-kids",
             ])
         let touched = try await app.touched()
-        XCTAssertEqual(touched, ["item 20", "item 21", "item 5"])
+        XCTAssertEqual(touched, ["item \(UID.n(20))", "item \(UID.n(21))", "item \(UID.n(5))"])
     }
 
-    /// Six past a whole action's items, from 100.
-    static let past = Int64(106 + ActionQueue.touchedLimit)
+    /// A whole action's items and six more, uid.N(100) on.
+    static let ids = (100..<(106 + ActionQueue.touchedLimit)).map(UID.n)
 
     func testASelectionsKidsContentIsSentInBatchesOfTheTouchedLimit() async throws {
         app.remove()
         app = try SyncedApp { db in
-            for id in Int64(100)..<Self.past { try db.item(id, "movie", "T\(id)", rating: "G") }
+            for id in Self.ids { try db.item(id, "movie", "T\(id)", rating: "G") }
         }
         let sync = try await app.synced()
         app.offline()
-        try await sync.queue.setKidsContents(false, for: Array(100..<Self.past), as: 1)
+        try await sync.queue.setKidsContents(false, for: Self.ids, as: 1)
         let marked: Int? = try await app.value("SELECT count(*) FROM item WHERE kids_content = 0")
         XCTAssertEqual(marked, ActionQueue.touchedLimit + 6)
         let queued = try await app.queued()
         XCTAssertEqual(queued, Array(repeating: "setKidsContents PUT /items/kids-content/batch", count: 2))
         app.routes.failure = nil
         _ = await sync.queue.flush()
-        let ids = app.sentBodies().map { ($0["itemIds"] as? [Int64]) ?? [] }
-        let split = Int64(100 + ActionQueue.touchedLimit)
-        XCTAssertEqual(ids, [Array(100..<split), Array(split..<Self.past)])
+        let ids = app.sentBodies().map { ($0["itemIds"] as? [String]) ?? [] }
+        let sent = Self.ids.map(\.description)
+        XCTAssertEqual(ids, [Array(sent[..<ActionQueue.touchedLimit]), Array(sent[ActionQueue.touchedLimit...])])
         XCTAssertEqual(app.sentBodies().first?["kidsContent"] as? Bool, false)
     }
 }

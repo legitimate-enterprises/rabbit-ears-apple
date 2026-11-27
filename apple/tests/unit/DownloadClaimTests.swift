@@ -26,14 +26,16 @@ extension DownloadStoreTests {
             return answer?(sent)
         }
         harness.downloader.onFetch = { _ in events.add("fetch") }
-        harness.resolves["item/50"] = (1...3).map { Fixtures.downloadTitle(Int64($0), "song") }
+        harness.resolves["item/\(UID.n(50))"] = (1...3).map { Fixtures.downloadTitle(UID.n($0), "song") }
         try await harness.download(.album(50))
 
         XCTAssertEqual(events.all.first, "claim")
         XCTAssertEqual(events.all.filter { $0 == "claim" }.count, 1)
-        let claimed = harness.transport.json(.post, "/profiles/1/downloads/batch")?["titles"] as? [[String: Any]]
-        XCTAssertEqual(claimed?.compactMap { $0["itemId"] as? Int64 }, [1, 2, 3], "in download order")
-        for id in Int64(1)...3 { XCTAssertEqual(store.titles[id]?.state, .onDevice) }
+        let claimed =
+            harness.transport.json(.post, "/profiles/\(UID.n(1))/downloads/batch")?["titles"] as? [[String: Any]]
+        XCTAssertEqual(
+            claimed?.compactMap { ($0["itemId"] as? String).flatMap(UID.init) }, [1, 2, 3], "in download order")
+        for id in (1...3).map(UID.n) { XCTAssertEqual(store.titles[id]?.state, .onDevice) }
     }
 
     /// Nothing reports the conversion's progress while the server holds the request, so no share is shown.
@@ -44,7 +46,7 @@ extension DownloadStoreTests {
             progress(0.25)
             while !steps.all.contains("done") { try? await Task.sleep(for: .milliseconds(2)) }
         }
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
         let downloading = Task { try await harness.download(.title(20)) }
         for _ in 0..<500 where harness.downloader.requests.isEmpty { try await Task.sleep(for: .milliseconds(2)) }
         XCTAssertEqual(store.titles[20]?.state.label, "Preparing")
@@ -61,7 +63,7 @@ extension DownloadStoreTests {
 
     func testATitleTheBatchRefusesFailsAloneWithTheWordingOfASingleClaim() async throws {
         harness.refusing = [2: Fixtures.error("conflict", "no file"), 3: Fixtures.error("bad_request", "Not a title")]
-        harness.resolves["item/50"] = (1...4).map { Fixtures.downloadTitle(Int64($0), "song") }
+        harness.resolves["item/\(UID.n(50))"] = (1...4).map { Fixtures.downloadTitle(UID.n($0), "song") }
         try await harness.download(.album(50))
         XCTAssertEqual(store.titles[1]?.state, .onDevice)
         XCTAssertEqual(store.titles[2]?.state, .failed("Nothing this device can keep"))
@@ -71,7 +73,7 @@ extension DownloadStoreTests {
 
     func testAClaimTheServerLostIsMadeAgainOnceThenTheTitleFails() async throws {
         harness.downloader.failure = .status(404)
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
         try await harness.download(.title(20))
         XCTAssertEqual(batches.count, 2)
         XCTAssertEqual(harness.downloader.requests.count, 2)
@@ -80,19 +82,19 @@ extension DownloadStoreTests {
 
     func testRemovingARequestReleasesItsUnfetchedClaims() async throws {
         harness.downloader.failure = .interrupted(resumeData: nil)
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
         try await harness.download(.title(20))
         XCTAssertTrue(harness.transport.paths(.delete).isEmpty)
         store.remove(.title(20), profile: 1)
         for _ in 0..<500 where harness.transport.paths(.delete).isEmpty {
             try await Task.sleep(for: .milliseconds(2))
         }
-        XCTAssertEqual(harness.transport.paths(.delete), ["/profiles/1/downloads/20"])
+        XCTAssertEqual(harness.transport.paths(.delete), ["/profiles/\(UID.n(1))/downloads/\(UID.n(20))"])
     }
 
     func testARelaunchFetchesWithTheClaimItKeptAndClaimsNothingAgain() async throws {
         harness.downloader.failure = .interrupted(resumeData: nil)
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
         try await harness.download(.title(20))
         XCTAssertEqual(batches.count, 1)
         // The process that claimed it ends.
@@ -107,14 +109,14 @@ extension DownloadStoreTests {
         await reopened.pump()
         XCTAssertEqual(batches.count, 1)
         let files = downloader.requests.compactMap { $0.url?.path() }.filter { $0.hasSuffix("/file") }
-        XCTAssertEqual(files, ["/api/v1/downloads/20/file"])
+        XCTAssertEqual(files, ["/api/v2/downloads/\(UID.n(20))/file"])
         XCTAssertEqual(reopened.titles[20]?.state, .onDevice)
     }
 
     /// The ledger the version before claims were kept wrote: the title claims again.
     func testALedgerWithoutClaimsKeepsEveryDownloadAndClaimsWhatIsLeft() async throws {
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
-        harness.resolves["item/21"] = [Fixtures.downloadTitle(21, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(21))"] = [Fixtures.downloadTitle(21, "movie")]
         try await harness.download(.title(20))
         harness.downloader.failure = .interrupted(resumeData: nil)
         try await harness.download(.title(21))
@@ -145,7 +147,7 @@ extension DownloadStoreTests {
     func testLowDataModeWaitsWhateverWiFiOnlySaysWhileTheServerPrepares() async throws {
         store.wifiOnly = false
         harness.box.path = PathFacts(constrained: true)
-        harness.resolves["item/20"] = [Fixtures.downloadTitle(20, "movie")]
+        harness.resolves["item/\(UID.n(20))"] = [Fixtures.downloadTitle(20, "movie")]
         try await harness.download(.title(20))
         XCTAssertEqual(store.titles[20]?.state, .waitingForLowData)
         XCTAssertEqual(store.titles[20]?.state.label, "Waiting: Low Data Mode is on")

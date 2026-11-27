@@ -18,10 +18,11 @@ final class ForeignRowsTests: XCTestCase {
     override func tearDown() { synced.remove() }
 
     func testTheSampleHoldsTheForeignRowsButNotTheirOwner() async throws {
-        let held: [Int64] = try await synced.read(
+        let held: [UID] = try await synced.read(
             """
-            SELECT id FROM station WHERE id = 703 UNION ALL SELECT id FROM playlist WHERE id = 512
-            UNION ALL SELECT id FROM collection WHERE id = 403 UNION ALL SELECT id FROM account WHERE id = 111
+            SELECT id FROM station WHERE id = \(sqlID(703)) UNION ALL SELECT id FROM playlist WHERE id = \(sqlID(512))
+            UNION ALL SELECT id FROM collection WHERE id = \(sqlID(403))
+            UNION ALL SELECT id FROM account WHERE id = \(sqlID(111))
             """)
         XCTAssertEqual(held, [703, 512, 403])
     }

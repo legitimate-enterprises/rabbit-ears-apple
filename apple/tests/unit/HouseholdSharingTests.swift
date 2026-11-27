@@ -12,10 +12,11 @@ extension Fixtures {
     }
 
     /// An offer of the kid `profileId`, `name`.
-    static func offer(_ id: Int64, of profileId: Int64, _ name: String, from: String, to: String) -> String {
-        #"{"id":\#(id),"profileId":\#(profileId),"profileName":"\#(name)","profileKind":"kid","#
-            + #""householdId":1,"householdName":"Avery","fromProfileId":1,"fromName":"\#(from)","#
-            + #""toProfileId":7,"toName":"\#(to)","createdAt":"2026-01-01T00:00:00Z"}"#
+    static func offer(_ id: UID, of profileId: UID, _ name: String, from: String, to: String) -> String {
+        #"{"id":"\#(id)","profileId":"\#(profileId)","profileName":"\#(name)","profileKind":"kid","#
+            + #""householdId":"\#(UID.n(1))","householdName":"Avery","fromProfileId":"\#(UID.n(1))","#
+            + #""fromName":"\#(from)","toProfileId":"\#(UID.n(7))","toName":"\#(to)","#
+            + #""createdAt":"2026-01-01T00:00:00Z","modifiedAt":"2026-01-01T00:00:00Z"}"#
     }
 }
 
@@ -105,13 +106,13 @@ final class HouseholdSharingTests: XCTestCase {
     }
 
     func testAcceptingOrDecliningAnOfferReloadsTheHouseholdAndWhoIsWatching() async throws {
-        transport.routes["POST /household/offers/3/accept"] = (.noContent, "")
-        transport.routes["DELETE /household/offers/4"] = (.noContent, "")
+        transport.routes["POST /household/offers/\(UID.n(3))/accept"] = (.noContent, "")
+        transport.routes["DELETE /household/offers/\(UID.n(4))"] = (.noContent, "")
         await model.load()
         try await model.accept(model.offers.incoming[0])
         try await model.cancel(model.offers.outgoing[0])
-        XCTAssertEqual(transport.paths(.post).last, "/household/offers/3/accept")
-        XCTAssertEqual(transport.paths(.delete), ["/household/offers/4"])
+        XCTAssertEqual(transport.paths(.post).last, "/household/offers/\(UID.n(3))/accept")
+        XCTAssertEqual(transport.paths(.delete), ["/household/offers/\(UID.n(4))"])
         XCTAssertEqual(transport.paths(.get).filter { $0 == "/household/offers" }.count, 3)
         XCTAssertEqual(transport.paths(.get).filter { $0 == "/me" }.count, 2)
     }
@@ -124,8 +125,8 @@ final class HouseholdSharingTests: XCTestCase {
         XCTAssertEqual(adults.map(\.name), ["Heidi"])
         try await model.offer(robin, to: adults[0])
         let sent = transport.json(.post, "/household/offers")
-        XCTAssertEqual(sent?["profileId"] as? Int, 2)
-        XCTAssertEqual(sent?["toProfileId"] as? Int, 7)
+        XCTAssertEqual(sent?["profileId"] as? String, "\(UID.n(2))")
+        XCTAssertEqual(sent?["toProfileId"] as? String, "\(UID.n(7))")
         transport.routes["POST /household/offers"] = (.conflict, Fixtures.error("conflict", "Offered already."))
         do {
             try await model.offer(robin, to: adults[0])
@@ -149,15 +150,15 @@ final class HouseholdSharingTests: XCTestCase {
     }
 
     func testLeavingOnTheVisitorsOwnDeviceSignsItOut() async throws {
-        transport.routes["DELETE /profiles/1"] = (.noContent, "")
+        transport.routes["DELETE /profiles/\(UID.n(1))"] = (.noContent, "")
         try await model.leave()
-        XCTAssertEqual(transport.paths(.delete), ["/profiles/1"])
+        XCTAssertEqual(transport.paths(.delete), ["/profiles/\(UID.n(1))"])
         XCTAssertEqual(app.phase, .signedOut, "the server signs the visitor's own devices there out")
     }
 
     func testLeavingOnAnotherAdultsDeviceGoesBackToWhoIsWatching() async throws {
-        transport.routes["POST /profiles/5/unlock"] = (.noContent, "")
-        transport.routes["DELETE /profiles/5"] = (.noContent, "")
+        transport.routes["POST /profiles/\(UID.n(5))/unlock"] = (.noContent, "")
+        transport.routes["DELETE /profiles/\(UID.n(5))"] = (.noContent, "")
         transport.routes["POST /me/lock"] = (.noContent, "")
         let jo = Fixtures.shared(Fixtures.account(5, "Jo"), present: true)
         transport.routes["GET /me"] = (
@@ -166,7 +167,7 @@ final class HouseholdSharingTests: XCTestCase {
         await app.reload()
         try await app.choose(Fixtures.decode(jo, as: Account.self))
         try await model.leave()
-        XCTAssertEqual(transport.paths(.delete), ["/profiles/5"])
+        XCTAssertEqual(transport.paths(.delete), ["/profiles/\(UID.n(5))"])
         XCTAssertEqual(app.phase, .choosingProfile)
         XCTAssertEqual(transport.paths(.post).last, "/me/lock")
     }

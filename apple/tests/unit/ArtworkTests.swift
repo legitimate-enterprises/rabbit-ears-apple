@@ -8,7 +8,8 @@ import XCTest
 
 @testable import RabbitEarsKit
 
-/// Answers artwork for item 1, collection 1, person 5 and profile 1 and 404 for anything else, counting requests.
+/// Answers artwork for item 1, collection 1, person 5 and profile 1 (uid.N ids) and 404 for anything else,
+/// counting requests.
 final class ArtworkTransport: ClientTransport, @unchecked Sendable {
     var paths: [String] = []
     var image = Data("jpg".utf8)
@@ -18,7 +19,8 @@ final class ArtworkTransport: ClientTransport, @unchecked Sendable {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         paths.append(request.path ?? "")
         let served = [
-            "/items/1/artwork/poster", "/collections/1/artwork/poster", "/people/5/artwork", "/profiles/1/avatar",
+            "/items/\(UID.n(1))/artwork/poster", "/collections/\(UID.n(1))/artwork/poster",
+            "/people/\(UID.n(5))/artwork", "/profiles/\(UID.n(1))/avatar",
         ]
         guard served.contains(request.path ?? "") else {
             var response = HTTPResponse(status: .notFound)
@@ -44,7 +46,8 @@ final class ArtworkTests: XCTestCase {
         XCTAssertEqual(first, Data("jpg".utf8))
         XCTAssertEqual(again, first)
         XCTAssertNil(missing)
-        XCTAssertEqual(transport.paths, ["/items/1/artwork/poster", "/items/2/artwork/backdrop"])
+        XCTAssertEqual(
+            transport.paths, ["/items/\(UID.n(1))/artwork/poster", "/items/\(UID.n(2))/artwork/backdrop"])
     }
 
     func testHeadshotsAreCachedApartFromItemArt() async {
@@ -56,7 +59,7 @@ final class ArtworkTests: XCTestCase {
         XCTAssertEqual(first, Data("jpg".utf8))
         XCTAssertEqual(again, first)
         XCTAssertNil(missing)
-        XCTAssertEqual(transport.paths, ["/people/5/artwork", "/people/1/artwork"])
+        XCTAssertEqual(transport.paths, ["/people/\(UID.n(5))/artwork", "/people/\(UID.n(1))/artwork"])
     }
 
     func testCollectionArtIsCachedApartFromItemArt() async {
@@ -72,7 +75,10 @@ final class ArtworkTests: XCTestCase {
         XCTAssertNil(missing)
         XCTAssertEqual(
             transport.paths,
-            ["/collections/1/artwork/poster", "/items/1/artwork/poster", "/collections/2/artwork/backdrop"])
+            [
+                "/collections/\(UID.n(1))/artwork/poster", "/items/\(UID.n(1))/artwork/poster",
+                "/collections/\(UID.n(2))/artwork/backdrop",
+            ])
     }
 
     func testArtIsDecodedAtTheSizeItIsShownAndOnlyOnce() async throws {
@@ -87,7 +93,7 @@ final class ArtworkTests: XCTestCase {
         let headshot = await store.headshotImage(5, maxPixel: 1000)
         let face = try XCTUnwrap(headshot)
         XCTAssertEqual([face.width, face.height], [500, 750])
-        XCTAssertEqual(transport.paths, ["/items/1/artwork/poster", "/people/5/artwork"])
+        XCTAssertEqual(transport.paths, ["/items/\(UID.n(1))/artwork/poster", "/people/\(UID.n(5))/artwork"])
     }
 
     func testUndecodableArtIsNil() async {
@@ -105,8 +111,8 @@ final class ArtworkTests: XCTestCase {
         let large = try XCTUnwrap(first)
         store.bitmaps.totalCostLimit = large.bytesPerRow * large.height + 1
         _ = await store.image(1, .poster, maxPixel: 300)
-        XCTAssertNil(store.bitmaps.object(forKey: "1/poster@330"))
-        XCTAssertNotNil(store.bitmaps.object(forKey: "1/poster@300"))
+        XCTAssertNil(store.bitmaps.object(forKey: "\(UID.n(1))/poster@330" as NSString))
+        XCTAssertNotNil(store.bitmaps.object(forKey: "\(UID.n(1))/poster@300" as NSString))
     }
 
     static func png(width: Int, height: Int) -> Data {
@@ -129,15 +135,18 @@ final class ArtworkTests: XCTestCase {
         XCTAssertNil(none)
         XCTAssertTrue(transport.paths.isEmpty)
         let pictured = Fixtures.adult.replacingOccurrences(
-            of: #""filterMode""#, with: #""avatarUrl":"/api/v1/profiles/1/avatar","filterMode""#)
+            of: #""filterMode""#, with: #""avatarUrl":"/api/v2/profiles/\#(UID.n(1))/avatar","filterMode""#)
         let picture = await store.avatar(Fixtures.decode(pictured, as: Account.self))
         XCTAssertEqual(picture, Data("jpg".utf8))
-        XCTAssertEqual(transport.paths, ["/profiles/1/avatar"])
+        XCTAssertEqual(transport.paths, ["/profiles/\(UID.n(1))/avatar"])
     }
 
     func testTilesDecodeInStepsOf64PixelsAndKeepAColorPerId() {
         XCTAssertEqual(ArtImage.pixels(100, 2), 256)
         XCTAssertEqual(ArtImage.pixels(96, 2), 192)
-        XCTAssertEqual(ArtPalette.color(3), ArtPalette.color(Int64(3 + ArtPalette.colors.count)))
+        XCTAssertEqual(ArtPalette.color(3), ArtPalette.color(.n(3 + ArtPalette.colors.count)), "by the id's last byte")
+        XCTAssertNotEqual(ArtPalette.color(3), ArtPalette.color(4))
+        let id = UID.new()
+        XCTAssertEqual(ArtPalette.color(id), ArtPalette.color(UID(id.description)!))
     }
 }

@@ -1,3 +1,4 @@
+import RabbitEarsAPI
 import SwiftUI
 
 #if os(iOS) || os(tvOS)
@@ -39,8 +40,8 @@ public enum ArtPalette {
         0x2E6B8A, 0x6B3A2E, 0x5B6B3F, 0x4A3F5B, 0x3F5B8A, 0x5A2B2B, 0x2B5A4A, 0x8A5A2B, 0x3B3F55, 0x4C4A48,
     ]
 
-    /// Stable per id, so a title keeps its color everywhere.
-    public static func color(_ id: Int64) -> Color { Color(hex: colors[Int(id % Int64(colors.count))]) }
+    /// Stable per id, so a title keeps its color everywhere: a UUIDv7's last byte is random.
+    public static func color(_ id: UID) -> Color { Color(hex: colors[Int(id.uuid.uuid.15) % colors.count]) }
 }
 
 /// Server artwork filling its frame, or the item's flat color until it
@@ -49,7 +50,7 @@ public struct ArtImage: View {
     @Environment(AppModel.self) private var model
     @Environment(\.displayScale) private var scale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let id: Int64
+    let id: UID
     let kind: ArtworkStore.Kind
     /// `id` names a collection, whose art the server keeps apart from items'.
     let collection: Bool
@@ -64,7 +65,7 @@ public struct ArtImage: View {
 
     /// Any item id: an album, artist, channel or video has artwork like a movie does.
     public init(
-        id: Int64, kind: ArtworkStore.Kind = .poster, collection: Bool = false, url: String? = nil,
+        id: UID, kind: ArtworkStore.Kind = .poster, collection: Bool = false, url: String? = nil,
         placeholder: PlaceholderKind? = nil
     ) {
         self.id = id

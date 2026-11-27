@@ -15,6 +15,7 @@ struct StationGlyph: View {
 
 /// A station's own tile: the image its owner set, else drawn from its name.
 struct StationIdentity: View {
+    let id: UID
     let name: String
     var aspect: CGFloat = 16 / 9
     var radius: CGFloat = 8
@@ -22,7 +23,7 @@ struct StationIdentity: View {
 
     var body: some View {
         if let imageUrl {
-            ArtSquare(id: 0, aspect: aspect, radius: radius, url: imageUrl, badged: false)
+            ArtSquare(id: id, aspect: aspect, radius: radius, url: imageUrl, badged: false)
         } else {
             drawn
         }
@@ -53,14 +54,15 @@ struct StationArt: View {
         let program = StationText.art(station.onAir)
         if station.imageUrl != nil {
             StationIdentity(
-                name: station.name, aspect: station.kind == .music ? 1 : 16 / 9, radius: radius,
+                id: station.id, name: station.name, aspect: station.kind == .music ? 1 : 16 / 9, radius: radius,
                 imageUrl: station.imageUrl)
         } else if let song = program?.song {
             ArtSquare(id: song.albumId, radius: radius, placeholder: .album, badged: false)
         } else if let item = program?.item {
             ArtBlock(item: item, aspect: 16 / 9, radius: radius, badged: false)
         } else {
-            StationIdentity(name: station.name, aspect: station.kind == .music ? 1 : 16 / 9, radius: radius)
+            StationIdentity(
+                id: station.id, name: station.name, aspect: station.kind == .music ? 1 : 16 / 9, radius: radius)
         }
     }
 }

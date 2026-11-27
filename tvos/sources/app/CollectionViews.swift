@@ -54,7 +54,7 @@ private struct OrderBadge: View {
 struct CollectionView: View {
     @Environment(CollectionsModel.self) private var collections
     @Environment(CatalogModel.self) private var model
-    let id: Int64
+    let id: UID
     @State private var movies: [Item]?
 
     var body: some View {

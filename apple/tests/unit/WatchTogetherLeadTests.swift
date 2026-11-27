@@ -26,8 +26,10 @@ final class WatchTogetherLeadTests: XCTestCase {
         )
         await model.open()
         model.attach(output)
-        transport.routes["GET /watch-together/5"] = (.ok, Fixtures.together(status: "joined", joined: true, version: 2))
-        transport.routes["PUT /watch-together/5/state"] = (
+        transport.routes["GET /watch-together/\(UID.n(5))"] = (
+            .ok, Fixtures.together(status: "joined", joined: true, version: 2)
+        )
+        transport.routes["PUT /watch-together/\(UID.n(5))/state"] = (
             .ok, Fixtures.together(status: "joined", joined: true, playing: true, version: 3)
         )
         await model.play()
@@ -36,10 +38,10 @@ final class WatchTogetherLeadTests: XCTestCase {
         await model.poll(held: true)
         await model.play()
         XCTAssertEqual(
-            transport.queries(.put, "/watch-together/5/state"), ["", "rttMs=0"],
+            transport.queries(.put, "/watch-together/\(UID.n(5))/state"), ["", "rttMs=0"],
             "the first action had no round trip to report")
         XCTAssertEqual(
-            transport.queries(.get, "/watch-together/5"), ["after=3&rttMs=0", "rttMs=0", "after=3&rttMs=0"])
+            transport.queries(.get, "/watch-together/\(UID.n(5))"), ["after=3&rttMs=0", "rttMs=0", "after=3&rttMs=0"])
     }
 
     func testAHoldThatRanOutIsAskedAgainAtOnce() async throws {
@@ -52,13 +54,15 @@ final class WatchTogetherLeadTests: XCTestCase {
                 return Date(timeIntervalSince1970: 1_000_000 + ticks)
             })
         transport.routes["POST /watch-together"] = (.created, Fixtures.together(host: (1, "Avery")))
-        transport.routes["GET /watch-together/5"] = (.ok, Fixtures.together(status: "joined", joined: true, version: 2))
+        transport.routes["GET /watch-together/\(UID.n(5))"] = (
+            .ok, Fixtures.together(status: "joined", joined: true, version: 2)
+        )
         await ticking.open()
         let running = Task { await ticking.run() }
         try await Task.sleep(for: .milliseconds(400))
         running.cancel()
         await running.value
-        let held = transport.queries(.get, "/watch-together/5").filter { $0.contains("after=") }
+        let held = transport.queries(.get, "/watch-together/\(UID.n(5))").filter { $0.contains("after=") }
         XCTAssertGreaterThan(held.count, 2, "an unchanged answer that took 30 s waits for nothing")
     }
 }

@@ -1,3 +1,4 @@
+import RabbitEarsAPI
 import XCTest
 
 @testable import RabbitEarsKit
@@ -7,7 +8,9 @@ final class DownloadBadgeTests: XCTestCase {
     func testATitleIsBadgedOnTheDeviceAndAContainerWhenItsOwnRequestIsWhole() async throws {
         let harness = DownloadHarness()
         let store = harness.store
-        harness.resolves["playlist/3"] = [Fixtures.downloadTitle(5, "song"), Fixtures.downloadTitle(6, "song")]
+        harness.resolves["playlist/\(UID.n(3))"] = [
+            Fixtures.downloadTitle(5, "song"), Fixtures.downloadTitle(6, "song"),
+        ]
         try await harness.download(.playlist(3))
 
         XCTAssertTrue(store.badged(3, scope: .playlist, profile: 1))

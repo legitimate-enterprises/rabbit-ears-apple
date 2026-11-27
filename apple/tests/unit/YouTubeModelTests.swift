@@ -7,17 +7,17 @@ import XCTest
 
 extension Fixtures {
     static func video(
-        _ id: Int64, _ title: String, channel: Int64 = 60, published: String = "2026-11-14",
+        _ id: UID, _ title: String, channel: UID = 60, published: String = "2026-11-14",
         durationMs: Int64 = 2_520_000, watched: Bool = false, position: Int64 = 0, played: String? = nil
     ) -> String {
-        #"{"id":\#(id),"libraryId":4,"channelId":\#(channel),"channelTitle":"Workbench Weekly","#
+        #"{"id":"\#(id)","libraryId":"\#(UID.n(4))","channelId":"\#(channel)","channelTitle":"Workbench Weekly","#
             + #""title":"\#(title)","durationMs":\#(durationMs),"publishedOn":"\#(published)","height":1080,"#
             + #""watched":\#(watched),"positionMs":\#(position),"#
             + (played.map { #""lastPlayedAt":"\#($0)","# } ?? "") + #""addedAt":"2026-11-14T06:12:00Z"}"#
     }
 
-    static func channel(_ id: Int64, _ title: String, videos: Int = 214, unwatched: Int = 12) -> String {
-        #"{"id":\#(id),"libraryId":4,"title":"\#(title)","videoCount":\#(videos),"#
+    static func channel(_ id: UID, _ title: String, videos: Int = 214, unwatched: Int = 12) -> String {
+        #"{"id":"\#(id)","libraryId":"\#(UID.n(4))","title":"\#(title)","videoCount":\#(videos),"#
             + #""unwatchedCount":\#(unwatched),"lastVideoOn":"2026-11-14","#
             + #""addedAt":"2026-01-01T00:00:00Z"}"#
     }
@@ -69,7 +69,7 @@ final class YouTubeModelTests: XCTestCase {
         }
     }
 
-    private func model(_ replica: Replica, _ profile: Int64 = 1) -> YouTubeModel {
+    private func model(_ replica: Replica, _ profile: UID = 1) -> YouTubeModel {
         let client = ServerEndpoint(userInput: "192.168.1.9")!.client(token: "t", transport: transport)
         let gate = gate
         return YouTubeModel(
@@ -105,7 +105,7 @@ final class YouTubeModelTests: XCTestCase {
 
     func testVideosSortFilterAndPageAsTheServerDoes() async throws {
         let youTube = model(try library())
-        let orders: [(YouTubeVideoSort, [Int64])] = [
+        let orders: [(YouTubeVideoSort, [UID])] = [
             (.newest, [70, 73, 71, 74, 72]), (.oldest, [74, 71, 73, 70, 72]), (.title, [73, 71, 74, 70, 72]),
             (.channel, [73, 74, 70, 71, 72]), (.length, [70, 73, 71, 72, 74]), (.played, [73, 70, 71, 72, 74]),
         ]
@@ -183,7 +183,7 @@ final class YouTubeModelTests: XCTestCase {
         let replica = try library { db in
             // A change made after this one, on another device, stands.
             try db.execute(
-                sql: "UPDATE watch_state SET updated_at = ? WHERE account_id = 1 AND item_id = 70",
+                sql: "UPDATE watch_state SET changed_at = ? WHERE account_id = \(sqlID(1)) AND item_id = \(sqlID(70))",
                 arguments: [Database.ms("2100-01-01T00:00:00Z")])
         }
         let youTube = model(replica)
@@ -193,8 +193,9 @@ final class YouTubeModelTests: XCTestCase {
             try Row.fetchAll(
                 db,
                 sql: """
-                    SELECT watched, position_ms, play_count, last_played_at = updated_at AS stamped
-                    FROM watch_state WHERE account_id = 1 AND item_id IN (70, 71, 72) ORDER BY item_id
+                    SELECT watched, position_ms, play_count, last_played_at = changed_at AS stamped
+                    FROM watch_state WHERE account_id = \(sqlID(1))
+                        AND item_id IN (\(sqlID(70)), \(sqlID(71)), \(sqlID(72))) ORDER BY item_id
                     """
             ).map { [$0["watched"], $0["position_ms"], $0["play_count"], $0["stamped"]] as [Int64] }
         }
@@ -207,15 +208,15 @@ final class YouTubeModelTests: XCTestCase {
             }
         }
         XCTAssertEqual(action?.0, "putYouTubeChannelWatchState")
-        XCTAssertEqual(action?.1, "/profiles/1/youtube/channels/60/watch-state")
+        XCTAssertEqual(action?.1, "/profiles/\(UID.n(1))/youtube/channels/\(UID.n(60))/watch-state")
         let body = try JSONSerialization.jsonObject(with: action?.2 ?? Data()) as? [String: Any]
         XCTAssertEqual(body?["watched"] as? Bool, true)
         XCTAssertNotNil(body?["at"])
         let touched = try await replica.read { db in
             try Row.fetchAll(db, sql: "SELECT table_name, key1, key2 FROM queue.action_touch ORDER BY key2")
-                .map { "\($0["table_name"] as String) \($0["key1"] as Int64) \($0["key2"] as Int64)" }
+                .map { "\($0["table_name"] as String) \($0["key1"] as String) \($0["key2"] as String)" }
         }
-        XCTAssertEqual(touched, ["watch_state 1 70", "watch_state 1 71", "watch_state 1 72"])
+        XCTAssertEqual(touched, [70, 71, 72].map { "watch_state \(UID.n(1)) \(UID.n($0))" })
         let channel = try await youTube.channel(60).channel
         XCTAssertEqual(channel.unwatchedCount, 1)
         try await youTube.setWatched(false, channel: 60)
@@ -223,26 +224,28 @@ final class YouTubeModelTests: XCTestCase {
         XCTAssertEqual(after.unwatchedCount, 3, "70 was never marked; 71 and 72 are unmarked")
     }
 
+    private let channelWatchState = "/profiles/\(UID.n(1))/youtube/channels/\(UID.n(60))/watch-state"
+
     /// More videos than an action may name go to the server at once, as before.
     private func bigChannel() throws -> Replica {
         try library { db in
-            for id in Int64(1000)..<Int64(1000 + ActionQueue.touchedLimit) {
-                try db.video(id, "Clip \(id)", channel: 60)
+            for number in 1000..<(1000 + ActionQueue.touchedLimit) {
+                try db.video(.n(number), "Clip \(number)", channel: 60)
             }
         }
     }
 
     func testMarkingAChannelTooBigToQueueIsSentAtOnce() async throws {
-        transport.routes["PUT /profiles/1/youtube/channels/60/watch-state"] = (.noContent, "")
+        transport.routes["PUT \(channelWatchState)"] = (.noContent, "")
         let replica = try bigChannel()
         try await model(replica).setWatched(true, channel: 60)
-        XCTAssertEqual(transport.json(.put, "/profiles/1/youtube/channels/60/watch-state")?["watched"] as? Bool, true)
+        XCTAssertEqual(transport.json(.put, channelWatchState)?["watched"] as? Bool, true)
         let queued = try await replica.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM queue.action") }
         XCTAssertEqual(queued, 0)
     }
 
     func testAForbiddenChannelMarkSentAtOnceThrowsTheServersMessage() async throws {
-        transport.routes["PUT /profiles/1/youtube/channels/60/watch-state"] = (
+        transport.routes["PUT \(channelWatchState)"] = (
             .forbidden, Fixtures.error("forbidden", "Kids see no YouTube.")
         )
         do {
@@ -262,7 +265,7 @@ final class YouTubeModelTests: XCTestCase {
         let queued = try await replica.read {
             try String.fetchAll($0, sql: "SELECT operation_id || ' ' || path FROM queue.action")
         }
-        XCTAssertEqual(queued, ["setYouTubeChannelForKids /youtube/channels/60/for-kids"])
+        XCTAssertEqual(queued, ["setYouTubeChannelForKids /youtube/channels/\(UID.n(60))/for-kids"])
     }
 
     func testAVideoPlaysAsAnItemWithItsTitleAndLength() {

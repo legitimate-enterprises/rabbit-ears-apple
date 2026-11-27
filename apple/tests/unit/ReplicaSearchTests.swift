@@ -1,4 +1,5 @@
 import GRDB
+import RabbitEarsAPI
 import XCTest
 
 @testable import RabbitEarsKit
@@ -12,7 +13,7 @@ final class ReplicaSearchTests: XCTestCase {
     }
 
     private func item(
-        _ id: Int64, _ kind: String, _ parsed: String, shown: String? = nil, season: Int? = nil, episode: Int? = nil
+        _ id: UID, _ kind: String, _ parsed: String, shown: String? = nil, season: Int? = nil, episode: Int? = nil
     ) throws {
         try db.write { db in
             try db.execute(
@@ -28,7 +29,7 @@ final class ReplicaSearchTests: XCTestCase {
 
     private func build() throws { try db.write(ReplicaSearch.build) }
 
-    private func items(_ query: String) throws -> [Int64] {
+    private func items(_ query: String) throws -> [UID] {
         try db.read { try ReplicaSearch.items(matching: query, in: $0) }
     }
 
@@ -78,7 +79,9 @@ final class ReplicaSearchTests: XCTestCase {
 
     func testPeopleMatchByNameWithPrefixesFirst() throws {
         try db.write { db in
-            try db.execute(sql: "INSERT INTO person(id, name) VALUES (1, 'Sam Antonio'), (2, 'antonia'), (3, 'Bo')")
+            try db.execute(
+                sql: "INSERT INTO person(id, name) VALUES (?, 'Sam Antonio'), (?, 'antonia'), (?, 'Bo')",
+                arguments: [UID.n(1), UID.n(2), UID.n(3)])
         }
         try build()
 
@@ -89,29 +92,47 @@ final class ReplicaSearchTests: XCTestCase {
     func testUpdateReindexesChangedAndDeletedRows() throws {
         try item(1, "movie", "Antenna")
         try item(2, "movie", "Bunny")
-        try db.write { try $0.execute(sql: "INSERT INTO person(id, name) VALUES (7, 'Sam')") }
+        try db.write { try $0.execute(sql: "INSERT INTO person(id, name) VALUES (\(sqlID(7)), 'Sam')") }
         try build()
         try db.write { db in
-            try db.execute(sql: "UPDATE item SET parsed_title = 'Cable' WHERE id = 1")
-            try db.execute(sql: "INSERT INTO item_metadata(item_id, source, title) VALUES (2, 'remote', 'Cabled')")
-            try db.execute(sql: "INSERT INTO item(id, kind, parsed_title) VALUES (3, 'movie', 'Cables')")
-            try db.execute(sql: "UPDATE person SET name = 'Robin' WHERE id = 7")
+            try db.execute(sql: "UPDATE item SET parsed_title = 'Cable' WHERE id = \(sqlID(1))")
+            try db.execute(
+                sql: "INSERT INTO item_metadata(item_id, source, title) VALUES (?, 'remote', 'Cabled')",
+                arguments: [UID.n(2)])
+            try db.execute(sql: "INSERT INTO item(id, kind, parsed_title) VALUES (\(sqlID(3)), 'movie', 'Cables')")
+            try db.execute(sql: "UPDATE person SET name = 'Robin' WHERE id = \(sqlID(7))")
         }
         XCTAssertEqual(try items("cab"), [], "the index, not the tables, finds candidates")
 
         try db.write { db in
-            try db.execute(sql: "DELETE FROM item WHERE id = 3")
+            try db.execute(sql: "DELETE FROM item WHERE id = \(sqlID(3))")
             try ReplicaSearch.update(
                 in: db,
                 changed: [
-                    "item": [1.databaseValue, 3.databaseValue], "item_metadata": [2.databaseValue],
-                    "person": [7.databaseValue],
+                    "item": [UID.n(1).databaseValue, UID.n(3).databaseValue],
+                    "item_metadata": [UID.n(2).databaseValue], "person": [UID.n(7).databaseValue],
                 ])
         }
 
         XCTAssertEqual(try items("cab"), [2, 1])
         XCTAssertEqual(try items("ant"), [])
         XCTAssertEqual(try db.read { try ReplicaSearch.people(matching: "rob", in: $0) }, [7])
+    }
+
+    func testOneApplyReindexesMoreChangedRowsThanOneStatementTakes() throws {
+        let ids = (1...1_200).map(UID.n)
+        try db.write { db in
+            for id in ids {
+                try db.execute(
+                    sql: "INSERT INTO item(id, kind, parsed_title) VALUES (?, 'movie', 'Antenna')", arguments: [id])
+            }
+            try ReplicaSearch.build(in: db)
+            try db.execute(sql: "UPDATE item SET parsed_title = 'Cable'")
+            try ReplicaSearch.update(in: db, changed: ["item": ids.map(\.databaseValue)])
+        }
+
+        XCTAssertEqual(try items("cable").count, 1_200)
+        XCTAssertEqual(try items("antenna"), [])
     }
 
     func testAChangedServerSettingReindexesEveryTitle() throws {

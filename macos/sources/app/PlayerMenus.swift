@@ -74,7 +74,7 @@ struct SubtitlesMenu: View {
         .accessibilityLabel("Subtitles")
     }
 
-    private var subtitleTracks: [(id: Int64, label: String)] {
+    private var subtitleTracks: [(id: UID, label: String)] {
         model.subtitleTracks.map {
             ($0.id, Format.language($0.language) + ($0.title.map { " \($0)" } ?? ""))
         }

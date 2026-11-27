@@ -14,18 +14,14 @@ public typealias MovieCollection = Components.Schemas.Collection
 public final class CollectionsModel {
     public private(set) var collections: [MovieCollection] = []
     public private(set) var error: String?
-    public let client: Client
     public let replica: Replica
     public let queue: ActionQueue
-    public let engine: SyncEngine
     /// The active profile, whose view of each collection is read.
-    public let profileId: Int64
+    public let profileId: UID
 
-    public init(client: Client, replica: Replica, queue: ActionQueue, engine: SyncEngine, profileId: Int64) {
-        self.client = client
+    public init(replica: Replica, queue: ActionQueue, profileId: UID) {
         self.replica = replica
         self.queue = queue
-        self.engine = engine
         self.profileId = profileId
     }
 
@@ -43,7 +39,7 @@ public final class CollectionsModel {
 
     /// Its movies in collection order; nil when they could not be read.
     /// A collection reached by a link is read too, as the list may not be loaded.
-    public func movies(of collectionId: Int64) async -> [Item]? {
+    public func movies(of collectionId: UID) async -> [Item]? {
         var movies: [Item]?
         await write {
             let (collection, read) = try await replica.read { [profileId] db in
@@ -60,22 +56,22 @@ public final class CollectionsModel {
     }
 
     /// The collections holding the movie that the profile may see.
-    public func collections(of movieId: Int64) async -> [MovieCollection] {
+    public func collections(of movieId: UID) async -> [MovieCollection] {
         (try? await replica.read { [profileId] in try CollectionRows.list($0, profile: profileId, holding: movieId) })
             ?? []
     }
 
-    // shortcut: online-only until offline ids are decided
+    /// Queued: the household's at once, offline too; nil for a blank name or when it could not be queued.
     @discardableResult
     public func create(name: String) async -> MovieCollection? {
         guard let name = Self.name(name) else { return nil }
-        var created: MovieCollection?
-        await write {
-            created = try await client.createCollection(body: .json(.init(name: name))).created.body.json
-            try? await engine.catchUp()
+        let id = UID.new()
+        let queued = await write {
+            try await queue.createCollection(as: profileId, id, name: name)
             try await reload()
         }
-        return created
+        guard queued else { return nil }
+        return collections.first { $0.id == id }
     }
 
     public func rename(_ collection: MovieCollection, to name: String) async {
@@ -89,7 +85,7 @@ public final class CollectionsModel {
     public func delete(_ collection: MovieCollection) async {
         await write {
             let entries = try await replica.read {
-                try Int64.fetchAll(
+                try UID.fetchAll(
                     $0, sql: "SELECT id FROM playlist_entry WHERE collection_id = ?", arguments: [collection.id])
             }
             try await queue.deleteCollection(as: profileId, collection.id, entries: entries)
@@ -99,14 +95,14 @@ public final class CollectionsModel {
 
     /// False when it was refused, as for a TMDB collection.
     @discardableResult
-    public func add(movie itemId: Int64, to collectionId: Int64) async -> Bool {
+    public func add(movie itemId: UID, to collectionId: UID) async -> Bool {
         await write {
             try await queue.addMovie(as: profileId, itemId, to: collectionId)
             try await reload()
         }
     }
 
-    public func remove(movie itemId: Int64, from collectionId: Int64) async {
+    public func remove(movie itemId: UID, from collectionId: UID) async {
         await write {
             try await queue.removeMovie(as: profileId, itemId, from: collectionId)
             try await reload()
@@ -117,7 +113,7 @@ public final class CollectionsModel {
     /// included; the answer says whether the collection is now hand-ordered.
     /// False when it was refused, as for a TMDB collection.
     @discardableResult
-    public func move(_ itemId: Int64, in collectionId: Int64, to position: Int) async -> Bool {
+    public func move(_ itemId: UID, in collectionId: UID, to position: Int) async -> Bool {
         await write {
             let order = try await replica.read { try CollectionRows.order($0, of: collectionId) }
             guard order.contains(itemId) else { throw AppError.server("not found") }
@@ -128,7 +124,7 @@ public final class CollectionsModel {
 
     /// Back to release order.
     @discardableResult
-    public func resetOrder(of collectionId: Int64) async -> Bool {
+    public func resetOrder(of collectionId: UID) async -> Bool {
         await write {
             let order = try await replica.read { try CollectionRows.order($0, of: collectionId) }
             try await queue.resetOrder(as: profileId, of: collectionId, order: order)
@@ -137,16 +133,16 @@ public final class CollectionsModel {
     }
 
     /// `move`, then the movies as they now stand, so a screen shows the truth; a refusal's error stays.
-    public func reorder(_ itemId: Int64, in collectionId: Int64, to position: Int) async -> [Item]? {
+    public func reorder(_ itemId: UID, in collectionId: UID, to position: Int) async -> [Item]? {
         await reading(collectionId) { await move(itemId, in: collectionId, to: position) }
     }
 
     /// `resetOrder`, then the movies as they now stand.
-    public func restoreReleaseOrder(of collectionId: Int64) async -> [Item]? {
+    public func restoreReleaseOrder(of collectionId: UID) async -> [Item]? {
         await reading(collectionId) { await resetOrder(of: collectionId) }
     }
 
-    private func reading(_ collectionId: Int64, after write: () async -> Bool) async -> [Item]? {
+    private func reading(_ collectionId: UID, after write: () async -> Bool) async -> [Item]? {
         let done = await write()
         let refusal = done ? nil : error
         let movies = await movies(of: collectionId)
@@ -171,7 +167,7 @@ public final class CollectionsModel {
 
     private static func name(_ name: String) -> String? {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? nil : String(name.prefix(100))
+        return name.isEmpty ? nil : name.prefix(scalars: 100)
     }
 
     @discardableResult

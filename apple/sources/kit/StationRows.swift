@@ -9,13 +9,14 @@ enum StationRows {
     /// The stations `profile` may see, by name, of one `kind` or any, or the
     /// one `id`, as the server's profile_station lists them.
     static func stations(
-        _ db: Database, profile: Int64, kind: PlaylistKind? = nil, id: Int64? = nil, at now: Date, calendar: Calendar
+        _ db: Database, profile: UID, kind: PlaylistKind? = nil, id: UID? = nil, at now: Date, calendar: Calendar
     ) throws -> [Station] {
         let rows = try Row.fetchAll(
             db,
             sql: """
                 SELECT s.id, s.account_id, s.playlist_id, s.household_id, p.kind, s.name,
-                    s.shuffled, s.visibility, s.timing, s.rating, s.created_at, s.updated_at
+                    s.shuffled, s.visibility, s.timing, s.rating, s.created_at, s.modified_at, s.created_by,
+                    s.modified_by
                 \(seen) AND (:kind IS NULL OR p.kind = :kind) ORDER BY s.name COLLATE NOCASE, s.id
                 """, arguments: ["profile": profile, "id": id, "kind": kind?.rawValue])
         return try rows.compactMap { try station($0, db, profile: profile, at: now, calendar: calendar) }
@@ -24,7 +25,7 @@ enum StationRows {
     /// The programs overlapping this device's day of `now` that `profile`
     /// may see, by start; nil when it may not see the station.
     static func schedule(
-        _ db: Database, station id: Int64, profile: Int64, at now: Date, calendar: Calendar
+        _ db: Database, station id: UID, profile: UID, at now: Date, calendar: Calendar
     ) throws -> [StationProgram]? {
         guard
             try Bool.fetchOne(db, sql: "SELECT EXISTS (SELECT 1 \(seen))", arguments: ["profile": profile, "id": id])
@@ -45,13 +46,14 @@ enum StationRows {
         """
 
     /// time.Weekday's order, as station_day numbers the days.
-    private static let weekdays: [Weekday] = [.sunday, .monday, .tuesday, .wednesday, .thursday, .friday, .saturday]
+    static let weekdays: [Weekday] = [.sunday, .monday, .tuesday, .wednesday, .thursday, .friday, .saturday]
 
     private static func station(
-        _ row: Row, _ db: Database, profile: Int64, at now: Date, calendar: Calendar
+        _ row: Row, _ db: Database, profile: UID, at now: Date, calendar: Calendar
     ) throws -> Station? {
-        let id: Int64 = row["id"]
-        guard let kind = PlaylistKind(rawValue: row["kind"]),
+        let id: UID = row["id"]
+        // An owner is always in a household; a station shipped without one is not shown rather than misstated.
+        guard let household: UID = row["household_id"], let kind = PlaylistKind(rawValue: row["kind"]),
             let visibility = Components.Schemas.StationVisibility(rawValue: row["visibility"]),
             let timing = Components.Schemas.StationTiming(rawValue: row["timing"])
         else { return nil }
@@ -60,12 +62,13 @@ enum StationRows {
         let times = try Row.fetchAll(
             db,
             sql: """
-                SELECT from_minute, to_minute FROM station_time WHERE station_id = ? ORDER BY from_minute, to_minute, id
+                SELECT id, from_minute, to_minute FROM station_time WHERE station_id = ?
+                ORDER BY from_minute, to_minute, id
                 """,
             arguments: [id]
-        ).map { (from: $0["from_minute"] as Int, to: $0["to_minute"] as Int) }
+        ).map { (id: $0["id"] as UID, from: $0["from_minute"] as Int, to: $0["to_minute"] as Int) }
         // A cover of a title shows while the title is in the station's playlist and the profile may see it.
-        let cover = try Int64.fetchOne(
+        let cover = try UID.fetchOne(
             db,
             sql: """
                 SELECT c.id FROM cover c WHERE c.station_id = :id AND (c.item_id IS NULL
@@ -74,22 +77,24 @@ enum StationRows {
                 """, arguments: ["id": id, "playlist": row["playlist_id"], "profile": profile])
         let rating: String? = row["rating"]
         return Station(
-            id: id, name: row["name"], kind: kind, ownerId: row["account_id"], householdId: row["household_id"],
+            id: id, name: row["name"], kind: kind, ownerId: row["account_id"], householdId: household,
             playlistId: row["playlist_id"], order: row["shuffled"] ? .random : .playlist, visibility: visibility,
             timing: timing, days: days.compactMap { weekdays.indices.contains($0) ? weekdays[$0] : nil },
-            times: times.map { StationTimeRange(from: clock($0.from), to: clock($0.to)) },
+            times: times.map { StationTimeRange(id: $0.id, from: clock($0.from), to: clock($0.to)) },
             rating: rating?.isEmpty == false ? rating : nil,
             onAir: try onAir(
-                db, station: id, profile: profile, open: open(days: days, times: times, at: now, calendar: calendar),
+                db, station: id, profile: profile,
+                open: open(days: days, times: times.map { (from: $0.from, to: $0.to) }, at: now, calendar: calendar),
                 at: now),
-            imageUrl: cover.map { "/api/v1/stations/\(id)/image?v=\($0)" },
-            createdAt: ReplicaRows.instant(row["created_at"]), updatedAt: ReplicaRows.instant(row["updated_at"]))
+            imageUrl: cover.map { "/api/v2/stations/\(id)/image?v=\($0)" },
+            createdAt: ReplicaRows.instant(row["created_at"]), modifiedAt: ReplicaRows.instant(row["modified_at"]),
+            createdBy: row["created_by"], modifiedBy: row["modified_by"])
     }
 
     /// StationService.OnAir: what is on and the ten after it, of what the
     /// profile may see; with nothing on, `open` tells a gap from off schedule.
     private static func onAir(
-        _ db: Database, station: Int64, profile: Int64, open: Bool, at now: Date
+        _ db: Database, station: UID, profile: UID, open: Bool, at now: Date
     ) throws -> StationOnAir {
         let at = millis(now)
         let arguments: StatementArguments = ["station": station, "profile": profile, "at": at]
@@ -146,15 +151,16 @@ enum StationRows {
                     AND sp.item_id IN (SELECT item_id FROM profile_item WHERE account_id = :profile) AND \(condition)
                 """, arguments: arguments)
         let films = rows.filter { $0["kind"] != "song" }
-        let ids = films.map { $0["item_id"] as Int64 } + films.compactMap { $0["show_id"] as Int64? }
+        let ids = films.map { $0["item_id"] as UID } + films.compactMap { $0["show_id"] as UID? }
         let items = Dictionary(
-            try ReplicaRows.items(db, "i.id IN (SELECT value FROM json_each(?))", [json(ids)]).map { ($0.id, $0) },
+            try ReplicaRows.items(db, "i.id IN (SELECT unhex(value, '-') FROM json_each(?))", [ReplicaRows.json(ids)])
+                .map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first })
         let songs = try self.songs(db, rows.filter { $0["kind"] == "song" }.map { $0["item_id"] })
         return try rows.compactMap { row in
             guard let kind = Components.Schemas.PlaylistEntryKind(rawValue: row["kind"]) else { return nil }
-            let item: Int64 = row["item_id"]
-            let edition: Int64 = row["edition_id"]
+            let item: UID = row["item_id"]
+            let edition: UID = row["edition_id"]
             let starts: Int64 = row["starts_at"]
             let ends: Int64 = row["ends_at"]
             var program = StationProgram(
@@ -167,27 +173,32 @@ enum StationRows {
             } else {
                 guard let found = items[item] else { return nil }
                 program.item = found
-                if let show = row["show_id"] as Int64? { program.show = items[show] }
+                if let show = row["show_id"] as UID? { program.show = items[show] }
             }
             return program
         }
     }
 
     /// Songs by id as the server's music views answer them.
-    private static func songs(_ db: Database, _ ids: [Int64]) throws -> [Int64: MusicSong] {
+    private static func songs(_ db: Database, _ ids: [UID]) throws -> [UID: MusicSong] {
         guard !ids.isEmpty else { return [:] }
         let rows = try Row.fetchAll(
             db,
             sql: """
                 SELECT \(MusicRows.songColumns)
-                FROM item s JOIN music_song m ON m.item_id = s.id WHERE s.id IN (SELECT value FROM json_each(?))
-                """, arguments: [json(ids)])
+                FROM item s JOIN music_song m ON m.item_id = s.id
+                WHERE s.id IN (SELECT unhex(value, '-') FROM json_each(?))
+                """, arguments: [ReplicaRows.json(ids)])
         return Dictionary(uniqueKeysWithValues: rows.map { ($0["id"], MusicRows.song($0)) })
     }
 
     private static func clock(_ minutes: Int) -> String { String(format: "%02d:%02d", minutes / 60, minutes % 60) }
 
-    private static func json(_ ids: [Int64]) -> String { "[\(ids.map(String.init).joined(separator: ","))]" }
+    /// An `HH:mm` as minutes of the day, read as leniently as the server reads it.
+    static func minutes(_ clock: String) -> Int {
+        let parts = clock.split(separator: ":", omittingEmptySubsequences: false).map { Int($0) ?? 0 }
+        return (parts.first ?? 0) * 60 + (parts.count > 1 ? parts[1] : 0)
+    }
 
     /// Unix milliseconds, as the replica stores instants.
     private static func millis(_ date: Date) -> Int64 { Int64((date.timeIntervalSince1970 * 1000).rounded(.down)) }

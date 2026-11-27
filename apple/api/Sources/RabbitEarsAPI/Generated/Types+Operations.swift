@@ -757,7 +757,7 @@ public enum Operations {
     }
     /// Sends the browser to the provider to sign in with the authorization code flow and PKCE.
     ///
-    /// The redirect URI sent to the provider is this server's `/api/v1/auth/sso/callback` at the host the request names, over https when the connection is TLS or a reverse proxy on this host sent `X-Forwarded-Proto: https`. The cookie binds the sign-in to this browser for 10 minutes. A provider that is unknown, disabled or does not answer sends the browser back to the sign-in page with `#sso_error=provider_error`. When too many sign-ins are in flight, the one closest to expiring is dropped.
+    /// The redirect URI sent to the provider is this server's `/api/v2/auth/sso/callback` at the host the request names, over https when the connection is TLS or a reverse proxy on this host sent `X-Forwarded-Proto: https`. The cookie binds the sign-in to this browser for 10 minutes. A provider that is unknown, disabled or does not answer sends the browser back to the sign-in page with `#sso_error=provider_error`. When too many sign-ins are in flight, the one closest to expiring is dropped.
     ///
     /// - Remark: HTTP `GET /auth/sso/{providerId}/start`.
     /// - Remark: Generated from `#/paths//auth/sso/{providerId}/start/get(startSso)`.
@@ -6649,6 +6649,29 @@ public enum Operations {
                     }
                 }
             }
+            /// The write collides with existing state.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/post(createProfile)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -7911,17 +7934,26 @@ public enum Operations {
                 }
             }
             public var headers: Operations.ResendProfileJoinCode.Input.Headers
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/join-code/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/join-code/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.JoinCodeResendInput)
+            }
+            public var body: Operations.ResendProfileJoinCode.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
             ///   - path:
             ///   - headers:
+            ///   - body:
             public init(
                 path: Operations.ResendProfileJoinCode.Input.Path,
-                headers: Operations.ResendProfileJoinCode.Input.Headers = .init()
+                headers: Operations.ResendProfileJoinCode.Input.Headers = .init(),
+                body: Operations.ResendProfileJoinCode.Input.Body? = nil
             ) {
                 self.path = path
                 self.headers = headers
+                self.body = body
             }
         }
         @frozen public enum Output: Sendable, Hashable {
@@ -7971,6 +8003,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/join-code/post(resendProfileJoinCode)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }
@@ -11725,6 +11780,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The write collides with existing state.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/batch/post(addPlaylistEntries)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -39520,6 +39598,29 @@ public enum Operations {
                     }
                 }
             }
+            /// The write collides with existing state.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/post(createPlaylist)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Not available in this server version.
             ///
             /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/post(createPlaylist)/responses/501`.
@@ -40805,6 +40906,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The write collides with existing state.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/post(addPlaylistEntry)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -44459,14 +44583,14 @@ public enum Operations {
             public var path: Operations.GetPlaylistImage.Input.Path
             /// - Remark: Generated from `#/paths/profiles/{profileId}/playlists/{playlistId}/image/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Read by nothing; imageUrl carries it so that a new image has a new address.
+                /// Read by nothing; imageUrl carries it, the image's id, so that a new image has a new address.
                 ///
                 /// - Remark: Generated from `#/paths/profiles/{profileId}/playlists/{playlistId}/image/GET/query/v`.
                 public var v: Components.Parameters.ImageVersion?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - v: Read by nothing; imageUrl carries it so that a new image has a new address.
+                ///   - v: Read by nothing; imageUrl carries it, the image's id, so that a new image has a new address.
                 public init(v: Components.Parameters.ImageVersion? = nil) {
                     self.v = v
                 }
@@ -45119,14 +45243,14 @@ public enum Operations {
             public var path: Operations.GetStationImage.Input.Path
             /// - Remark: Generated from `#/paths/stations/{stationId}/image/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Read by nothing; imageUrl carries it so that a new image has a new address.
+                /// Read by nothing; imageUrl carries it, the image's id, so that a new image has a new address.
                 ///
                 /// - Remark: Generated from `#/paths/stations/{stationId}/image/GET/query/v`.
                 public var v: Components.Parameters.ImageVersion?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - v: Read by nothing; imageUrl carries it so that a new image has a new address.
+                ///   - v: Read by nothing; imageUrl carries it, the image's id, so that a new image has a new address.
                 public init(v: Components.Parameters.ImageVersion? = nil) {
                     self.v = v
                 }
@@ -46576,6 +46700,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The write collides with existing state.
+            ///
+            /// - Remark: Generated from `#/paths//collections/post(createCollection)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -50674,6 +50821,29 @@ public enum Operations {
                     }
                 }
             }
+            /// The write collides with existing state.
+            ///
+            /// - Remark: Generated from `#/paths//stations/post(createStation)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -51085,6 +51255,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The write collides with existing state.
+            ///
+            /// - Remark: Generated from `#/paths//stations/{stationId}/put(replaceStation)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -53028,6 +53221,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The write collides with existing state.
+            ///
+            /// - Remark: Generated from `#/paths//admin/sso-providers/post(createSsoProvider)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -56532,9 +56748,11 @@ public enum Operations {
     /// one SQLite database: the schema's tables holding every row the
     /// household may see, its views, among them those that apply each
     /// profile's kid filter such as profile_item and profile_station, and
-    /// its indexes. Its
-    /// one-row table replica_meta holds `schema`, `version`, the version
-    /// the snapshot was taken at, and `household_id`. The client replaces
+    /// its indexes. Every id column, `household_id` included, holds the
+    /// id's 16 bytes as a BLOB; getSyncChanges sends the same ids as
+    /// canonical UUID strings, which the client writes back as those bytes.
+    /// Its one-row table replica_meta holds `schema`, `version`, the
+    /// version the snapshot was taken at, and `household_id`. The client replaces
     /// its replica with the file whole, then asks getSyncChanges with
     /// `since` set to replica_meta's `version`. A `schema` outside
     /// SyncRanges' schemaMin to schemaMax answers 400.
@@ -56934,9 +57152,9 @@ public enum Operations {
     ///
     /// A batch that fails validation, names in `touched` a table that is
     /// not one of the sync schema's, a key of the wrong length or a key
-    /// part of the wrong type (an integer for an integer column, a string
-    /// for a text one), or whose `seq` does not strictly increase, answers
-    /// 400 and runs nothing.
+    /// part of the wrong type (an integer for an integer column, a
+    /// canonical UUID string for an id column, a string for a text one), or
+    /// whose `seq` does not strictly increase, answers 400 and runs nothing.
     ///
     ///
     /// - Remark: HTTP `POST /sync/actions`.

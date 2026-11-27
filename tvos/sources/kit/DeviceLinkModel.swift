@@ -69,7 +69,7 @@ public final class DeviceLinkModel {
     public var qrURL: URL? {
         guard let link else { return nil }
         var components = URLComponents(
-            url: server.baseURL.appending(path: "api/v1/device-links/\(link.id)/qr"), resolvingAgainstBaseURL: false)
+            url: server.baseURL.appending(path: "api/v2/device-links/\(link.id)/qr"), resolvingAgainstBaseURL: false)
         components?.queryItems = [URLQueryItem(name: "token", value: link.pollToken)]
         return components?.url
     }

@@ -22,15 +22,16 @@ final class StationTunerTests: XCTestCase {
     let server = ServerEndpoint(userInput: "192.168.1.9")!
 
     static let offAir = #"{"code":"off_air","message":"nothing is on","resumesAt":"2026-11-15T16:00:00Z"}"#
+    nonisolated static let ask = "/stations/\(UID.n(5))/playback"
 
     override func setUp() async throws {
         transport = RoutingTransport([
-            "DELETE /playback/sessions/7": (.noContent, ""),
-            "DELETE /playback/sessions/8": (.noContent, ""),
-            "PUT /playback/sessions/7/position": (.noContent, ""),
+            "DELETE /playback/sessions/\(UID.n(7))": (.noContent, ""),
+            "DELETE /playback/sessions/\(UID.n(8))": (.noContent, ""),
+            "PUT /playback/sessions/\(UID.n(7))/position": (.noContent, ""),
         ])
         transport.respond = { [unowned self] sent in
-            guard sent.method == .post, sent.path == "/stations/5/playback" else { return nil }
+            guard sent.method == .post, sent.path == Self.ask else { return nil }
             return self.answers.count > 1 ? self.answers.removeFirst() : self.answers[0]
         }
         output = FakeOutput()
@@ -50,12 +51,12 @@ final class StationTunerTests: XCTestCase {
         tuner.cancel()
     }
 
-    private func tuned(session: Int64 = 7, position: Int64 = 4_328_000) -> (HTTPResponse.Status, String) {
+    private func tuned(session: UID = 7, position: Int64 = 4_328_000) -> (HTTPResponse.Status, String) {
         let onAir = Fixtures.onAir("on_air", now: Fixtures.lantern, position: position, next: Fixtures.salt)
         return (.created, #"{"stream":\#(Fixtures.stream(session: session, position: position)),"onAir":\#(onAir)}"#)
     }
 
-    private var asks: Int { transport.paths(.post).filter { $0 == "/stations/5/playback" }.count }
+    private var asks: Int { transport.paths(.post).filter { $0 == Self.ask }.count }
 
     /// Waits for work a wake started on its own task.
     private func until(_ done: () -> Bool) async {
@@ -66,7 +67,7 @@ final class StationTunerTests: XCTestCase {
         wakesAtOnce = false
         answers = [tuned()]
         await player.tune(tuner)
-        let body = try XCTUnwrap(transport.json(.post, "/stations/5/playback"))
+        let body = try XCTUnwrap(transport.json(.post, Self.ask))
         let snapshot = try XCTUnwrap(body["snapshot"] as? [String: Any])
         XCTAssertEqual(Set(snapshot.keys), ["decoder", "display", "audioRoute", "network"])
         XCTAssertEqual(output.loaded.first?.1, 4328)
@@ -102,7 +103,7 @@ final class StationTunerTests: XCTestCase {
         await until { tuner.offAir }
         XCTAssertEqual(asks, 2)
         XCTAssertEqual(slept.first, ISO8601DateFormatter().date(from: "2026-11-15T15:52:00Z"))
-        XCTAssertEqual(transport.paths(.delete), ["/playback/sessions/7"])
+        XCTAssertEqual(transport.paths(.delete), ["/playback/sessions/\(UID.n(7))"])
         XCTAssertTrue(tuner.offAir)
         XCTAssertNil(player.stream)
     }
@@ -127,8 +128,8 @@ final class StationTunerTests: XCTestCase {
         capabilities.current.route = RouteFacts(channels: 6)
         await player.capabilitiesChanged(.audioRoute)
         XCTAssertEqual(asks, 2)
-        XCTAssertEqual(transport.paths(.delete), ["/playback/sessions/7"], "the session it leaves is ended")
-        XCTAssertFalse(transport.paths(.put).contains("/playback/sessions/7/audio-route"))
+        XCTAssertEqual(transport.paths(.delete), ["/playback/sessions/\(UID.n(7))"], "the session it leaves is ended")
+        XCTAssertFalse(transport.paths(.put).contains("/playback/sessions/\(UID.n(7))/audio-route"))
     }
 
     /// Starting a stream raises route and screen notifications of its own;
@@ -166,7 +167,7 @@ final class StationTunerTests: XCTestCase {
         capabilities.afterNextRead = { [unowned self] in capabilities.current.route = RouteFacts(channels: 6) }
         await player.tune(tuner)
         XCTAssertEqual(asks, 2)
-        XCTAssertEqual(transport.paths(.delete), ["/playback/sessions/7"])
+        XCTAssertEqual(transport.paths(.delete), ["/playback/sessions/\(UID.n(7))"])
         XCTAssertEqual(player.stream?.sessionId, 8)
     }
 
@@ -195,7 +196,7 @@ final class StationTunerTests: XCTestCase {
     }
 
     private func live(_ onAir: String) -> (HTTPResponse.Status, String) {
-        let stream = Fixtures.stream(url: "/api/v1/channels/k1/live.m3u8", verdict: "remux", extra: #","live":true"#)
+        let stream = Fixtures.stream(url: "/api/v2/channels/k1/live.m3u8", verdict: "remux", extra: #","live":true"#)
         return (.created, #"{"stream":\#(stream),"onAir":\#(onAir)}"#)
     }
 
@@ -204,8 +205,8 @@ final class StationTunerTests: XCTestCase {
     func testAVideoStationStaysOnItsLiveStreamAndReadsWhatIsOn() async throws {
         answers = [live(Fixtures.onAir("on_air", now: Fixtures.lantern, position: 4_328_000, next: Fixtures.salt))]
         await player.tune(tuner)
-        XCTAssertEqual(try XCTUnwrap(transport.json(.post, "/stations/5/playback"))["live"] as? Bool, true)
-        XCTAssertEqual(output.loaded.first?.0.path, "/api/v1/channels/k1/live.m3u8")
+        XCTAssertEqual(try XCTUnwrap(transport.json(.post, Self.ask))["live"] as? Bool, true)
+        XCTAssertEqual(output.loaded.first?.0.path, "/api/v2/channels/k1/live.m3u8")
         XCTAssertEqual(output.loaded.first?.1, 0, "the player joins at the live edge")
         await until { slept.count == 2 }
         XCTAssertEqual(tuner.station.onAir.status, .betweenPrograms)
@@ -296,8 +297,8 @@ final class MusicStationTests: XCTestCase {
             switch (sent.method, sent.path) {
             case (.post, "/playback/sessions"):
                 let body = (try? JSONSerialization.jsonObject(with: Data(sent.body.utf8))) as? [String: Any]
-                return (.created, Fixtures.audioStream((body?["itemId"] as? NSNumber)?.int64Value ?? 0))
-            case (.post, "/stations/6/playback"):
+                return (.created, Fixtures.audioStream(UID(body?["itemId"] as? String ?? "") ?? 0))
+            case (.post, "/stations/\(UID.n(6))/playback"):
                 let stream = Fixtures.audioStream(30).replacingOccurrences(
                     of: #""positionMs":0"#, with: #""positionMs":86000"#)
                 let onAir = Fixtures.onAir(
@@ -326,7 +327,7 @@ final class MusicStationTests: XCTestCase {
         tuner.cancel()
     }
 
-    private var asks: Int { transport.paths(.post).filter { $0 == "/stations/6/playback" }.count }
+    private var asks: Int { transport.paths(.post).filter { $0 == "/stations/\(UID.n(6))/playback" }.count }
 
     func testAStationPlaysItsSongAndLeavesTheQueueAsItWas() async {
         await player.tune(tuner)
@@ -335,7 +336,7 @@ final class MusicStationTests: XCTestCase {
         XCTAssertEqual(player.queue.current?.song.id, 1)
         XCTAssertEqual(output.seeks.last, 86000)
         XCTAssertTrue(player.playing)
-        XCTAssertEqual(transport.paths(.delete), ["/playback/sessions/1"], "the queue's session ends")
+        XCTAssertEqual(transport.paths(.delete), ["/playback/sessions/\(UID.n(1))"], "the queue's session ends")
         XCTAssertEqual(center.shown.last??.title, "Paper Lanterns")
         XCTAssertEqual(center.shown.last??.stopOnly, true)
     }
@@ -350,7 +351,7 @@ final class MusicStationTests: XCTestCase {
         XCTAssertNil(player.station)
         XCTAssertFalse(player.playing)
         XCTAssertNil(player.stream)
-        XCTAssertEqual(transport.paths(.delete).last, "/playback/sessions/30")
+        XCTAssertEqual(transport.paths(.delete).last, "/playback/sessions/\(UID.n(30))")
         XCTAssertEqual(player.current?.id, 1, "the viewer's own queue is back")
     }
 

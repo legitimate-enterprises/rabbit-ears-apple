@@ -69,7 +69,7 @@ struct PlayableDetail: View {
     @Environment(AppModel.self) private var app
     let item: Item
     @State private var media: MediaSummary?
-    @State private var audioTrackId: Int64?
+    @State private var audioTrackId: UID?
     @State private var cuts = EditionChoice()
     @State private var verdict: Components.Schemas.Verdict?
     @State private var credits: Credits?

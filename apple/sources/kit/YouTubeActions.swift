@@ -7,10 +7,10 @@ extension YouTubeModel {
     /// channel marked at once, as the server marks each (watchstate.Mark,
     /// position 0) unless its state changed after this. A channel of more
     /// videos than an action may name is marked on the server at once.
-    func markChannel(_ channel: Int64, watched: Bool) async throws {
+    func markChannel(_ channel: UID, watched: Bool) async throws {
         let profile = profileId
         let videos = try await replica.read { db in
-            try Int64.fetchAll(
+            try UID.fetchAll(
                 db, sql: "SELECT id FROM item WHERE kind = 'video' AND parent_id = ?", arguments: [channel])
         }
         try await queue.act(

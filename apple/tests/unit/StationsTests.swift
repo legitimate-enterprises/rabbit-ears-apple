@@ -7,19 +7,20 @@ import XCTest
 @testable import RabbitEarsKit
 
 extension Fixtures {
+    /// Its edition is the item's id times ten.
     static func program(
-        _ id: Int64, _ title: String, kind: String = "movie", starts: String = "2026-11-15T14:00:00Z",
+        _ id: Int, _ title: String, kind: String = "movie", starts: String = "2026-11-15T14:00:00Z",
         ends: String = "2026-11-15T15:52:00Z", durationMs: Int64 = 6_720_000
     ) -> String {
         let object =
             switch kind {
-            case "song": #""song":\#(Fixtures.song(id, title))"#
+            case "song": #""song":\#(Fixtures.song(.n(id), title))"#
             case "episode":
-                #""item":\#(Fixtures.item(id, "episode", title, season: 2, episode: 5)),"#
+                #""item":\#(Fixtures.item(.n(id), "episode", title, season: 2, episode: 5)),"#
                     + #""show":\#(Fixtures.item(90, "show", "Pocket Dragons"))"#
-            default: #""item":\#(Fixtures.item(id, kind, title))"#
+            default: #""item":\#(Fixtures.item(.n(id), kind, title))"#
             }
-        return #"{"itemId":\#(id),"editionId":\#(id * 10),"kind":"\#(kind)","startsAt":"\#(starts)","#
+        return #"{"itemId":"\#(UID.n(id))","editionId":"\#(UID.n(id * 10))","kind":"\#(kind)","startsAt":"\#(starts)","#
             + #""endsAt":"\#(ends)","durationMs":\#(durationMs),\#(object)}"#
     }
 
@@ -36,15 +37,16 @@ extension Fixtures {
     }
 
     static func station(
-        _ id: Int64, _ name: String, kind: String = "movies", owner: Int64 = 1, visibility: String = "household",
+        _ id: UID, _ name: String, kind: String = "movies", owner: UID = 1, visibility: String = "household",
         days: [String] = [], times: String = "[]", rating: String? = nil, onAir: String = onAir("off_schedule")
     ) -> String {
         let rated = rating.map { #","rating":"\#($0)""# } ?? ""
         let dayList = days.map { #""\#($0)""# }.joined(separator: ",")
-        return #"{"id":\#(id),"name":"\#(name)","kind":"\#(kind)","ownerId":\#(owner),"householdId":1,"#
-            + #""playlistId":3,"order":"random","visibility":"\#(visibility)","timing":"hour","days":[\#(dayList)],"#
+        return #"{"id":"\#(id)","name":"\#(name)","kind":"\#(kind)","ownerId":"\#(owner)","#
+            + #""householdId":"\#(UID.n(1))","playlistId":"\#(UID.n(3))","order":"random","#
+            + #""visibility":"\#(visibility)","timing":"hour","days":[\#(dayList)],"#
             + #""times":\#(times)\#(rated),"onAir":\#(onAir),"#
-            + #""createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}"#
+            + #""createdAt":"2026-01-01T00:00:00Z","modifiedAt":"2026-01-01T00:00:00Z"}"#
     }
 
     static let lantern = program(20, "The Lantern Keeper")
@@ -93,7 +95,7 @@ final class StationTextTests: XCTestCase {
     }
 
     func testAMusicStationsUpNextIsEverySongInPlayOrder() {
-        let songs = [31, 32, 33].map { Fixtures.program(Int64($0), "Song \($0)", kind: "song") }
+        let songs = [31, 32, 33].map { Fixtures.program($0, "Song \($0)", kind: "song") }
         let onAir: StationOnAir = Fixtures.decode(
             Fixtures.onAir(
                 "on_air", now: Fixtures.program(30, "Paper Lanterns", kind: "song"), next: songs[0], upNext: songs))

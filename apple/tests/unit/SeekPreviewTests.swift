@@ -7,7 +7,7 @@ import XCTest
 final class SeekPreviewTests: XCTestCase {
     let frames = PreviewFrames(
         intervalMs: 10_000, count: 100, width: 320, height: 180,
-        frameUrl: "/api/v1/streams/k1/0/previews/{n}.jpg", bifUrl: "/api/v1/streams/k1/0/previews.bif")
+        frameUrl: "/api/v2/streams/k1/0/previews/{n}.jpg", bifUrl: "/api/v2/streams/k1/0/previews.bif")
 
     func testTheFrameIsTheOneNearestThePosition() {
         XCTAssertEqual(frames.index(at: 0), 0)
@@ -26,7 +26,7 @@ final class SeekPreviewTests: XCTestCase {
         let server = ServerEndpoint(userInput: "192.168.1.9")!
         XCTAssertEqual(
             frames.url(at: 604, endpoint: server).absoluteString,
-            "http://192.168.1.9:8477/api/v1/streams/k1/0/previews/60.jpg")
+            "http://192.168.1.9:8477/api/v2/streams/k1/0/previews/60.jpg")
     }
 
     func testAPointerPositionMapsToATimeWithinTheRuntime() {

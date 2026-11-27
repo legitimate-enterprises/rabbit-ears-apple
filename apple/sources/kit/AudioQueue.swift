@@ -1,4 +1,5 @@
 import Foundation
+import RabbitEarsAPI
 
 public enum RepeatMode: Sendable, CaseIterable { case off, all, one }
 
@@ -20,7 +21,7 @@ public struct AudioQueue: Equatable, Sendable {
     /// What it plays from, as in "Playing from In Rainbows".
     public private(set) var source = ""
     /// The music playlist it plays from, sent with each song's playback.
-    public private(set) var playlistId: Int64?
+    public private(set) var playlistId: UID?
     /// Rises with every shuffle on or off, so a song's start can tell one was made meanwhile.
     private var shuffles = 0
 
@@ -28,7 +29,7 @@ public struct AudioQueue: Equatable, Sendable {
 
     /// Starts at `start`; shuffled, at a song picked at random, and the rest follow at random.
     public init(
-        _ songs: [MusicSong], start: Int = 0, source: String, playlistId: Int64? = nil, shuffled: Bool = false
+        _ songs: [MusicSong], start: Int = 0, source: String, playlistId: UID? = nil, shuffled: Bool = false
     ) {
         entries = songs.enumerated().map { Entry(id: $0.offset, song: $0.element, order: $0.offset) }
         index = shuffled ? songs.indices.randomElement() ?? 0 : songs.indices.contains(start) ? start : 0

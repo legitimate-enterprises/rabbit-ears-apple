@@ -1,4 +1,5 @@
 import AVFoundation
+import RabbitEarsAPI
 import XCTest
 
 @testable import RabbitEarsKit
@@ -14,7 +15,7 @@ final class AVAudioOutputTests: XCTestCase {
     override func setUp() async throws {
         let file = try Self.audioFile(seconds: 5)
         let stream = Fixtures.audioStream(1).replacingOccurrences(
-            of: "/api/v1/streams/s1/0/file", with: file.absoluteString)
+            of: "/api/v2/streams/s\(UID.n(1))/0/file", with: file.absoluteString)
         transport = RoutingTransport()
         transport.respond = { sent in
             switch (sent.method, sent.path) {
@@ -131,4 +132,16 @@ final class AVPlayerOutputTests: XCTestCase {
 private func until(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async throws {
     for _ in 0..<250 where !condition() { try await Task.sleep(for: .milliseconds(20)) }
     XCTAssertTrue(condition(), "timed out", file: file, line: line)
+}
+
+@MainActor
+final class AVAudioOutputReleaseTests: XCTestCase {
+    func testAReleasedOutputDeinitializes() {
+        weak var released: AVAudioOutput?
+        do {
+            let output = AVAudioOutput()
+            released = output
+        }
+        XCTAssertNil(released)
+    }
 }

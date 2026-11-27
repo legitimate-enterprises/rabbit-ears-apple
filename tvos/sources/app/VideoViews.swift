@@ -6,7 +6,7 @@ struct VideoDetailView: View {
     @Environment(AppModel.self) private var app
     @Environment(CatalogModel.self) private var catalog
     @Environment(Browser.self) private var browser
-    let id: Int64
+    let id: UID
     @State private var detail: VideoDetail?
     @State private var loaded = false
     @State private var verdict: Components.Schemas.Verdict?

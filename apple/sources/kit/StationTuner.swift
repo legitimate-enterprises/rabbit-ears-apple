@@ -23,7 +23,7 @@ public final class StationTuner {
 
     private let client: Client
     private let replica: Replica
-    private let profileId: Int64
+    private let profileId: UID
     private let now: @Sendable () -> Date
     private let calendar: Calendar
     private let sleep: @MainActor (Date) async throws -> Void
@@ -34,7 +34,7 @@ public final class StationTuner {
     /// The wait is a second at least: to a device whose clock runs ahead of
     /// the server's, the program on now has already ended.
     public init(
-        client: Client, replica: Replica, profileId: Int64, station: Station,
+        client: Client, replica: Replica, profileId: UID, station: Station,
         now: @escaping @Sendable () -> Date = Date.init, calendar: Calendar = .autoupdatingCurrent,
         sleep: @escaping @MainActor (Date) async throws -> Void = { date in
             try await Task.sleep(for: .seconds(max(1, date.timeIntervalSinceNow)))

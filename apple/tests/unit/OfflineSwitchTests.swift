@@ -18,14 +18,14 @@ final class OfflineSwitchTests: XCTestCase {
             try db.member(3, "Sam", kind: "kid")
         }
         app.routes.routes["GET /me"] = (.ok, Self.me)
-        app.routes.routes["POST /profiles/2/unlock"] = (.noContent, "")
-        app.routes.routes["POST /profiles/3/unlock"] = (.noContent, "")
+        app.routes.routes["POST /profiles/\(UID.n(2))/unlock"] = (.noContent, "")
+        app.routes.routes["POST /profiles/\(UID.n(3))/unlock"] = (.noContent, "")
         _ = try await app.synced()
     }
 
     override func tearDown() { app.remove() }
 
-    private func profile(_ id: Int64) throws -> Account { try XCTUnwrap(app.model.profiles.first { $0.id == id }) }
+    private func profile(_ id: UID) throws -> Account { try XCTUnwrap(app.model.profiles.first { $0.id == id }) }
 
     func testOfflineAProfileWithoutAPinIsSwitchedToHereAlone() async throws {
         app.offline()
@@ -55,7 +55,7 @@ final class OfflineSwitchTests: XCTestCase {
 
     func testOnlineAPickIsTheServersAsBefore() async throws {
         try await app.model.choose(profile(3))
-        XCTAssertEqual(app.routes.paths(.post).filter { $0.hasSuffix("/unlock") }, ["/profiles/3/unlock"])
+        XCTAssertEqual(app.routes.paths(.post).filter { $0.hasSuffix("/unlock") }, ["/profiles/\(UID.n(3))/unlock"])
         XCTAssertEqual(app.model.activeProfile?.id, 3)
     }
 
@@ -64,7 +64,7 @@ final class OfflineSwitchTests: XCTestCase {
         try await app.model.choose(profile(3))
         app.routes.failure = nil
         await app.model.reload()
-        XCTAssertEqual(app.routes.paths(.post).filter { $0.hasSuffix("/unlock") }, ["/profiles/3/unlock"])
+        XCTAssertEqual(app.routes.paths(.post).filter { $0.hasSuffix("/unlock") }, ["/profiles/\(UID.n(3))/unlock"])
         XCTAssertEqual(app.model.serverActiveProfile?.id, 3)
         XCTAssertEqual(app.model.phase, .browsing)
     }

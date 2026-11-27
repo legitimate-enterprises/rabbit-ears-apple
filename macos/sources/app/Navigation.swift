@@ -5,8 +5,8 @@ import SwiftUI
 
 enum SidebarSection: Hashable {
     case home, tv, movies, music, youtube, stations
-    case playlist(Int64)
-    case station(Int64)
+    case playlist(UID)
+    case station(UID)
 
     /// Every profile's libraries; the server filters what a kid sees in each.
     static let libraries: [SidebarSection] = [.home, .tv, .movies, .music, .youtube, .stations]
@@ -53,15 +53,15 @@ enum SidebarSection: Hashable {
 enum Route: Hashable {
     case item(Item.ID)
     case person(Person.ID)
-    case album(Int64)
-    case artist(Int64)
+    case album(UID)
+    case artist(UID)
     case nowPlaying
-    case playlist(Int64)
-    case collection(Int64)
+    case playlist(UID)
+    case collection(UID)
     case occasion(ActiveOccasion)
-    case channel(Int64)
-    case video(Int64)
-    case station(Int64)
+    case channel(UID)
+    case video(UID)
+    case station(UID)
 }
 
 /// Navigation shared by every browsing view: the detail stack and what is playing.
