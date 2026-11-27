@@ -135,7 +135,11 @@ class API:
         deadline = time.monotonic() + 150
         while time.monotonic() < deadline:
             scans = {task["kind"]: task for task in self.call("/tasks?limit=200")["items"]}
-            if all(scans.get(f"scan:{library}", {}).get("lastRun", {}).get("finishedAt") for library in made):
+            runs = [scans.get(f"scan:{library}", {}).get("lastRun", {}) for library in made]
+            failed = [last.get("error", "no error stated") for last in runs if last.get("status") == "failed"]
+            if failed:
+                raise RuntimeError("A fixture library scan failed: " + "; ".join(failed))
+            if all(last.get("finishedAt") for last in runs):
                 return
             time.sleep(1)
         raise RuntimeError("The server's fixtures did not scan")
@@ -194,6 +198,8 @@ def main(command):
                     raise RuntimeError("Demo server did not become ready")
                 api.seed(library)
                 if fixtures:
+                    # fixtures/ is git-ignored in the server's repository, so a clone has none until this makes it.
+                    run(str(Path(source) / "scripts/fetch-fixtures.sh"))
                     api.fixtures(Path(source) / "fixtures")
                 print("Anonymous demo server ready: six movies, three profiles", file=sys.stderr)
                 child = subprocess.Popen(command, env=child_environment(base), start_new_session=True)
