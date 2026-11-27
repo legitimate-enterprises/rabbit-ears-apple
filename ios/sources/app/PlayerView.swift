@@ -105,8 +105,7 @@ struct PlayerSurface: View {
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         .task(id: lastActivity) {
-            try? await Task.sleep(for: .seconds(ControlsFade.delay))
-            guard !Task.isCancelled, popup == nil, scrubbing == nil, output.player.timeControlStatus == .playing
+            guard await ControlsFade.idle(output.player, for: ControlsFade.delay), popup == nil, scrubbing == nil
             else { return }
             if !reduceMotion { withAnimation(ControlsFade.animation) { showControls = false } }
             try? await Task.sleep(for: .seconds(ControlsFade.fade))

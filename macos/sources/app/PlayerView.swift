@@ -96,8 +96,7 @@ struct PlayerSurface: View {
         // The replaced player's disappearance ends its session, so there is nothing for `finish` to do.
         .modifier(PlayerLive(request: request, model: model, browser: browser, leave: leave, finish: {}))
         .task(id: lastActivity) {
-            try? await Task.sleep(for: .seconds(ControlsFade.delay))
-            guard !Task.isCancelled, output.player.timeControlStatus == .playing else { return }
+            guard await ControlsFade.idle(output.player, for: ControlsFade.delay) else { return }
             if !reduceMotion { withAnimation(ControlsFade.animation) { showControls = false } }
             try? await Task.sleep(for: .seconds(ControlsFade.fade))
             if !Task.isCancelled { (showControls, controlsGone) = (false, true) }

@@ -112,8 +112,7 @@ struct StationSurface: View {
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         .task(id: lastActivity) {
-            try? await Task.sleep(for: .seconds(ControlsFade.delay))
-            guard !Task.isCancelled, popup == nil, output.player.timeControlStatus == .playing else { return }
+            guard await ControlsFade.idle(output.player, for: ControlsFade.delay), popup == nil else { return }
             if !reduceMotion { withAnimation(ControlsFade.animation) { showControls = false } }
             try? await Task.sleep(for: .seconds(ControlsFade.fade))
             if !Task.isCancelled { (showControls, controlsGone) = (false, true) }

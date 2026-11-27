@@ -139,8 +139,7 @@ struct StationSurface: View {
         .onPlayPauseCommand(perform: poke)
         .onExitCommand(perform: back)
         .task(id: lastActivity) {
-            try? await Task.sleep(for: .seconds(ControlsFade.remoteDelay))
-            guard !Task.isCancelled, popup == nil, output.player.timeControlStatus == .playing else { return }
+            guard await ControlsFade.idle(output.player, for: ControlsFade.remoteDelay), popup == nil else { return }
             if !reduceMotion { withAnimation(ControlsFade.animation) { showControls = false } }
             try? await Task.sleep(for: .seconds(ControlsFade.fade))
             if !Task.isCancelled { hideControls() }
