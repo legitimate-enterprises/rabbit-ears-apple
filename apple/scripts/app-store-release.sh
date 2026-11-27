@@ -6,10 +6,10 @@
 #   ../apple/scripts/app-store-release.sh <project> <scheme> <iOS|tvOS|macOS>
 #
 # Run from the app's directory by its `make release`, in ci's TestFlight job
-# on main, after signing-keychain.sh. The version is the one
-# apple/version.yaml states. The build number is the commit count, which rises
-# with every commit on a linear main, as each upload to App Store Connect
-# needs. The app target's Release configuration names its profile as
+# on main, after signing-keychain.sh. The build number N is the commit
+# count, which rises with every commit on a linear main, as each upload to
+# App Store Connect needs; the version is M.m.N, M.m as apple/version.yaml
+# states it. The app target's Release configuration names its profile as
 # PROVISIONING_PROFILE_SPECIFIER = $(APP_STORE_PROFILE): a profile set on
 # the command line would reach the frameworks too, which refuse one.
 set -euo pipefail

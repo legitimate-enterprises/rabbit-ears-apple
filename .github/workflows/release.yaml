@@ -1,10 +1,11 @@
 name: release
 
-# A tag `v<major>.<minor>.<patch>` names the version apple/version.yaml
-# states for all three apps, on a commit of main; `make deploy` pushes it
-# once ci is green there. Every green run on main has already put its builds
-# in TestFlight, and promotion to the App Store is done by hand in App Store
-# Connect, so this run only checks the tag and submits nothing.
+# A tag `v<M.m.N>` names the version of all three apps built from a commit
+# of main: M.m as apple/version.yaml states it, N the commit's ordinal on
+# main, their build number. `make deploy` pushes it once ci is green there.
+# Every green run on main has already put its builds in TestFlight, and
+# promotion to the App Store is done by hand in App Store Connect, so this
+# run only checks the tag and submits nothing.
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+']

@@ -218,22 +218,33 @@ expect 65 env "${faked[@]}" HOME="$home" FAKE_ARCHIVE_FAIL=1 "${secrets[@]}" "${
 [ ! -e "$installed" ] || fail "a failed archive left $installed"
 emptied "a failed archive"
 
-# cut-release.sh --check passes only v<major>.<minor>.<patch> as the
-# committed version file states it.
+# cut-release.sh --check passes only v<M.m.N>: M.m as the committed version
+# file states it and N the commit's ordinal; the repository's own file
+# states M.m in that form.
+# shellcheck disable=SC2016 # Xcode expands it, not the shell
+version='MARKETING_VERSION: 1.0.$(CURRENT_PROJECT_VERSION)'
+grep -qE '^    MARKETING_VERSION: [0-9]+\.[0-9]+\.\$\(CURRENT_PROJECT_VERSION\)$' "$here/../version.yaml" ||
+    fail "apple/version.yaml states no M.m.\$(CURRENT_PROJECT_VERSION)"
 tagged="$tmp/tagged"
 mkdir -p "$tagged/scripts" "$tagged/apple"
 cp "$here/../../scripts/cut-release.sh" "$tagged/scripts/"
-printf 'settings:\n  base:\n    MARKETING_VERSION: 26.0.0\n' > "$tagged/apple/version.yaml"
+printf 'settings:\n  base:\n    %s\n' "$version" > "$tagged/apple/version.yaml"
 git -C "$tagged" init --quiet
 git -C "$tagged" add .
 git -C "$tagged" -c user.name=test -c user.email=test@example.invalid commit --quiet -m version
-expect 0 "$tagged/scripts/cut-release.sh" --check v26.0.0
-for tag in v26.0.1 26.0.0 v26.0 v26.0.0.0 ios-v26.0.0 v26.0.0-rc1; do
+expect 0 "$tagged/scripts/cut-release.sh" --check v1.0.1
+for tag in v1.0.2 v1.0.0 1.0.1 v1.0 v1.0.1.0 ios-v1.0.1 v1.0.1-rc1; do
     expect 1 "$tagged/scripts/cut-release.sh" --check "$tag"
 done
-printf 'settings:\n  base:\n    MARKETING_VERSION: 26\n' > "$tagged/apple/version.yaml"
-git -C "$tagged" -c user.name=test -c user.email=test@example.invalid commit --quiet -am counter
-expect 1 "$tagged/scripts/cut-release.sh" --check v26
+git -C "$tagged" -c user.name=test -c user.email=test@example.invalid commit --quiet --allow-empty -m next
+expect 0 "$tagged/scripts/cut-release.sh" --check v1.0.2
+expect 1 "$tagged/scripts/cut-release.sh" --check v1.0.1
+git clone --quiet --depth 1 "file://$tagged" "$tmp/tagged-shallow"
+expect 1 "$tmp/tagged-shallow/scripts/cut-release.sh" --check v1.0.2
+said "shallow"
+printf 'settings:\n  base:\n    MARKETING_VERSION: 1.0.0\n' > "$tagged/apple/version.yaml"
+git -C "$tagged" -c user.name=test -c user.email=test@example.invalid commit --quiet -am fixed
+expect 1 "$tagged/scripts/cut-release.sh" --check v1.0.3
 said "states no version"
 
 [ "$failures" -eq 0 ] || { echo "$failures failed" >&2; exit 1; }

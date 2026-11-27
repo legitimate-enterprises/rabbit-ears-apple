@@ -1,5 +1,7 @@
-# The one version the macOS, iOS and Apple TV apps state; each project.yaml
-# includes it.
+# The version the macOS, iOS and Apple TV apps state, M.m.N; each
+# project.yaml includes it. M.m is the owner's alone to set. N is the build
+# number, CURRENT_PROJECT_VERSION: the commit's ordinal on main, stamped by
+# the release, and the project's default elsewhere.
 settings:
   base:
-    MARKETING_VERSION: 26.0.0
+    MARKETING_VERSION: 1.0.$(CURRENT_PROJECT_VERSION)

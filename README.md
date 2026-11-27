@@ -25,8 +25,10 @@ Rabbit Ears server or is invited to one.
   `RABBIT_EARS_SERVER_SRC` to a checkout of that repository to use it
   instead.
 - Every green CI run on `main` signs all three apps and uploads them to
-  App Store Connect, where they land in TestFlight. `make deploy` tags
-  `main` `v<version>` once CI is green there; the tag submits nothing.
+  App Store Connect, where they land in TestFlight, as version `M.m.N` and
+  build `N`: `M.m` from `apple/version.yaml`, and `N` the commit's ordinal
+  on `main`. `make deploy` tags `main` `v<M.m.N>` once CI is green there;
+  the tag submits nothing.
 
 Limitations: an upload has no rollback, and promotion from TestFlight to
 the App Store is done by hand in App Store Connect.

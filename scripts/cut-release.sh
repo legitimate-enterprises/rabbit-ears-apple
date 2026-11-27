@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Tags origin/main v<version>, the version apple/version.yaml states there
-# for all three apps, once ci is green on that commit.
+# Tags origin/main v<M.m.N>, the version ci gave all three apps it uploaded
+# from that commit, once ci is green there: M.m as apple/version.yaml states
+# it, N the commit's ordinal on main, the build number.
 #
 # Usage: cut-release.sh                  the version and whether it can be tagged
 #        cut-release.sh --yes            tag and push it
-#        cut-release.sh --check <tag>    fail unless HEAD states the tag's version
+#        cut-release.sh --check <tag>    fail unless the tag is HEAD's version
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -16,32 +17,36 @@ die() { echo "error: $*" >&2; exit 1; }
 
 # version_at <ref>
 version_at() {
-    local v form='^[0-9]+\.[0-9]+\.[0-9]+$'
+    local v form='^([0-9]+\.[0-9]+)\.\$\(CURRENT_PROJECT_VERSION\)$'
+    # A shallow clone counts only the commits it holds.
+    [ "$(git rev-parse --is-shallow-repository)" = false ] || die "the checkout is shallow; fetch its full history"
     v="$(git show "$1:$SOURCE" | sed -n 's/^ *MARKETING_VERSION: *//p')"
     [[ "$v" =~ $form ]] || die "$SOURCE at $1 states no version of the form $form (got '$v')"
-    echo "$v"
+    echo "${BASH_REMATCH[1]}.$(git rev-list --count "$1")"
 }
 
 # state_of: one line saying whether origin/main can be tagged. Returns 0 when
-# it can, 1 when there is nothing to release, 2 when the version must be put
-# right first.
+# it can, 1 when there is nothing to release, 2 when M.m must be put right
+# first.
 state_of() {
     local v tag newest
     v="$(version_at origin/main)" || return 2
     tag="v$v"
     if git rev-parse --quiet --verify "refs/tags/$tag" >/dev/null; then
-        # shellcheck disable=SC2086 # the paths are separate arguments
-        if git diff --quiet "$tag" origin/main -- $PATHS; then
-            echo "$v is released and nothing in it has changed"
-            return 1
-        fi
-        echo "changed since $tag but still says $v: raise the version in $SOURCE"
-        return 2
+        echo "$v is released"
+        return 1
     fi
     newest="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sed 's/^v//' | sort -V | tail -1)"
-    if [ -n "$newest" ] && [ "$(printf '%s\n%s\n' "$newest" "$v" | sort -V | tail -1)" != "$v" ]; then
-        echo "says $v, below the released $newest: raise the version in $SOURCE"
-        return 2
+    if [ -n "$newest" ]; then
+        # shellcheck disable=SC2086 # the paths are separate arguments
+        if git diff --quiet "v$newest" origin/main -- $PATHS; then
+            echo "nothing that ships has changed since v$newest"
+            return 1
+        fi
+        if [ "$(printf '%s\n%s\n' "$newest" "$v" | sort -V | tail -1)" != "$v" ]; then
+            echo "says $v, below the released $newest: M.m in $SOURCE is the owner's to raise"
+            return 2
+        fi
     fi
     echo "$v is ready: $tag"
 }
@@ -49,7 +54,7 @@ state_of() {
 if [ "${1:-}" = "--check" ]; then
     tag="${2:?usage: cut-release.sh --check <tag>}"
     v="$(version_at HEAD)"
-    [ "$tag" = "v$v" ] || die "$tag is on a commit whose $SOURCE says $v"
+    [ "$tag" = "v$v" ] || die "$tag is on a commit whose version is $v"
     exit 0
 fi
 
@@ -67,7 +72,7 @@ state="$(state_of)" || rc=$?
 [ -z "$state" ] || echo "$state"
 case "$rc" in
     1) [ -z "$confirmed" ] || die "nothing is ready to release"; exit 0 ;;
-    2) die "nothing tagged: put the version right first" ;;
+    2) die "nothing tagged: put M.m right first" ;;
 esac
 tag="${state##* }"
 [ -n "$confirmed" ] || { echo "to tag $tag, run: make deploy YES=1"; exit 0; }
