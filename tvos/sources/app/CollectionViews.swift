@@ -75,6 +75,7 @@ struct CollectionView: View {
                                 Text(overview).font(.system(size: 28)).foregroundStyle(Theme.synopsis).lineLimit(4)
                                     .padding(.top, 30)
                             }
+                            ShuffleButton(items: movies ?? []).padding(.top, 32).focusSection()
                         }
                     }
                     if let movies {
@@ -113,5 +114,24 @@ struct CollectionsLine: View {
             }
         }
         .focusSection()
+    }
+}
+
+/// Shuffle on a show, season or collection; absent when nothing in it has a file.
+struct ShuffleButton: View {
+    @Environment(AppModel.self) private var app
+    @Environment(CatalogModel.self) private var catalog
+    @Environment(Browser.self) private var browser
+    let items: [Item]
+
+    var body: some View {
+        if items.contains(where: VideoQueue.shuffles) {
+            Button {
+                browser.shuffle(items, downloads: app.downloads, profile: catalog.profileId)
+            } label: {
+                Label("Shuffle", systemImage: "shuffle")
+            }
+            .buttonStyle(TVButtonStyle())
+        }
     }
 }

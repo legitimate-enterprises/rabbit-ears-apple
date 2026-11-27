@@ -317,6 +317,7 @@ struct PlayableDetail: View {
 struct GroupDetail: View {
     @Environment(CatalogModel.self) private var model
     @Environment(Browser.self) private var browser
+    @Environment(AppModel.self) private var app
     let item: Item
     @State private var credits: Credits?
     @State private var addTarget: PlaylistTarget?
@@ -346,12 +347,11 @@ struct GroupDetail: View {
             genres: show, progress: catalog.resumeProgress(item.id)
         ) {
             if let target {
-                Button {
-                    browser.play(target, in: catalog)
-                } label: {
-                    Label(resumeTitle(target, catalog), systemImage: "play.fill").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(PrimaryButtonStyle(fullWidth: true))
+                let episodes = catalog.episodes(under: item.id)
+                PlayShuffle(
+                    playTitle: resumeTitle(target, catalog), play: { browser.play(target, in: catalog) },
+                    shuffle: episodes.contains(where: VideoQueue.shuffles)
+                        ? { browser.shuffle(episodes, downloads: app.downloads, profile: model.profileId) } : nil)
             }
             HStack(spacing: 10) {
                 if show,

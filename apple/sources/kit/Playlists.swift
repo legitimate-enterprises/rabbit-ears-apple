@@ -329,16 +329,17 @@ extension Array where Element == PlayOrderRow {
     }
 }
 
-/// A movies or tv playlist in the video player: its movies and episodes in
-/// play order and the row on screen, each row playing its own edition.
-/// Ending a row plays the next.
+/// A movies or tv playlist, or a Shuffle, in the video player: its movies
+/// and episodes in play order and the row on screen, each row playing its
+/// own edition. Ending a row plays the next.
 public struct VideoQueue: Hashable, Sendable {
-    public let playlistId: UID
+    /// Nil for a Shuffle, which plays only its own rows.
+    public let playlistId: UID?
     public let items: [Item]
     private let rows: [PlayOrderRow]
     public let index: Int
 
-    public init?(_ rows: [PlayOrderRow], start: Int, playlistId: UID) {
+    public init?(_ rows: [PlayOrderRow], start: Int, playlistId: UID?) {
         let rows = rows.filter { $0.item != nil }
         guard rows.indices.contains(start) else { return nil }
         self.rows = rows

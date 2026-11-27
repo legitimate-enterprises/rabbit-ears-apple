@@ -185,7 +185,11 @@ struct PlayerSurface: View {
                     Spacer()
                     SubtitlesMenu(
                         model: model, offersTracks: request.item.kind == .movie || request.item.kind == .episode)
-                    if let next = catalog.catalog.nextEpisode(after: request.item) {
+                    if request.queue?.isShuffle == true {
+                        if let next = request.shuffleNext(in: catalog.catalog) {
+                            PlayerButton(icon: "forward.end.fill", label: "Next") { playNext(next) }
+                        }
+                    } else if let next = catalog.catalog.nextEpisode(after: request.item) {
                         PlayerButton(icon: "forward.end.fill", label: "Next episode") { playNext(next) }
                     }
                     PlayerButton(icon: "arrow.up.left.and.arrow.down.right", label: "Full screen") {

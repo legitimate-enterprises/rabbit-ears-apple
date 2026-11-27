@@ -112,6 +112,28 @@ final class UpNextModelTests: XCTestCase {
         XCTAssertNil(last, "the last row has nothing after it")
     }
 
+    func testAShuffleFollowsItsOwnRowsToItsEndWithNoPlaylist() async throws {
+        let replica = try library()
+        let rows = ([23, 22, 21] as [UID]).map {
+            Fixtures.decode(Fixtures.row(entry: $0, item: $0), as: PlayOrderRow.self)
+        }
+        let queue = try XCTUnwrap(VideoQueue(rows, start: 0, playlistId: nil))
+        let ended = PlayRequest(item: queue.current, positionMs: 0, queue: queue)
+        let loaded = await next(ended, in: replica)
+        let next = try XCTUnwrap(loaded)
+        XCTAssertEqual(next.title, "Alpha · S1 E1 · Pilot", "over the one whose file is gone")
+        XCTAssertEqual(next.request.item.id, 21)
+        XCTAssertEqual(next.request.queue?.index, 2)
+        XCTAssertNil(next.request.queue?.playlistId)
+        XCTAssertEqual(next.request.positionMs, 0)
+        XCTAssertNil(next.request.editionId)
+        XCTAssertEqual(next.request.id, ended.id)
+
+        let last = try XCTUnwrap(queue.at(2))
+        let after = await self.next(PlayRequest(item: last.current, queue: last), in: replica)
+        XCTAssertNil(after, "the last row ends it, though the show has Third after Pilot")
+    }
+
     func testAPlaylistNotSharedWithTheProfileOffersNothing() async throws {
         let replica = try library { db in
             for number in 60...61 { try db.item(.n(number), "movie", "T\(number)", rating: "PG") }

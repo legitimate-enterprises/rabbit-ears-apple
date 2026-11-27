@@ -48,8 +48,8 @@ public final class UpNextModel {
         var index: Int?
     }
 
-    /// From a playlist its next row, otherwise the episode, film or video
-    /// after the item. Only what has a file on disk counts.
+    /// From a playlist or a Shuffle its next row, otherwise the episode,
+    /// film or video after the item. Only what has a file on disk counts.
     private nonisolated static func next(
         after id: Item.ID, in queue: VideoQueue?, _ profile: UID, _ db: Database
     ) throws -> Next? {
@@ -70,7 +70,25 @@ public final class UpNextModel {
             else { return nil }
             return try titled(next, db)
         }
+        guard !queue.isShuffle else { return try nextShuffled(in: queue, profile, db) }
         return try nextRow(after: id, in: queue, profile, db)
+    }
+
+    /// A Shuffle's next row the profile may see with a file on disk; nothing follows its last.
+    private nonisolated static func nextShuffled(in queue: VideoQueue, _ profile: UID, _ db: Database) throws -> Next? {
+        for index in queue.items.indices.dropFirst(queue.index + 1) {
+            let id = queue.items[index].id
+            guard
+                try Bool.fetchOne(
+                    db,
+                    sql: "SELECT NOT \(ReplicaRows.unavailable("i.id")) FROM item i WHERE i.id = ? AND i.id "
+                        + ReplicaRows.seenBy, arguments: [id, profile]) == true,
+                var next = try titled(id, db)
+            else { continue }
+            next.index = index
+            return next
+        }
+        return nil
     }
 
     /// NextRow: the row after `queue`'s index of its play order the profile

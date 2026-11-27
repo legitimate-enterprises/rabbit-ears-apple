@@ -267,6 +267,7 @@ struct GroupDetail: View {
                         }
                         .buttonStyle(PrimaryButtonStyle())
                     }
+                    ShuffleButton(items: catalog.episodes(under: item.id))
                     DetailMoreMenu(item: item)
                 }
                 if let overview = item.metadata?.overview {
@@ -292,6 +293,25 @@ struct GroupDetail: View {
     private func resumeTitle(_ target: Item, _ catalog: Catalog) -> String {
         let code = item.kind == .show ? Format.episodeCode(target) : "E\(target.episodeNumber ?? 0)"
         return catalog.isInProgress(target.id) ? "Resume \(code)" : "Play \(code)"
+    }
+}
+
+/// Shuffle on a show, season or collection; absent when nothing in it has a file.
+struct ShuffleButton: View {
+    @Environment(AppModel.self) private var app
+    @Environment(CatalogModel.self) private var catalog
+    @Environment(Browser.self) private var browser
+    let items: [Item]
+
+    var body: some View {
+        if items.contains(where: VideoQueue.shuffles) {
+            Button {
+                browser.shuffle(items, downloads: app.downloads, profile: catalog.profileId)
+            } label: {
+                Label("Shuffle", systemImage: "shuffle")
+            }
+            .buttonStyle(SecondaryButtonStyle()).fixedSize()
+        }
     }
 }
 

@@ -277,6 +277,7 @@ struct ShowDetail: View {
                                 }
                                 .buttonStyle(TVButtonStyle(primary: true))
                             }
+                            ShuffleButton(items: catalog.episodes(under: item.id))
                             MarkAllButton(item: item, unwatched: unwatched)
                         }
                         .padding(.top, 32)
@@ -330,14 +331,17 @@ struct SeasonDetail: View {
                     "\(children.count) episodes", "\(unwatched) unwatched", Catalog.year(item).map(String.init) ?? "",
                 ])
                 .padding(.top, 8)
-                HStack(spacing: 20) {
-                    if let target {
-                        Button {
-                            browser.play(target, in: catalog)
-                        } label: {
-                            Label(ResumeText.title(target, in: item, catalog), systemImage: "play.fill")
+                VStack(alignment: .leading, spacing: 20) {
+                    HStack(spacing: 20) {
+                        if let target {
+                            Button {
+                                browser.play(target, in: catalog)
+                            } label: {
+                                Label(ResumeText.title(target, in: item, catalog), systemImage: "play.fill")
+                            }
+                            .buttonStyle(TVButtonStyle(primary: true))
                         }
-                        .buttonStyle(TVButtonStyle(primary: true))
+                        ShuffleButton(items: catalog.episodes(under: item.id))
                     }
                     MarkAllButton(item: item, unwatched: unwatched)
                 }

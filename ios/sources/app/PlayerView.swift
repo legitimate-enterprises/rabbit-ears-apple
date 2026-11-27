@@ -63,7 +63,7 @@ struct PlayerSurface: View {
 
     var body: some View {
         // Read once per render, not on every tick of the timeline below.
-        let next = catalog.catalog.nextEpisode(after: request.item)
+        let next = request.queue?.isShuffle == true ? nil : catalog.catalog.nextEpisode(after: request.item)
         ZStack {
             Color.black.ignoresSafeArea()
             VideoSurface(player: output.player, pip: $pip).ignoresSafeArea()
@@ -213,6 +213,8 @@ struct PlayerSurface: View {
                         }
                     if let next {
                         PlayerButton(icon: "forward.end.fill", label: "Next episode") { playNext(next) }
+                    } else if let next = request.shuffleNext(in: catalog.catalog) {
+                        PlayerButton(icon: "forward.end.fill", label: "Next") { playNext(next) }
                     }
                 }
                 QualityPill(model: model, open: popup == .quality) { toggle(.quality) }

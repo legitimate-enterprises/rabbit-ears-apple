@@ -254,6 +254,7 @@ struct CollectionScreen: View {
                 Text(collection.name).font(.system(size: 26, weight: .bold))
                 Text(collection.summary).font(.system(size: 13)).foregroundStyle(Theme.secondary)
                 HStack(spacing: 10) {
+                    ShuffleButton(items: movies ?? [])
                     PlaylistMenu(collectionId: collection.id, kind: .movies, asButton: true)
                     StationMenu(collectionId: collection.id, kind: .movies, asButton: true)
                     DownloadButton(target: .collection(collection))

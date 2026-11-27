@@ -90,6 +90,7 @@ struct CollectionView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
                         if let collection { header(collection) }
+                        ShuffleButton(items: movies ?? [])
                         if let movies {
                             if movies.isEmpty { EmptyNote(text: "No movies in this collection yet.") }
                             LazyVGrid(columns: GridView.columns, spacing: 14) {
@@ -309,6 +310,25 @@ struct CollectionLinks: View {
                 Button(collection.name) { browser.open(.collection(collection.id)) }
                     .buttonStyle(.plain).font(.system(size: 15)).foregroundStyle(Theme.amber)
             }
+        }
+    }
+}
+
+/// Shuffle on a collection; absent when none of its movies has a file.
+private struct ShuffleButton: View {
+    @Environment(AppModel.self) private var app
+    @Environment(CatalogModel.self) private var catalog
+    @Environment(Browser.self) private var browser
+    let items: [Item]
+
+    var body: some View {
+        if items.contains(where: VideoQueue.shuffles) {
+            Button {
+                browser.shuffle(items, downloads: app.downloads, profile: catalog.profileId)
+            } label: {
+                Label("Shuffle", systemImage: "shuffle").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(SecondaryButtonStyle(fullWidth: true))
         }
     }
 }
