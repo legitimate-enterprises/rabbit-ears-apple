@@ -35,4 +35,7 @@ perl -e 'alarm shift; exec @ARGV' 600 xcrun simctl bootstatus "$udid" -b || {
     exit 1
 }
 
-"${XCODEBUILD[@]}" -destination "id=$udid" test-without-building -only-testing:RabbitEarsTests
+# A hung test fails by name. The allowance covers the slowest, the large
+# action batch, on a slow runner; XCTest rounds it up to whole minutes.
+"${XCODEBUILD[@]}" -destination "id=$udid" test-without-building -only-testing:RabbitEarsTests \
+    -test-timeouts-enabled YES -default-test-execution-time-allowance 300
