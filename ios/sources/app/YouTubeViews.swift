@@ -129,7 +129,7 @@ struct VideoTile: View {
                         }
                     }
                     .overlay(alignment: .bottom) {
-                        if let fraction { ProgressBar(value: fraction, height: 4) }
+                        if let progress = video.progress { ProgressBar(value: progress, height: 4) }
                     }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(video.title).font(.system(size: 13, weight: .semibold)).lineLimit(2)
@@ -150,11 +150,6 @@ struct VideoTile: View {
             [video.channelTitle, video.durationMs.map { Format.runtime(minutes: Int(($0 + 30_000) / 60_000)) }]
                 .compactMap { $0 }.joined(separator: " · ")
         }
-    }
-
-    private var fraction: Double? {
-        guard video.positionMs > 0, let duration = video.durationMs, duration > 0 else { return nil }
-        return min(1, Double(video.positionMs) / Double(duration))
     }
 }
 

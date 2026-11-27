@@ -86,24 +86,20 @@ struct PlayableDetail: View {
     var body: some View {
         let catalog = model.catalog
         let episode = item.kind == .episode
+        let resumes = cuts.resumes(catalog.watch[item.id])
         let meta = MetaLine(
             parts: [
                 item.metadata?.runtimeMinutes.map { Format.runtime(minutes: $0) } ?? "",
                 episode ? DateText.release(item) : Catalog.year(item).map(String.init) ?? "",
                 episode ? "" : item.metadata?.contentRating ?? "",
             ], tags: media?.tags ?? [],
-            left: cuts.resumes(catalog.watch[item.id]) ? catalog.remainingMs(item.id).map(Format.remaining) : nil)
+            left: resumes ? catalog.remainingMs(item.id).map(Format.remaining) : nil)
+        let progress = resumes ? catalog.progress(item.id) : nil
         ScrollView {
             VStack(alignment: .leading, spacing: 50) {
                 HStack(alignment: .top, spacing: 56) {
-                    if episode {
-                        ArtBlock(item: item, aspect: 16 / 9, radius: 16).frame(width: 560)
-                            .overlay(alignment: .bottom) {
-                                if let progress = catalog.progress(item.id) { ProgressBar(value: progress) }
-                            }
-                    } else {
-                        ArtBlock(item: item, radius: 16).frame(width: 400)
-                    }
+                    ArtBlock(item: item, aspect: episode ? 16 / 9 : 2 / 3, radius: 16).frame(width: episode ? 560 : 400)
+                        .overlay(alignment: .bottom) { if let progress { ProgressBar(value: progress) } }
                     VStack(alignment: .leading, spacing: 0) {
                         if episode, let show = catalog.show(of: item), let season = catalog.parent(of: item) {
                             Text("\(Catalog.title(show)) · \(Catalog.title(season))").font(
@@ -260,6 +256,9 @@ struct ShowDetail: View {
             VStack(alignment: .leading, spacing: 50) {
                 HStack(alignment: .top, spacing: 56) {
                     ArtBlock(item: item, radius: 16).frame(width: 400)
+                        .overlay(alignment: .bottom) {
+                            if let progress = catalog.resumeProgress(item.id) { ProgressBar(value: progress) }
+                        }
                     VStack(alignment: .leading, spacing: 0) {
                         Text(Catalog.title(item)).font(.system(size: 80, weight: .bold)).lineLimit(2)
                             .minimumScaleFactor(0.6)
@@ -322,6 +321,9 @@ struct SeasonDetail: View {
         HStack(alignment: .top, spacing: 56) {
             VStack(alignment: .leading, spacing: 0) {
                 ArtBlock(item: item, radius: 16).frame(width: 280)
+                    .overlay(alignment: .bottom) {
+                        if let progress = catalog.resumeProgress(item.id) { ProgressBar(value: progress) }
+                    }
                 Text([show.map(Catalog.title), Catalog.title(item)].compactMap { $0 }.joined(separator: " · "))
                     .font(.system(size: 48, weight: .bold)).lineLimit(2).minimumScaleFactor(0.6).padding(.top, 26)
                 MetaLine(parts: [

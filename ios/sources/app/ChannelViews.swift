@@ -222,9 +222,7 @@ struct VideoView: View {
         VStack(alignment: .leading, spacing: 14) {
             ArtSquare(id: video.id, aspect: 16 / 9, radius: 10, placeholder: .video)
                 .overlay(alignment: .bottom) {
-                    if let duration = video.durationMs, duration > 0, resuming(video) {
-                        ProgressBar(value: min(1, Double(video.positionMs) / Double(duration)), height: 4)
-                    }
+                    if let progress = video.progress { ProgressBar(value: progress, height: 4) }
                 }
             Button {
                 browser.open(.channel(video.channelId))

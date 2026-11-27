@@ -259,6 +259,7 @@ struct PlaylistView: View {
 /// of its playlist.
 struct PlaylistEntryRows: View {
     @Environment(Services.self) private var services
+    @Environment(CatalogModel.self) private var catalog
     let playlistId: UID
     let entries: [PlaylistEntry]
     var editable = true
@@ -312,6 +313,9 @@ struct PlaylistEntryRows: View {
                 badges: entry.song.map { StatusBadges(id: $0.id) }
             )
             .frame(width: 44)
+            .overlay(alignment: .bottom) {
+                if play != nil, let progress = catalog.catalog.resumeProgress(entry) { ProgressBar(value: progress) }
+            }
             VStack(alignment: .leading, spacing: 1) {
                 Text(PlaylistText.title(entry)).font(.system(size: 15, weight: .semibold)).lineLimit(1)
                 Text(PlaylistText.detail(entry)).font(.system(size: 12)).foregroundStyle(Theme.secondary)

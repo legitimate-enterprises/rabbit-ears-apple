@@ -308,6 +308,16 @@ extension PlaylistEntry {
     public var artId: UID { song?.albumId ?? itemId ?? collectionId ?? id }
 }
 
+extension Catalog {
+    /// A playlist row's progress bar: a movie or episode row resumes in its own edition.
+    public func resumeProgress(_ entry: PlaylistEntry) -> Double? {
+        // shortcut: a show, season or collection row plays its first play-order row, which may resume yet shows
+        // no bar; read the play order with the entries to upgrade.
+        guard entry.kind == .movie || entry.kind == .episode, let id = entry.itemId else { return nil }
+        return resumeProgress(id, edition: entry.editionId)
+    }
+}
+
 extension Array where Element == PlayOrderRow {
     public var songs: [MusicSong] { compactMap(\.song) }
 

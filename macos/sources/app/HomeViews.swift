@@ -76,6 +76,9 @@ struct HeroTile: View {
             Text(entry.title(catalog)).font(.system(size: 26, weight: .bold))
             Text(entry.line(catalog)).font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Color(hex: 0xD5D8E6))
+            if let progress = entry.progress(catalog) {
+                ProgressBar(value: progress).frame(width: 240).padding(.top, 4)
+            }
             HStack(spacing: 10) {
                 Button {
                     switch entry {
@@ -240,7 +243,7 @@ struct Tile: View {
             if plays { browser.play(item, in: catalog) } else { browser.open(item) }
         } label: {
             VStack(alignment: .leading, spacing: 6) {
-                let progress = catalog.progress(item.id)
+                let progress = catalog.resumeProgress(item.id)
                 ArtBlock(
                     item: item, aspect: wide ? 16 / 9 : 2 / 3,
                     badges: StatusBadges(id: item.id, overBar: progress != nil)

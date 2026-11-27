@@ -123,6 +123,18 @@ public struct Catalog: Sendable {
         return min(1, Double(position) / Double(duration))
     }
 
+    /// A title's progress bar: how far into its saved position its play
+    /// resumes, a show's or season's being its resume target's; nil when
+    /// that play starts at the top. A play naming `edition` resumes only a
+    /// position in it.
+    public func resumeProgress(_ id: Item.ID, edition: UID? = nil) -> Double? {
+        let kind = items[id]?.kind
+        guard let target = kind == .show || kind == .season ? resumeTarget(for: id)?.id : id,
+            edition == nil || watch[target]?.editionId == edition
+        else { return nil }
+        return progress(target)
+    }
+
     public func remainingMs(_ id: Item.ID) -> Int64? {
         guard isInProgress(id), let position = watch[id]?.positionMs, let duration = durationMs(id) else { return nil }
         return max(0, duration - position)

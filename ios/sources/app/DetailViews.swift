@@ -86,6 +86,7 @@ struct DetailHeader<Actions: View, Below: View>: View {
     let posterWidth: CGFloat
     let meta: MetaLine
     var genres = false
+    var progress: Double?
     @ViewBuilder var actions: Actions
     /// Whatever goes between the buttons and the synopsis, such as Watch together's state.
     @ViewBuilder var below: Below
@@ -93,6 +94,7 @@ struct DetailHeader<Actions: View, Below: View>: View {
     var body: some View {
         VStack(spacing: 14) {
             ArtBlock(item: item, radius: 10).frame(width: posterWidth)
+                .overlay(alignment: .bottom) { if let progress { ProgressBar(value: progress, height: 4) } }
             VStack(spacing: 6) {
                 Text(title).font(.system(size: 26, weight: .bold)).multilineTextAlignment(.center)
                     .accessibilityAddTraits(.isHeader)
@@ -113,11 +115,11 @@ struct DetailHeader<Actions: View, Below: View>: View {
 extension DetailHeader where Below == EmptyView {
     init(
         item: Item, title: String, posterWidth: CGFloat, meta: MetaLine, genres: Bool = false,
-        @ViewBuilder actions: () -> Actions
+        progress: Double? = nil, @ViewBuilder actions: () -> Actions
     ) {
         self.init(
-            item: item, title: title, posterWidth: posterWidth, meta: meta, genres: genres, actions: actions,
-            below: { EmptyView() })
+            item: item, title: title, posterWidth: posterWidth, meta: meta, genres: genres, progress: progress,
+            actions: actions, below: { EmptyView() })
     }
 }
 
@@ -150,14 +152,15 @@ struct PlayableDetail: View {
                 episode ? "" : item.metadata?.contentRating ?? "",
             ], tags: media?.tags ?? [],
             left: cuts.resumes(catalog.watch[item.id]) ? catalog.remainingMs(item.id).map(Format.remaining) : nil)
+        let progress = cuts.resumes(catalog.watch[item.id]) ? catalog.progress(item.id) : nil
         // A stack, not a Group: a Group hands its modifiers, toolbar and tasks included, to every child.
         VStack(alignment: .leading, spacing: 22) {
             if episode {
-                episodeHeader(meta, catalog)
+                episodeHeader(meta, progress, catalog)
             } else {
                 DetailHeader(
                     item: item, title: Catalog.title(item), posterWidth: 120, meta: meta, genres: true,
-                    actions: { actions(catalog) }, below: { togetherNotice })
+                    progress: progress, actions: { actions(catalog) }, below: { togetherNotice })
             }
             if !episode, let related { RelatedStrips(related: related) }
             if !episode { OccasionStrips(itemId: item.id) }
@@ -195,12 +198,10 @@ struct PlayableDetail: View {
         }
     }
 
-    private func episodeHeader(_ meta: MetaLine, _ catalog: Catalog) -> some View {
+    private func episodeHeader(_ meta: MetaLine, _ progress: Double?, _ catalog: Catalog) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             ArtBlock(item: item, aspect: 16 / 9, radius: 10)
-                .overlay(alignment: .bottom) {
-                    if let progress = catalog.progress(item.id) { ProgressBar(value: progress, height: 4) }
-                }
+                .overlay(alignment: .bottom) { if let progress { ProgressBar(value: progress, height: 4) } }
             VStack(alignment: .leading, spacing: 4) {
                 if let show = catalog.show(of: item), let season = catalog.parent(of: item) {
                     Button("\(Catalog.title(show)) · \(Catalog.title(season))") { browser.open(season) }
@@ -342,7 +343,7 @@ struct GroupDetail: View {
                         Catalog.year(item).map(String.init) ?? "",
                     ],
                 left: show ? left : nil),
-            genres: show
+            genres: show, progress: catalog.resumeProgress(item.id)
         ) {
             if let target {
                 Button {

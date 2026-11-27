@@ -17,6 +17,11 @@ struct SeasonTile: View {
                     .overlay(alignment: .topTrailing) {
                         if unwatched > 0 { NewBadge(count: unwatched).scaleEffect(0.8) }
                     }
+                    .overlay(alignment: .bottom) {
+                        if let progress = model.catalog.resumeProgress(item.id) {
+                            ProgressBar(value: progress).padding(14)
+                        }
+                    }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(Catalog.title(item)).font(.system(size: 28, weight: .semibold)).lineLimit(1)
                     Text("\(model.catalog.children(of: item.id).count) episodes").font(.system(size: 26))

@@ -248,7 +248,7 @@ struct Tile: View {
                     Text(Catalog.title(show ?? item)).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                     Text(item.kind == .episode ? EpisodeText.line(item, catalog) : catalog.caption(item))
                         .font(.system(size: 12)).foregroundStyle(Theme.secondary).lineLimit(1)
-                    if let progress = catalog.progress(item.id) { ProgressBar(value: progress).padding(.top, 5) }
+                    if let progress = catalog.resumeProgress(item.id) { ProgressBar(value: progress).padding(.top, 5) }
                 }
             }
             .contentShape(.rect)

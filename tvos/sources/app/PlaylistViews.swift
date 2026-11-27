@@ -52,6 +52,7 @@ struct PlaylistTile: View {
 /// A show or album is one row, played through the server's play order.
 struct PlaylistView: View {
     @Environment(PlaylistsModel.self) private var playlists
+    @Environment(CatalogModel.self) private var catalog
     @Environment(Browser.self) private var browser
     @Environment(MusicPlayer.self) private var player
     let id: UID
@@ -135,6 +136,9 @@ struct PlaylistView: View {
                         placeholder: entry.kind == .collection ? .collection : .playlist
                     )
                     .frame(width: music ? 72 : 56)
+                    .overlay(alignment: .bottom) {
+                        if let progress = catalog.catalog.resumeProgress(entry) { ProgressBar(value: progress) }
+                    }
                     VStack(alignment: .leading, spacing: 4) {
                         Text(PlaylistText.title(entry)).font(.system(size: 32, weight: .semibold)).lineLimit(1)
                         Text(PlaylistText.detail(entry)).font(.system(size: 26)).foregroundStyle(.secondary)

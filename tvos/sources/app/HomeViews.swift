@@ -244,7 +244,7 @@ struct Tile: View {
                     .overlay(alignment: .topTrailing) { marker(unwatched) }
                     .overlay { if plays { PlayBadge(size: 72) } }
                     .overlay(alignment: .bottom) {
-                        if let progress = catalog.progress(item.id) { ProgressBar(value: progress).padding(14) }
+                        if let progress = catalog.resumeProgress(item.id) { ProgressBar(value: progress).padding(14) }
                     }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(Catalog.title(show ?? item)).font(.system(size: 28, weight: .semibold)).lineLimit(1)

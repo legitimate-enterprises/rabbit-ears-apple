@@ -130,15 +130,14 @@ struct VideoTile: View {
             browser.open(.video(video.id))
         } label: {
             VStack(alignment: .leading, spacing: 6) {
-                let total = video.durationMs ?? 0
-                let started = video.positionMs > 0 && total > 0
+                let progress = video.progress
                 Art(
                     id: video.id, aspect: 16 / 9, placeholder: .video,
-                    badges: StatusBadges(id: video.id, overBar: started)
+                    badges: StatusBadges(id: video.id, overBar: progress != nil)
                 )
                 .overlay(alignment: .topTrailing) { Self.dot(video) }
                 .overlay(alignment: .bottom) {
-                    if started { ProgressBar(value: Double(video.positionMs) / Double(total)).padding(6) }
+                    if let progress { ProgressBar(value: progress).padding(6) }
                 }
                 Text(video.title).font(.system(size: 12, weight: .semibold)).lineLimit(2)
                 Text(caption).font(.system(size: 11)).foregroundStyle(Theme.secondary).lineLimit(2)

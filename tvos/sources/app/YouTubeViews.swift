@@ -111,9 +111,7 @@ struct VideoTile: View {
                         }
                     }
                     .overlay(alignment: .bottom) {
-                        if video.positionMs > 0, let total = video.durationMs, total > 0 {
-                            ProgressBar(value: min(1, Double(video.positionMs) / Double(total))).padding(14)
-                        }
+                        if let progress = video.progress { ProgressBar(value: progress).padding(14) }
                     }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(video.title).font(.system(size: 28, weight: .semibold)).lineLimit(1)

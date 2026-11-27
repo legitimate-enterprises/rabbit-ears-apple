@@ -97,6 +97,61 @@ final class CatalogTests: XCTestCase {
         XCTAssertTrue(catalog.nextUp.isEmpty)
     }
 
+    func testTheResumeBarIsWhatPlayResumes() {
+        let catalog = sampleCatalog(watch: [
+            Fixtures.watch(20, position: 4_980_000, edition: 7),
+            Fixtures.watch(21, watched: true),
+            Fixtures.watch(101, watched: true, played: "2026-05-01T00:00:00Z"),
+            Fixtures.watch(102, position: 1_500_000, played: "2026-05-02T00:00:00Z"),
+        ])
+        XCTAssertEqual(catalog.resumeProgress(20) ?? 0, 0.5, accuracy: 0.001)
+        XCTAssertEqual(catalog.resumeProgress(20, edition: 7) ?? 0, 0.5, accuracy: 0.001)
+        XCTAssertNil(catalog.resumeProgress(20, edition: 8), "another cut starts at the top")
+        XCTAssertNil(catalog.resumeProgress(21), "finished")
+        XCTAssertNil(catalog.resumeProgress(22), "never started")
+        XCTAssertEqual(catalog.resumeProgress(102) ?? 0, 0.5, accuracy: 0.001)
+        XCTAssertEqual(catalog.resumeProgress(10) ?? 0, 0.5, accuracy: 0.001, "the show resumes S1 E2")
+        XCTAssertEqual(catalog.resumeProgress(11) ?? 0, 0.5, accuracy: 0.001)
+        XCTAssertNil(catalog.resumeProgress(12), "season 2 starts E1 from the top")
+    }
+
+    func testAShowWhoseNextEpisodeIsUnstartedHasNoResumeBar() {
+        let catalog = sampleCatalog(watch: [
+            Fixtures.watch(101, watched: true, played: "2026-05-01T00:00:00Z"),
+            Fixtures.watch(102, watched: true, played: "2026-05-02T00:00:00Z"),
+        ])
+        XCTAssertEqual(catalog.resumeTarget(for: 10)?.id, 201)
+        XCTAssertNil(catalog.resumeProgress(10))
+        XCTAssertNil(catalog.resumeProgress(11))
+    }
+
+    func testAPlaylistRowResumesOnlyAMovieOrEpisodeInItsOwnEdition() {
+        let catalog = sampleCatalog(watch: [
+            Fixtures.watch(20, position: 4_980_000, edition: 7),
+            Fixtures.watch(102, position: 1_500_000),
+        ])
+        func entry(_ kind: String, _ item: UID, edition: UID? = nil) -> PlaylistEntry {
+            let cut = edition.map { #","editionId":"\#($0)""# } ?? ""
+            return Fixtures.decode(
+                Fixtures.entry(
+                    1, position: 0, kind: kind, itemId: item,
+                    objects: #""item":\#(Fixtures.item(item, kind, "Item"))\#(cut)"#))
+        }
+        XCTAssertEqual(catalog.resumeProgress(entry("movie", 20, edition: 7)) ?? 0, 0.5, accuracy: 0.001)
+        XCTAssertNil(catalog.resumeProgress(entry("movie", 20, edition: 8)))
+        XCTAssertEqual(catalog.resumeProgress(entry("episode", 102)) ?? 0, 0.5, accuracy: 0.001)
+        XCTAssertNil(catalog.resumeProgress(entry("show", 10)), "a show's row plays from its first row")
+    }
+
+    func testAVideoResumesOnlyFromAPosition() {
+        func video(position: Int64, watched: Bool = false) -> YouTubeVideo {
+            Fixtures.decode(Fixtures.video(70, "Dishwasher", watched: watched, position: position))
+        }
+        XCTAssertEqual(video(position: 1_260_000).progress ?? 0, 0.5, accuracy: 0.001)
+        XCTAssertNil(video(position: 0).progress)
+        XCTAssertNil(video(position: 0, watched: true).progress)
+    }
+
     func testRecentlyAddedIsMoviesAndShowsNewestFirst() {
         XCTAssertEqual(sampleCatalog().recentlyAdded.map(\.id), [21, 10, 20, 22])
     }

@@ -308,6 +308,7 @@ struct PlaylistScreen: View {
 /// when editable; a show, album or collection is one row.
 struct PlaylistEntryList: View {
     @Environment(PlaylistsModel.self) private var playlists
+    @Environment(CatalogModel.self) private var catalog
     let playlistId: UID
     @Binding var entries: [PlaylistEntry]
     var editable = true
@@ -342,6 +343,9 @@ struct PlaylistEntryList: View {
                 badges: entry.song.map { StatusBadges(id: $0.id) }
             )
             .frame(width: 36)
+            .overlay(alignment: .bottom) {
+                if play != nil, let progress = catalog.catalog.resumeProgress(entry) { ProgressBar(value: progress) }
+            }
             VStack(alignment: .leading, spacing: 1) {
                 Text(PlaylistText.title(entry)).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                 Text(PlaylistText.detail(entry)).font(.system(size: 12)).foregroundStyle(Theme.secondary)

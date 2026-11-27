@@ -61,6 +61,7 @@ struct VideoDetailView: View {
         let synced = together?.inSync == true
         return HStack(alignment: .top, spacing: 56) {
             ArtBlock(id: video.id, aspect: 16 / 9, radius: 16, placeholder: .video).frame(width: 640)
+                .overlay(alignment: .bottom) { if let progress = video.progress { ProgressBar(value: progress) } }
             VStack(alignment: .leading, spacing: 0) {
                 Button {
                     browser.open(.channel(video.channelId))

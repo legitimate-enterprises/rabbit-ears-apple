@@ -63,9 +63,7 @@ struct VideoScreen: View {
         return HStack(alignment: .top, spacing: 24) {
             Art(id: video.id, aspect: 16 / 9, radius: 10, placeholder: .video).frame(width: 360)
                 .overlay(alignment: .bottom) {
-                    if inProgress, let total = video.durationMs, total > 0 {
-                        ProgressBar(value: Double(video.positionMs) / Double(total), height: 4)
-                    }
+                    if let progress = video.progress { ProgressBar(value: progress, height: 4) }
                 }
             VStack(alignment: .leading, spacing: 14) {
                 Button {

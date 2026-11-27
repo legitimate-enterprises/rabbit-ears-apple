@@ -88,7 +88,7 @@ struct PlayableDetail: View {
         HStack(alignment: .top, spacing: 24) {
             ArtBlock(item: item, aspect: episode ? 16 / 9 : 2 / 3, radius: 10).frame(width: episode ? 360 : 170)
                 .overlay(alignment: .bottom) {
-                    if episode, let progress = catalog.progress(item.id) { ProgressBar(value: progress, height: 4) }
+                    if inProgress, let progress = catalog.progress(item.id) { ProgressBar(value: progress, height: 4) }
                 }
             VStack(alignment: .leading, spacing: 14) {
                 if episode, let show = catalog.show(of: item), let season = catalog.parent(of: item) {
@@ -237,6 +237,9 @@ struct GroupDetail: View {
         let children = catalog.children(of: item.id)
         HStack(alignment: .top, spacing: 24) {
             ArtBlock(item: item, radius: 10).frame(width: show ? 170 : 160)
+                .overlay(alignment: .bottom) {
+                    if let progress = catalog.resumeProgress(item.id) { ProgressBar(value: progress, height: 4) }
+                }
             VStack(alignment: .leading, spacing: 14) {
                 Text(
                     show
@@ -299,11 +302,13 @@ struct SeasonTile: View {
 
     var body: some View {
         let unwatched = model.catalog.unwatchedCount(item.id)
+        let progress = model.catalog.resumeProgress(item.id)
         Button {
             browser.open(item)
         } label: {
             VStack(alignment: .leading, spacing: 4) {
-                ArtBlock(item: item).frame(width: 120)
+                ArtBlock(item: item, badges: StatusBadges(id: item.id, overBar: progress != nil)).frame(width: 120)
+                    .overlay(alignment: .bottom) { if let progress { ProgressBar(value: progress).padding(6) } }
                     .overlay(alignment: .topTrailing) {
                         if unwatched > 0 {
                             Text("\(unwatched) new").font(.system(size: 10, weight: .bold)).foregroundStyle(
