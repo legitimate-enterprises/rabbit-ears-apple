@@ -11,12 +11,19 @@ import XCTest
 struct ReplicaFixture {
     let directory = FileManager.default.temporaryDirectory.appending(path: "Replica \(UUID().uuidString)")
     let downloads = FileManager.default.temporaryDirectory.appending(path: "Snapshots \(UUID().uuidString)")
+    /// XCTest keeps every test case, and so each replica one holds, for the whole run; `remove` closes them.
+    private let opened = Log<Opened>()
+
+    private struct Opened: Sendable {
+        weak var replica: Replica?
+    }
 
     var queue: URL { directory.appending(path: "queue.sqlite") }
     var pointer: URL { directory.appending(path: "current") }
 
     func open() throws -> Replica {
         let replica = Replica(directory: directory)
+        opened.add(Opened(replica: replica))
         try replica.open()
         return replica
     }
@@ -85,6 +92,7 @@ struct ReplicaFixture {
     }
 
     func remove() {
+        for opened in opened.all { try? opened.replica?.wipe() }
         try? FileManager.default.removeItem(at: directory)
         try? FileManager.default.removeItem(at: downloads)
     }
