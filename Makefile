@@ -2,11 +2,9 @@
 # same target names.
 
 STACKS := apple macos ios tvos
-COMPONENTS := macos ios tvos
 
 .DEFAULT_GOAL := help
-.PHONY: help deps generate spec build run test test-unit test-integration test-ui style lint format clean deploy changed \
-	all $(COMPONENTS)
+.PHONY: help deps generate spec build run test test-unit test-integration test-ui style lint format clean deploy
 
 help: ## Print this target list
 	@grep -hE '^[a-z0-9-]+:.*##' $(MAKEFILE_LIST) \
@@ -23,7 +21,7 @@ generate: ## Regenerate the API package and the Xcode projects
 spec: ## Replace openapi.yaml with the one from server release VERSION, and regenerate (make spec VERSION=0.20.0)
 	@[ -n "$(VERSION)" ] || { echo "usage: make spec VERSION=<server version>" >&2; exit 64; }
 	curl --fail --silent --show-error --location --output openapi.yaml.new \
-		"https://raw.githubusercontent.com/legitimate-enterprises/rabbit-ears/server-v$(VERSION)/server/api/openapi.yaml"
+		"https://raw.githubusercontent.com/legitimate-enterprises/rabbit-ears/v$(VERSION)/server/api/openapi.yaml"
 	mv openapi.yaml.new openapi.yaml
 	$(MAKE) --no-print-directory -C apple generate
 
@@ -82,19 +80,12 @@ clean: ## Remove build products, generated projects and the server's source
 	@for s in $(STACKS); do $(MAKE) --no-print-directory -C $$s clean || exit $$?; done
 	rm -rf build
 
-changed: ## Which stacks differ from the last commit on main that CI passed
-	@scripts/changed-stacks.sh
-
-# Tags each named app at the version its project.yaml states on origin/main,
+# Tags origin/main v<version>, the version apple/version.yaml states there,
 # once CI is green on that commit; a version already released is refused.
-# With no app it lists what each one would do; `all` is every app that is
-# ready, and tags only with YES=1. There is no local publish path.
-deploy: ## Tag apps for release and push the tags (make deploy ios tvos, make deploy all YES=1)
-	scripts/cut-release.sh $(filter all $(COMPONENTS),$(MAKECMDGOALS)) $(if $(YES),--yes)
-
-# Pseudo-targets so `make deploy ios` parses.
-all $(COMPONENTS):
-	@:
+# Without YES=1 it only says what it would do. There is no local publish
+# path.
+deploy: ## Tag origin/main for release and push the tag (make deploy YES=1)
+	scripts/cut-release.sh $(if $(YES),--yes)
 
 # Each client owns its capture harness and store-specific validation.
 SCREENSHOT_CLIENTS ?= ios tvos

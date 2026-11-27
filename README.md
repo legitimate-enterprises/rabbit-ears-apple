@@ -24,9 +24,9 @@ Rabbit Ears server or is invited to one.
   `openapi.yaml`'s version, cloned under `build/`. Set
   `RABBIT_EARS_SERVER_SRC` to a checkout of that repository to use it
   instead.
-- `make deploy <component>...` tags `<component>-v<version>` once CI is
-  green on `main`. The tag's release job signs the app and uploads it to App
-  Store Connect, where it lands in TestFlight.
+- Every green CI run on `main` signs all three apps and uploads them to
+  App Store Connect, where they land in TestFlight. `make deploy` tags
+  `main` `v<version>` once CI is green there; the tag submits nothing.
 
 Limitations: an upload has no rollback, and promotion from TestFlight to
 the App Store is done by hand in App Store Connect.

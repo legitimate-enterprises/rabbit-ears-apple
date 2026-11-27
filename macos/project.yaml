@@ -2,6 +2,8 @@
 # directory's kit sources added, so test bundles link it without hosting
 # the app in a GUI session.
 name: RabbitEars
+include:
+  - ../apple/version.yaml
 options:
   bundleIdPrefix: enterprises.legitimate
   deploymentTarget:
@@ -14,7 +16,6 @@ settings:
     SWIFT_VERSION: "6.0"
     CODE_SIGN_IDENTITY: "-"
     CURRENT_PROJECT_VERSION: 1
-    MARKETING_VERSION: 24
     # `make run` passes DEV_IDENTITY=YES, which derives both suffixes: a
     # separate bundle ID (own defaults and keychain items) and a distinct
     # name in the Dock and Force Quit.

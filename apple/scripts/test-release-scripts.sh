@@ -217,5 +217,23 @@ expect 65 env "${faked[@]}" HOME="$home" FAKE_ARCHIVE_FAIL=1 "${secrets[@]}" "${
 [ ! -e "$installed" ] || fail "a failed archive left $installed"
 emptied "a failed archive"
 
+# cut-release.sh --check passes only v<major>.<minor>.<patch> as the
+# committed version file states it.
+tagged="$tmp/tagged"
+mkdir -p "$tagged/scripts" "$tagged/apple"
+cp "$here/../../scripts/cut-release.sh" "$tagged/scripts/"
+printf 'settings:\n  base:\n    MARKETING_VERSION: 26.0.0\n' > "$tagged/apple/version.yaml"
+git -C "$tagged" init --quiet
+git -C "$tagged" add .
+git -C "$tagged" -c user.name=test -c user.email=test@example.invalid commit --quiet -m version
+expect 0 "$tagged/scripts/cut-release.sh" --check v26.0.0
+for tag in v26.0.1 26.0.0 v26.0 v26.0.0.0 ios-v26.0.0 v26.0.0-rc1; do
+    expect 1 "$tagged/scripts/cut-release.sh" --check "$tag"
+done
+printf 'settings:\n  base:\n    MARKETING_VERSION: 26\n' > "$tagged/apple/version.yaml"
+git -C "$tagged" -c user.name=test -c user.email=test@example.invalid commit --quiet -am counter
+expect 1 "$tagged/scripts/cut-release.sh" --check v26
+said "states no version"
+
 [ "$failures" -eq 0 ] || { echo "$failures failed" >&2; exit 1; }
 echo "release scripts: all checks passed"

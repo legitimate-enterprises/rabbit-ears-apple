@@ -1,8 +1,8 @@
 @~/.agents/instructions/agents.md
 @./README.md
 
-- Release tags: each app is tagged on its own, `<component>-v<version>`, at
-  the version its `project.yaml` states, by `make deploy <component>...`.
+- Release tags: one for the whole repository, `v<version>`, at the version
+  `apple/version.yaml` states, by `make deploy`.
 - macOS distribution: the Mac app is sandboxed and goes to the App Store as
   the iOS and Apple TV apps do; no DMG, notarization or Sparkle.
 - Each top-level directory owns its tooling; the root `Makefile` fans the
@@ -21,6 +21,6 @@
   built against and tested with, and the apps may assume that API.
   `apple/api/Sources/RabbitEarsAPI/Generated` is generated from it by
   `make generate`.
-- An app's version is a counter: `MARKETING_VERSION` in its `project.yaml`,
-  one higher in the first change after its last release.
+- One version for all three apps, `M.M.P` as `MARKETING_VERSION` in
+  `apple/version.yaml`, raised in the first change after a release tag.
 - Store temporal values as UTC instants.

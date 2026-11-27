@@ -2,6 +2,8 @@
 # directory's kit sources added, so test bundles link it without hosting
 # the app.
 name: RabbitEars
+include:
+  - ../apple/version.yaml
 options:
   bundleIdPrefix: enterprises.legitimate
   deploymentTarget:
@@ -12,7 +14,6 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     CURRENT_PROJECT_VERSION: 1
-    MARKETING_VERSION: 25
 
 # Generated from openapi.yaml by `make generate` in apple/.
 packages:

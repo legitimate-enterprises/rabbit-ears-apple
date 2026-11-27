@@ -16,7 +16,7 @@ dir="build/server-$version"
 # A clone that failed midway has no server/ and is made again.
 if [ ! -d "$dir/server" ]; then
     rm -rf "$dir"
-    git -c advice.detachedHead=false clone --quiet --depth 1 --branch "server-v$version" \
+    git -c advice.detachedHead=false clone --quiet --depth 1 --branch "v$version" \
         https://github.com/legitimate-enterprises/rabbit-ears.git "$dir" >&2
 fi
 cd "$dir" && pwd

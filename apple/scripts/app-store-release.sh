@@ -5,9 +5,9 @@
 #
 #   ../apple/scripts/app-store-release.sh <project> <scheme> <iOS|tvOS|macOS>
 #
-# Run from the app's directory by its `make release`, in the release job of
-# the app's tag, after signing-keychain.sh. The version is the one
-# project.yaml states. The build number is the commit count, which rises
+# Run from the app's directory by its `make release`, in ci's TestFlight job
+# on main, after signing-keychain.sh. The version is the one
+# apple/version.yaml states. The build number is the commit count, which rises
 # with every commit on a linear main, as each upload to App Store Connect
 # needs. The app target's Release configuration names its profile as
 # PROVISIONING_PROFILE_SPECIFIER = $(APP_STORE_PROFILE): a profile set on
@@ -25,7 +25,7 @@ case "$platform" in
 esac
 
 if [ -z "${CI:-}" ]; then
-    echo "error: releases are produced by CI only; cut a tag with make deploy <component>" >&2
+    echo "error: releases are produced by CI only, from a green run on main" >&2
     exit 1
 fi
 "$here/require-env.sh" APPLE_TEAM_ID APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER_ID PROVISIONING_PROFILE

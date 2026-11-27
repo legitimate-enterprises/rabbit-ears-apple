@@ -65,7 +65,7 @@ format: ## swift-format in place
 lint: ## SwiftLint in checking mode
 	swiftlint lint --strict --config .swiftlint.yaml
 
-release: ## Sign and upload to App Store Connect (CI only, in the tag's release job)
+release: ## Sign and upload to App Store Connect (CI only, in a green run on main)
 	../apple/scripts/app-store-release.sh $(PROJECT) $(SCHEME) macOS
 
 release-clean: ## Remove the provisioning profile a release installed

@@ -1,0 +1,5 @@
+# The one version the macOS, iOS and Apple TV apps state; each project.yaml
+# includes it.
+settings:
+  base:
+    MARKETING_VERSION: 26.0.0
