@@ -30,7 +30,7 @@ while IFS= read -r f; do
             | .github/actions/* | assets/*) ;;
         # The generated API package is checked against the spec, and the spec
         # names the server the demo server and the UI tests run.
-        openapi.yaml | scripts/server-source.sh | scripts/with-demo-server.py | scripts/tests/*) run="$run apple ios tvos " ;;
+        openapi.yaml | scripts/server-source.sh | scripts/with-demo-server.py | scripts/tests/*) run="$run apple macos ios tvos " ;;
         # The kit, its tests and the API package are compiled into all
         # three apps.
         apple/*) run="$run apple macos ios tvos " ;;

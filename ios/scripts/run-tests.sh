@@ -12,7 +12,7 @@ XCODEBUILD=(xcodebuild -project RabbitEars.xcodeproj -scheme RabbitEars -derived
 # simctl can take minutes to answer the first time, and never answers when
 # CoreSimulator is older than Xcode.
 udid="$(
-    timeout 300 xcrun simctl list devices available iPhone 2>/dev/null |
+    perl -e 'alarm shift; exec @ARGV' 300 xcrun simctl list devices available iPhone |
         sed -nE 's/^ +iPhone[^(]*\(([0-9A-F-]{36})\).*/\1/p' | head -1
 )" || true
 [ -n "$udid" ] || {
