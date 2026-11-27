@@ -19,16 +19,10 @@ final class PlaybackUITests: XCTestCase {
         app.secureTextFields["Password"].tap()
         app.secureTextFields["Password"].typeText(demo.password + "\n")
 
-        let profile = app.buttons[demo.profile]
-        XCTAssertTrue(profile.waitForExistence(timeout: 20))
-        captureStoreImage("01-profiles", app: app)
-        profile.tap()
-        let movies = app.tabBars.buttons["Movies"]
-        XCTAssertTrue(movies.waitForExistence(timeout: 20))
         // iOS offers to save the password just typed, over the whole app and some seconds after
-        // sign-in. Nothing under the offer takes a tap, so it is declined here, where it most
-        // often shows, and before any tap it still covers. The offer is Safari's view service's,
-        // and its Not Now is not a button to XCTest.
+        // sign-in. Nothing under the offer takes a tap, so it is declined before any tap it
+        // covers, and once more after the profile, where it most often shows. The offer is
+        // Safari's view service's, and its Not Now is not a button to XCTest.
         let offer = XCUIApplication(bundleIdentifier: "com.apple.SafariViewService")
         let decline = offer.descendants(matching: .any)["Not Now"].firstMatch
         func tap(_ element: XCUIElement) {
@@ -39,6 +33,13 @@ final class PlaybackUITests: XCTestCase {
             XCTAssertTrue(element.isHittable)
             element.tap()
         }
+
+        let profile = app.buttons[demo.profile]
+        XCTAssertTrue(profile.waitForExistence(timeout: 20))
+        captureStoreImage("01-profiles", app: app)
+        tap(profile)
+        let movies = app.tabBars.buttons["Movies"]
+        XCTAssertTrue(movies.waitForExistence(timeout: 20))
         if decline.waitForExistence(timeout: 8) { decline.tap() }
         let title = app.staticTexts[demo.movie].firstMatch
         XCTAssertTrue(title.waitForExistence(timeout: 15))
