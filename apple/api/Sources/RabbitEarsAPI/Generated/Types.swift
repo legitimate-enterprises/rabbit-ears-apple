@@ -385,7 +385,7 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /profiles/{profileId}/watch-state/{itemId}/plays`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/plays/post(recordPlay)`.
     func recordPlay(_ input: Operations.RecordPlay.Input) async throws -> Operations.RecordPlay.Output
-    /// The profile's progress through each show it may see, by title.
+    /// The profile's progress through each show it may see, by Item.sortTitle.
     ///
     /// Counts and the next episode cover only the seasons and episodes the profile may see. Episodes play in season order, specials (season 0 or none) last, then by episode number. An adult with hideKidsContent is not listed kids' content (Item.kidsContent, YouTubeChannel.forKids).
     ///
@@ -2800,7 +2800,7 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// The profile's progress through each show it may see, by title.
+    /// The profile's progress through each show it may see, by Item.sortTitle.
     ///
     /// Counts and the next episode cover only the seasons and episodes the profile may see. Episodes play in season order, specials (season 0 or none) last, then by episode number. An adult with hideKidsContent is not listed kids' content (Item.kidsContent, YouTubeChannel.forKids).
     ///

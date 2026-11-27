@@ -10644,7 +10644,7 @@ public enum Operations {
             }
         }
     }
-    /// The profile's progress through each show it may see, by title.
+    /// The profile's progress through each show it may see, by Item.sortTitle.
     ///
     /// Counts and the next episode cover only the seasons and episodes the profile may see. Episodes play in season order, specials (season 0 or none) last, then by episode number. An adult with hideKidsContent is not listed kids' content (Item.kidsContent, YouTubeChannel.forKids).
     ///

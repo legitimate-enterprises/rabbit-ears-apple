@@ -2581,8 +2581,9 @@ extension Components {
             case season = "season"
             case episode = "episode"
         }
-        /// title (the default) is by title, episodes and seasons by number;
-        /// added is newest first, as Recently added.
+        /// title (the default) is by title, movies and shows by
+        /// Item.sortTitle, episodes and seasons by number; added is newest
+        /// first, as Recently added.
         ///
         ///
         /// - Remark: Generated from `#/components/schemas/ItemSort`.
@@ -2614,6 +2615,10 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Item/parsedTitle`.
             public var parsedTitle: Swift.String
+            /// Movies and shows only: what they sort and file letters by. It is the title shown (metadata.title, else parsedTitle) less one leading English article ("the", "a" or "an", in any case) followed by whitespace and more text, so "The Matrix" files under M and "A Quiet Place" under Q, and changes with it. Clients sort by it ignoring case, file one starting with anything but a letter A to Z under #, and show the title.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Item/sortTitle`.
+            public var sortTitle: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Item/parsedYear`.
             public var parsedYear: Swift.Int?
             /// Season 0 holds specials.
@@ -2663,6 +2668,7 @@ extension Components {
             ///   - kind:
             ///   - path: The base name unless the caller is an admin.
             ///   - parsedTitle: Title parsed from the file or folder name.
+            ///   - sortTitle: Movies and shows only: what they sort and file letters by. It is the title shown (metadata.title, else parsedTitle) less one leading English article ("the", "a" or "an", in any case) followed by whitespace and more text, so "The Matrix" files under M and "A Quiet Place" under Q, and changes with it. Clients sort by it ignoring case, file one starting with anything but a letter A to Z under #, and show the title.
             ///   - parsedYear:
             ///   - seasonNumber: Season 0 holds specials.
             ///   - episodeNumber:
@@ -2683,6 +2689,7 @@ extension Components {
                 kind: Components.Schemas.ItemKind,
                 path: Swift.String? = nil,
                 parsedTitle: Swift.String,
+                sortTitle: Swift.String? = nil,
                 parsedYear: Swift.Int? = nil,
                 seasonNumber: Swift.Int? = nil,
                 episodeNumber: Swift.Int? = nil,
@@ -2703,6 +2710,7 @@ extension Components {
                 self.kind = kind
                 self.path = path
                 self.parsedTitle = parsedTitle
+                self.sortTitle = sortTitle
                 self.parsedYear = parsedYear
                 self.seasonNumber = seasonNumber
                 self.episodeNumber = episodeNumber
@@ -2724,6 +2732,7 @@ extension Components {
                 case kind
                 case path
                 case parsedTitle
+                case sortTitle
                 case parsedYear
                 case seasonNumber
                 case episodeNumber
