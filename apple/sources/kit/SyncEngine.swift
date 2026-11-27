@@ -73,7 +73,9 @@ public final class SyncEngine {
     /// cancelled or unsupported. A failure is tried again after a wait that
     /// doubles up to 30 seconds, cut short by `wake` or the network coming
     /// back. A refusal stops; one saying the server no longer knows the
-    /// device signs it out first.
+    /// device signs it out first. `device_locked` is tried again instead:
+    /// a pass begun at Who's watching brings it after a profile is picked,
+    /// and a device locked again leaves the views that follow.
     public func follow(sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }) async {
         let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { [weak self] path in
@@ -91,7 +93,7 @@ public final class SyncEngine {
                 while try await !rang() {}
             } catch {
                 if Task.isCancelled { return }
-                if let api = APIError.from(error), api.status < 500 {
+                if let api = APIError.from(error), api.status < 500, api.code != .deviceLocked {
                     if api.code == .unauthorized { await signOut() }
                     return
                 }

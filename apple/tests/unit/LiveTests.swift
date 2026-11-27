@@ -1,6 +1,7 @@
 import Foundation
 import HTTPTypes
 import RabbitEarsAPI
+import Synchronization
 import XCTest
 
 @testable import RabbitEarsKit
@@ -296,4 +297,40 @@ final class FollowLiveTests: XCTestCase {
         await following.value
     }
 
+    func testAFollowJoiningACatchUpRefusedAtWhosWatchingStillTakesTheSnapshot() async throws {
+        let app = try SyncedApp { db in
+            try db.account(1, "Avery")
+            try db.item(20, "movie", "Dune")
+        }
+        defer { app.remove() }
+        nonisolated(unsafe) let served = app.routes.respond
+        let asked = Mutex(0)
+        let (answering, answer) = AsyncStream.makeStream(of: Void.self)
+        // The sign-in's first ask, answered as the server locks the device for Who's watching,
+        // reaches the app only after a profile is picked and the follow has joined its pass.
+        app.routes.hold = { sent in
+            guard sent.path == "/sync/changes" else { return }
+            let first = asked.withLock { count in
+                count += 1
+                return count == 1
+            }
+            if first { for await _ in answering {} }
+        }
+        app.routes.respond = { @Sendable sent in
+            sent.path == "/sync/changes" && asked.withLock({ $0 }) == 1
+                ? (.forbidden, Fixtures.error("device_locked")) : served?(sent)
+        }
+        try await app.signIn()
+        let sync = try XCTUnwrap(app.model.sync)
+        let catalog = CatalogModel(client: try XCTUnwrap(app.model.client), replica: sync.replica, profileId: 1)
+        await catalog.load()
+        let following = Task { await app.model.followLive(catalog, inView: true) }
+        // Enough turns of the main actor for the follow to start and join the held pass.
+        for _ in 0..<10 { await Task.yield() }
+        answer.finish()
+        await app.until { catalog.catalog.item(20) != nil }
+        XCTAssertNotNil(catalog.catalog.item(20), "the refusal predates the unlock")
+        following.cancel()
+        await following.value
+    }
 }
