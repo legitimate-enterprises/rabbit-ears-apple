@@ -271,4 +271,29 @@ final class FollowLiveTests: XCTestCase {
         following.cancel()
         await following.value
     }
+
+    func testACatalogReadBeforeTheFirstSnapshotShowsItsRowsOnceItLands() async throws {
+        let app = try SyncedApp { db in
+            try db.account(1, "Avery")
+            try db.item(20, "movie", "Dune")
+        }
+        defer { app.remove() }
+        let (landing, land) = AsyncStream.makeStream(of: Void.self)
+        app.routes.hold = { sent in
+            if sent.path == "/sync/snapshot" { for await _ in landing {} }
+        }
+        try await app.signIn()
+        let sync = try XCTUnwrap(app.model.sync)
+        let catalog = CatalogModel(client: try XCTUnwrap(app.model.client), replica: sync.replica, profileId: 1)
+        await catalog.load()
+        XCTAssertFalse(catalog.loaded, "nothing to read before the snapshot")
+        let following = Task { await app.model.followLive(catalog, inView: true) }
+        land.finish()
+        await app.until { catalog.catalog.item(20) != nil }
+        XCTAssertNotNil(catalog.catalog.item(20))
+        XCTAssertTrue(catalog.loaded)
+        following.cancel()
+        await following.value
+    }
+
 }
