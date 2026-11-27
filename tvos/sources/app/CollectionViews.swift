@@ -56,6 +56,7 @@ struct CollectionView: View {
     @Environment(CatalogModel.self) private var model
     let id: UID
     @State private var movies: [Item]?
+    @FocusState private var movie: Item.ID?
 
     var body: some View {
         let collection = collections.collections.first { $0.id == id }
@@ -80,7 +81,9 @@ struct CollectionView: View {
                     }
                     if let movies {
                         LazyVGrid(columns: GridView.columns, alignment: .leading, spacing: 50) {
-                            ForEach(movies) { Tile(item: model.catalog.item($0.id) ?? $0) }
+                            ForEach(movies) {
+                                Tile(item: model.catalog.item($0.id) ?? $0).focused($movie, equals: $0.id)
+                            }
                         }
                         .focusSection()
                     } else {
@@ -93,6 +96,8 @@ struct CollectionView: View {
             .padding(Theme.safeArea)
         }
         .scrollClipDisabled()
+        // Opens on the first movie, not on Shuffle above it.
+        .defaultFocus($movie, movies?.first?.id)
         .background(Theme.ground)
         .ignoresSafeArea()
         .toolbar(.hidden, for: .navigationBar)
