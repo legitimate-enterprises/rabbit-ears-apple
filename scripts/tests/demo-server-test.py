@@ -28,9 +28,12 @@ items = api("/items?kind=movie", token=token)["items"]
 assert len(items) == 6, items
 for item in items:
     assert item["metadata"]["overview"]
-    for kind in ("poster", "backdrop"):
-        request = urllib.request.Request(base + "/items/" + str(item["id"]) + "/artwork/" + kind, headers={"Authorization": "Bearer " + token})
-        with urllib.request.urlopen(request) as response: assert len(response.read()) > 1000
+    for url in (item["posterUrl"], item["backdropUrl"]):
+        assert url.startswith("/api/v2/artwork/"), url
+        request = urllib.request.Request(os.environ["RABBIT_EARS_UI_SERVER"] + url, headers={"Authorization": "Bearer " + token})
+        with urllib.request.urlopen(request) as response:
+            assert "immutable" in response.headers["Cache-Control"], response.headers
+            assert len(response.read()) > 1000
 profile = signed["me"]["account"]["id"]
 states = api("/profiles/" + str(profile) + "/watch-state", token=token)["items"]
 titles = {item["id"]: item["parsedTitle"] for item in items}
