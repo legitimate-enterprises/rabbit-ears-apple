@@ -182,25 +182,12 @@ struct AcceptView: View {
 struct WhosWatchingView: View {
     @Environment(AppModel.self) private var model
     @State private var pinFor: Account?
-    /// What entering `pinFor`'s PIN opens instead of picking it.
-    @State private var opening: (() -> Void)?
-    @State private var addingKid = false
-    @State private var addingAdult = false
     @State private var error: String?
     @FocusState private var focused: Account.ID?
 
     var body: some View {
-        if addingKid {
-            AddKidView(done: {
-                addingKid = false
-                relock()
-            })
-        } else {
-            // A sheet opens only once the PIN sheet has gone.
-            picker.sheet(item: $pinFor, onDismiss: openUnlocked) { PinDialog(profile: $0, unlockOnly: opening != nil) }
-                .sheet(isPresented: $addingAdult, onDismiss: relock) { AddAdultView() }
-                .onAppear { pinFor = model.pinPrompt }
-        }
+        picker.sheet(item: $pinFor) { PinDialog(profile: $0) }
+            .onAppear { pinFor = model.pinPrompt }
     }
 
     private var picker: some View {
@@ -229,8 +216,6 @@ struct WhosWatchingView: View {
                     .focused($focused, equals: profile.id)
                     .accessibilityLabel(profile.hasPin ? "\(profile.name), PIN required" : profile.name)
                 }
-                if model.canManageHousehold { adder("Add kid") { asAdult { addingKid = true } } }
-                if model.isOwner { adder("Add adult") { asAdult { addingAdult = true } } }
             }
             if let error { Text(error).font(.system(size: 13)).foregroundStyle(Color(hex: 0xFF6B6B)) }
             HStack(spacing: 6) {
@@ -255,41 +240,6 @@ struct WhosWatchingView: View {
                 self.error = error.localizedDescription
             }
         }
-    }
-
-    /// While the device is locked, what needs an adult opens once the
-    /// server's adult is unlocked, with its PIN when it has one.
-    private func asAdult(_ open: @escaping () -> Void) {
-        guard model.locked, let adult = model.serverActiveProfile else { return open() }
-        opening = open
-        if adult.hasPin {
-            pinFor = adult
-        } else {
-            Task {
-                do { try await model.unlock(adult) } catch { self.error = error.localizedDescription }
-                openUnlocked()
-            }
-        }
-    }
-
-    private func openUnlocked() {
-        if !model.locked { opening?() }
-        opening = nil
-    }
-
-    /// Closing what an adult opened leaves Who's watching locked again.
-    private func relock() { Task { await model.lock() } }
-
-    private func adder(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 12) {
-                Circle().strokeBorder(Theme.border, style: StrokeStyle(lineWidth: 2, dash: [6]))
-                    .frame(width: 120, height: 120)
-                    .overlay(Image(systemName: "plus").font(.system(size: 36)).foregroundStyle(Theme.secondary))
-                Text(title).font(.system(size: 15, weight: .semibold))
-            }
-        }
-        .buttonStyle(.plain)
     }
 }
 

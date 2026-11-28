@@ -6,8 +6,6 @@ struct PinDialog: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let profile: Account
-    /// Unlocks the profile and stays on Who's watching instead of picking it.
-    var unlockOnly = false
     @State private var entry = PinEntry()
     @State private var error: AppError?
     @State private var showHelp = false
@@ -53,11 +51,7 @@ struct PinDialog: View {
         let pin = entry.digits
         Task {
             do {
-                if unlockOnly {
-                    try await model.unlock(profile, pin: pin)
-                } else {
-                    try await model.choose(profile, pin: pin)
-                }
+                try await model.choose(profile, pin: pin)
                 dismiss()
             } catch {
                 self.error = error as? AppError ?? .server(error.localizedDescription)

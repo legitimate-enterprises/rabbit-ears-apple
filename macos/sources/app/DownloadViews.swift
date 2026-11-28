@@ -11,10 +11,10 @@ struct DownloadButton: View {
     }
 }
 
-/// Wi-Fi only and the storage allowance are the Mac's, for every profile.
-/// Each change takes effect as it is made.
-struct DownloadsSheet: View {
-    @Environment(\.dismiss) private var dismiss
+/// Preferences' Downloads: the profile's downloads. Wi-Fi only and the
+/// storage allowance are the Mac's, for every profile. Each change takes
+/// effect as it is made.
+struct DownloadsSection: View {
     let store: DownloadStore
     let profile: UID
 
@@ -23,7 +23,6 @@ struct DownloadsSheet: View {
     var body: some View {
         @Bindable var store = store
         VStack(alignment: .leading, spacing: 14) {
-            Text("Downloads").font(.system(size: 20, weight: .bold))
             SettingRow(
                 title: "Prefer downloads",
                 detail: "Play what's on this Mac from here, even with the server in reach."
@@ -57,13 +56,7 @@ struct DownloadsSheet: View {
                         set: { preferences.wrappedValue.keep[library.id] = $0 }))
             }
             list
-            HStack {
-                Spacer()
-                Button("Done") { dismiss() }.buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
-            }
         }
-        .padding(24).frame(width: 460)
-        .background(Theme.card)
     }
 
     private var preferences: Binding<DownloadSettings> {
@@ -76,15 +69,12 @@ struct DownloadsSheet: View {
             Text("Nothing downloaded. Download is beside a title's Play or in its More menu.")
                 .font(.system(size: 12)).foregroundStyle(Theme.secondary)
         } else {
-            ScrollView {
-                VStack(spacing: 0) {
-                    ForEach(requests) { request in
-                        if request.id != requests.first?.id { Divider() }
-                        row(request)
-                    }
+            VStack(spacing: 0) {
+                ForEach(requests) { request in
+                    if request.id != requests.first?.id { Divider() }
+                    row(request)
                 }
             }
-            .frame(maxHeight: 240)
         }
     }
 
