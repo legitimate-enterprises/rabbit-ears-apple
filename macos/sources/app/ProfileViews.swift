@@ -27,7 +27,7 @@ struct ProfileMenu: View {
 }
 
 /// The active adult's preferences, saved as each is changed, with what
-/// they manage of their household and account.
+/// they manage of their household and account, and their friends.
 struct PreferencesSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -38,6 +38,8 @@ struct PreferencesSheet: View {
     @State private var managing = false
     @State private var changingPassword = false
     @State private var deleting = false
+    @State private var friends: FriendsModel?
+    @State private var showingFriends = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -69,6 +71,7 @@ struct PreferencesSheet: View {
                             Button("Delete account…", role: .destructive) { deleting = true }
                         }
                         .buttonStyle(SecondaryButtonStyle())
+                        if let friends, friends.offered { friendsGroup(friends) }
                     }
                 }
                 .padding(24)
@@ -87,6 +90,29 @@ struct PreferencesSheet: View {
         .sheet(isPresented: $managing) { ManageHouseholdView() }
         .sheet(isPresented: $changingPassword) { ChangePasswordView() }
         .sheet(isPresented: $deleting) { DeleteAccountView() }
+        .sheet(isPresented: $showingFriends) { if let friends { FriendsView(model: friends) } }
+        // A household live event, as a request received or accepted elsewhere, reads them again.
+        .task(id: model.live.household) {
+            let next = friends ?? FriendsModel(app: model)
+            await next.load()
+            friends = next
+        }
+    }
+
+    @ViewBuilder
+    private func friendsGroup(_ friends: FriendsModel) -> some View {
+        let (count, received) = (friends.friends.count, friends.received.count)
+        Divider()
+        heading("Friends")
+        HStack(spacing: 10) {
+            Button("Friends…") { showingFriends = true }.buttonStyle(SecondaryButtonStyle())
+            Text("\(count) friend\(count == 1 ? "" : "s")").font(.system(size: 12)).foregroundStyle(Theme.secondary)
+            if received > 0 {
+                Text("\(received) request\(received == 1 ? "" : "s")").font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white).padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(Theme.red, in: .capsule)
+            }
+        }
     }
 
     @ViewBuilder

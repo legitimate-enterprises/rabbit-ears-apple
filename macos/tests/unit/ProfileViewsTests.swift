@@ -59,6 +59,35 @@ final class ProfileViewsTests: XCTestCase {
         }
     }
 
+    func testAnAdultsPreferencesEndWithFriendsCountedFromTheReplica() async throws {
+        try await model.choose(model.profiles[0])
+        let fixture = ReplicaFixture()
+        defer { fixture.remove() }
+        try XCTUnwrap(model.sync).replica.adopt(
+            fixture.v1File { db in
+                try db.account(1, "Avery")
+                try db.friend(10, "Bea")
+                try db.friend(11, "Cal")
+                try db.friendship(1, 10)
+                try db.requestIn(40, from: 11, to: 1, created: "2026-03-01T00:00:00Z")
+            })
+        try await show(PreferencesSheet(), height: 900)
+        let text = try await everything()
+        for expected in ["Friends", "Friends…", "1 friend", "1 request"] {
+            XCTAssertTrue(text.contains(expected), "\(expected) in \(text)")
+        }
+        let account = try XCTUnwrap(text.firstIndex(of: "Account"))
+        XCTAssertGreaterThan(try XCTUnwrap(text.firstIndex(of: "Friends")), account, "after Account")
+    }
+
+    func testAKidsPreferencesHaveNoFriends() async throws {
+        try await model.choose(model.profiles[1], pin: "1234")
+        try await show(PreferencesSheet(), height: 900)
+        let text = try await everything()
+        XCTAssertTrue(text.contains("Autoplay"), "\(text)")
+        XCTAssertFalse(text.contains { $0.contains("Friend") || $0.contains("request") }, "\(text)")
+    }
+
     func testAnAdultWhoIsNotTheOwnerOrAnAdminCannotAddAnAdult() async throws {
         let other = Fixtures.me.replacingOccurrences(
             of: #""adultId":"\#(UID.n(1))""#, with: #""adultId":"\#(UID.n(3))""#)
