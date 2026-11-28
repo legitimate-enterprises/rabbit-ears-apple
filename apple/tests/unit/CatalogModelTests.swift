@@ -88,6 +88,15 @@ final class CatalogModelTests: XCTestCase {
         XCTAssertEqual(model.revision, 0)
     }
 
+    func testAReplicaThatFailsToReadShowsAPlainMessageNotItsSQL() async throws {
+        let replica = try household { db in try db.execute(sql: "DROP TABLE watch_state") }
+        let model = await loaded(replica, 1)
+        XCTAssertEqual(model.error, "Something went wrong.")
+        XCTAssertEqual(
+            AppError.from(ActionQueue.WatchRefusal.notFound).localizedDescription, "That title is no longer available.",
+            "an error written for people keeps its words")
+    }
+
     func testAMarkShowsAtOnceAndIsQueuedForTheServerAndAShowMarksEachEpisode() async throws {
         let replica = try household()
         let model = model(replica, 1)

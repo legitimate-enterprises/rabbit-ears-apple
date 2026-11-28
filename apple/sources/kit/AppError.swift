@@ -1,5 +1,6 @@
 import Foundation
 import OpenAPIRuntime
+import os
 
 /// What went wrong, in the words the account boards use.
 public enum AppError: Error, Equatable, LocalizedError {
@@ -37,12 +38,21 @@ public enum AppError: Error, Equatable, LocalizedError {
     /// What a 401 means on a call made while signed in: the session ended.
     static let signedOut = AppError.server("Signed out.")
 
+    /// What any error not written for people says; its own text, such as SQL, goes only to the log.
+    static let unexpected = AppError.server("Something went wrong.")
+
+    private static let log = Logger(subsystem: "enterprises.legitimate.rabbit-ears", category: "errors")
+
     /// Maps a thrown error; `unauthorized` names what a 401 means where it was made.
     static func from(_ error: any Error, unauthorized: AppError = .wrongCredentials) -> AppError {
         if let error = error as? AppError { return error }
         guard let api = APIError.from(error) else {
             let underlying = (error as? ClientError)?.underlyingError ?? error
-            guard let url = underlying as? URLError else { return .server(underlying.localizedDescription) }
+            guard let url = underlying as? URLError else {
+                if let text = (underlying as? LocalizedError)?.errorDescription { return .server(text) }
+                log.error("\(String(describing: underlying), privacy: .public)")
+                return unexpected
+            }
             // App Transport Security lets plain http reach only local addresses.
             return url.code == .appTransportSecurityRequiresSecureConnection ? .insecureServer : .unreachable
         }
