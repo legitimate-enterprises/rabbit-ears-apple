@@ -3,8 +3,8 @@ import RabbitEarsKit
 import SwiftUI
 
 /// The active adult's own preferences, saved as each is changed, with what
-/// they manage of their household and account; Remember profile and Skip
-/// PIN are this iPhone's alone.
+/// they manage of their household and account, and their friends; Remember
+/// profile and Skip PIN are this iPhone's alone.
 struct PreferencesView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -15,6 +15,7 @@ struct PreferencesView: View {
     @State private var managing = false
     @State private var changingPassword = false
     @State private var deleting = false
+    @State private var friends: FriendsModel?
 
     var body: some View {
         NavigationStack {
@@ -101,6 +102,7 @@ struct PreferencesView: View {
                         .padding(.horizontal, 12).background(Theme.raised, in: .rect(cornerRadius: 8))
                         row("Delete account", role: .destructive) { deleting = true }
                             .padding(.horizontal, 12).background(Theme.raised, in: .rect(cornerRadius: 8))
+                        if let friends, friends.offered { friendsGroup(friends) }
                     }
                     .padding(EdgeInsets(top: 8, leading: 16, bottom: 32, trailing: 16))
                 }
@@ -119,6 +121,37 @@ struct PreferencesView: View {
         .sheet(isPresented: $managing) { ManageHouseholdView() }
         .sheet(isPresented: $changingPassword) { ChangePasswordView() }
         .sheet(isPresented: $deleting) { DeleteAccountView() }
+        // A household live event, as a request received or accepted elsewhere, reads them again.
+        .task(id: model.live.household) {
+            let next = friends ?? FriendsModel(app: model)
+            await next.load()
+            friends = next
+        }
+    }
+
+    @ViewBuilder
+    private func friendsGroup(_ friends: FriendsModel) -> some View {
+        let (count, received) = (friends.friends.count, friends.received.count)
+        heading("Friends")
+        NavigationLink {
+            FriendsScreen(model: friends)
+        } label: {
+            HStack {
+                Text("Friends").font(.system(size: 15, weight: .semibold))
+                Spacer()
+                if received > 0 {
+                    Text("\(received)").font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                        .padding(.horizontal, 7).padding(.vertical, 2).background(Theme.error, in: .capsule)
+                        .accessibilityLabel("\(received) request\(received == 1 ? "" : "s")")
+                }
+                Text("\(count)").font(.system(size: 15)).foregroundStyle(Theme.secondary)
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.secondary)
+            }
+            .frame(minHeight: 48).contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 12).background(Theme.raised, in: .rect(cornerRadius: 8))
     }
 
     private func heading(_ title: String) -> some View {
