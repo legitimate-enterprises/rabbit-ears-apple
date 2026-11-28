@@ -205,6 +205,7 @@ struct PersonView: View {
                     }
                 } else if loaded {
                     Text("Not available").font(.system(size: 34)).foregroundStyle(Theme.secondary)
+                        .frame(maxWidth: .infinity).padding(80)
                 } else {
                     ProgressView().frame(maxWidth: .infinity).padding(80)
                 }

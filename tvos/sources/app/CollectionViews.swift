@@ -91,6 +91,7 @@ struct CollectionView: View {
                     }
                 } else {
                     Text("Not available").font(.system(size: 34)).foregroundStyle(Theme.secondary)
+                        .frame(maxWidth: .infinity).padding(80)
                 }
             }
             .padding(Theme.safeArea)

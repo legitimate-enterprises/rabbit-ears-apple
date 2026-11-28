@@ -188,6 +188,8 @@ struct AccountPage<Content: View>: View {
                 VStack(alignment: .leading, spacing: 18) { content }
             }
             .padding(EdgeInsets(top: 24, leading: 16, bottom: 32, trailing: 16))
+            // Short text alone would otherwise narrow the scroll view, and the background with it.
+            .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.ground)

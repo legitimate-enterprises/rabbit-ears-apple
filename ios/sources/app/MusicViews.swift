@@ -359,5 +359,7 @@ struct ErrorNote: View {
             Button("Try again", action: retry).buttonStyle(SecondaryButtonStyle())
         }
         .padding(20)
+        // Alone in a page's scroll view, the note sets its width and so the width of the page's background.
+        .frame(maxWidth: .infinity)
     }
 }
