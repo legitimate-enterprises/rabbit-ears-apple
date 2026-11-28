@@ -32,8 +32,13 @@ struct RootView: View {
     let center: SystemNowPlayingCenter
 
     var body: some View {
+        // The splash fades into whatever the launch opens on.
+        ZStack { screen }.animation(.easeInOut(duration: 0.4), value: model.phase == .starting)
+    }
+
+    @ViewBuilder private var screen: some View {
         switch model.phase {
-        case .starting: ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity).background(Theme.ground)
+        case .starting: Splash()
         case .unreachable:
             AccountPage(name: model.serverName) {
                 VStack(alignment: .leading, spacing: 24) {
@@ -52,5 +57,34 @@ struct RootView: View {
         case .choosingProfile: WhoView()
         case .browsing: MainView(center: center)
         }
+    }
+}
+
+/// From launch until the replica holds what this build reads.
+struct Splash: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        VStack(spacing: 40) {
+            RabbitEarsMark().stroke(Theme.amber, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .frame(width: 90, height: 104)
+            if model.libraryUpdate == .unreachable {
+                Text("Your library needs an update, and the server can't be reached.")
+                    .font(.system(size: 30)).foregroundStyle(Theme.secondary).multilineTextAlignment(.center)
+                HStack(spacing: 28) {
+                    Button("Try again") { Task { await model.retryLibraryUpdate() } }
+                        .buttonStyle(TVButtonStyle(primary: true))
+                    Button("Sign out") { Task { await model.signOut() } }.buttonStyle(TVButtonStyle())
+                }
+            } else {
+                ProgressView()
+                // Said only once an update takes more than a moment.
+                Text("Updating your library…").font(.system(size: 30)).foregroundStyle(Theme.secondary)
+                    .opacity(model.libraryUpdate == .updating ? 1 : 0)
+                    .animation(.easeIn.delay(1), value: model.libraryUpdate)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.ground)
     }
 }
