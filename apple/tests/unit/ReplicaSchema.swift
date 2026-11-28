@@ -10,7 +10,7 @@ enum ReplicaSchema {
         CREATE TABLE item_metadata (item_id BLOB, source TEXT, provider TEXT, provider_id INTEGER, status TEXT, title TEXT, overview TEXT, release_date TEXT, runtime_minutes INTEGER, content_rating TEXT, external_id TEXT, published_at INTEGER, poster_path TEXT, backdrop_path TEXT, fetched_at INTEGER, retry_at INTEGER, PRIMARY KEY (item_id, source));
         CREATE TABLE item_genre (item_id BLOB, genre_id BLOB, source TEXT, PRIMARY KEY (item_id, genre_id, source));
         CREATE TABLE genre (id BLOB, name TEXT COLLATE NOCASE, tmdb_id INTEGER, PRIMARY KEY (id));
-        CREATE TABLE person (id BLOB, tmdb_id INTEGER, name TEXT, profile_path TEXT, PRIMARY KEY (id));
+        CREATE TABLE person (id BLOB, tmdb_id INTEGER, name TEXT, profile_path TEXT, headshot_url TEXT, PRIMARY KEY (id));
         CREATE TABLE credit (id BLOB, item_id BLOB, person_id BLOB, kind TEXT, character TEXT, job TEXT, department TEXT, position INTEGER, PRIMARY KEY (id));
         CREATE TABLE item_keyword (item_id BLOB, keyword_id INTEGER, PRIMARY KEY (item_id, keyword_id));
         CREATE TABLE edition (id BLOB, item_id BLOB, tag TEXT, runtime_ms INTEGER, PRIMARY KEY (id));
@@ -24,16 +24,21 @@ enum ReplicaSchema {
         CREATE TABLE occasion_exclusion (occasion_id BLOB, item_id BLOB, PRIMARY KEY (occasion_id, item_id));
         CREATE TABLE occasion_phrase (occasion_id BLOB, phrase TEXT COLLATE NOCASE, PRIMARY KEY (occasion_id, phrase));
         CREATE TABLE server_info (id INTEGER, name TEXT, metadata_source TEXT, metadata_mode TEXT, PRIMARY KEY (id));
-        CREATE TABLE collection (id BLOB, source TEXT, household_id BLOB, tmdb_id INTEGER, name TEXT, overview TEXT, created_at INTEGER, modified_at INTEGER, created_by BLOB, modified_by BLOB, PRIMARY KEY (id));
+        CREATE TABLE collection (id BLOB, source TEXT, household_id BLOB, tmdb_id INTEGER, name TEXT, overview TEXT, poster_path TEXT, backdrop_path TEXT, created_at INTEGER, modified_at INTEGER, created_by BLOB, modified_by BLOB, PRIMARY KEY (id));
         CREATE TABLE collection_movie (collection_id BLOB, item_id BLOB, position INTEGER, PRIMARY KEY (collection_id, item_id));
         CREATE TABLE household (id BLOB, name TEXT, adult_id BLOB, created_at INTEGER, modified_at INTEGER, created_by BLOB, modified_by BLOB, PRIMARY KEY (id));
         CREATE TABLE account (id BLOB, kind TEXT, email TEXT COLLATE NOCASE, name TEXT, is_admin INTEGER, household_id BLOB, birthday TEXT, filter_mode TEXT, movie_ceiling TEXT, tv_ceiling TEXT, revoked_at INTEGER, created_at INTEGER, modified_at INTEGER, created_by BLOB, modified_by BLOB, hide_kids_content INTEGER, color TEXT, no_autoplay INTEGER, has_pin, pending, PRIMARY KEY (id));
         CREATE TABLE account_card (id BLOB, name TEXT, kind TEXT, color TEXT, household_id BLOB, revoked_at INTEGER, pending, PRIMARY KEY (id));
         CREATE TABLE household_member (household_id BLOB, account_id BLOB, PRIMARY KEY (household_id, account_id));
         CREATE TABLE adult_link (a_id BLOB, b_id BLOB, tv INTEGER, created_at INTEGER, PRIMARY KEY (a_id, b_id));
+        CREATE TABLE friendship (a_id BLOB, b_id BLOB, created_at INTEGER, PRIMARY KEY (a_id, b_id));
+        CREATE TABLE friend_request (id BLOB, from_id BLOB, email TEXT COLLATE NOCASE, created_at INTEGER, expires_at INTEGER, PRIMARY KEY (id));
+        CREATE TABLE friend_request_in (id BLOB, from_id BLOB, created_at INTEGER, expires_at INTEGER, to_id BLOB, PRIMARY KEY (id));
+        CREATE TABLE friend_request_decline (account_id BLOB, request_id BLOB, created_at INTEGER, PRIMARY KEY (account_id, request_id));
         CREATE TABLE profile_offer (id BLOB, profile_id BLOB, household_id BLOB, from_id BLOB, to_id BLOB, created_at INTEGER, modified_at INTEGER, created_by BLOB, modified_by BLOB, PRIMARY KEY (id));
         CREATE TABLE account_allow (account_id BLOB, item_id BLOB, PRIMARY KEY (account_id, item_id));
         CREATE TABLE watch_state (account_id BLOB, item_id BLOB, position_ms INTEGER, watched INTEGER, play_count INTEGER, last_played_at INTEGER, changed_at INTEGER, edition_id BLOB, PRIMARY KEY (account_id, item_id));
+        CREATE TABLE favorite (account_id BLOB, item_id BLOB, created_at INTEGER, PRIMARY KEY (account_id, item_id));
         CREATE TABLE playlist (id BLOB, account_id BLOB, name TEXT, kind TEXT, last_played_at INTEGER, created_at INTEGER, modified_at INTEGER, created_by BLOB, modified_by BLOB, station_owned INTEGER, PRIMARY KEY (id));
         CREATE TABLE playlist_entry (id BLOB, playlist_id BLOB, item_id BLOB, collection_id BLOB, rank TEXT, added_at INTEGER, edition_id BLOB, created_at INTEGER, modified_at INTEGER, created_by BLOB, modified_by BLOB, PRIMARY KEY (id));
         CREATE TABLE playlist_share (playlist_id BLOB, account_id BLOB, access TEXT, created_at INTEGER, PRIMARY KEY (playlist_id, account_id));
@@ -158,6 +163,169 @@ enum ReplicaSchema {
         			AND instr(CASE vr.kind WHEN 'movie' THEN a.movie ELSE a.tv END, ',' || vm.content_rating || ',') > 0)
         	END END)
         /* profile_item_open(account_id,item_id) */;
+        CREATE VIEW profile_art AS SELECT a.account_id, i.id AS item_id, '/api/v2/artwork/' || NULLIF(COALESCE(CASE WHEN i.kind = 'artist' THEN (SELECT COALESCE((SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = al.id), (SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = al.parent_id),
+        		(SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = (SELECT g.parent_id FROM item g WHERE g.id = al.parent_id))) FROM item al
+        			WHERE al.parent_id = i.id AND al.kind = 'album' AND NULLIF(COALESCE((SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = al.id), (SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = al.parent_id),
+        		(SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = (SELECT g.parent_id FROM item g WHERE g.id = al.parent_id))), '') IS NOT NULL
+        				AND (NOT a.mode OR CASE al.kind WHEN 'song' THEN al.explicit = 0
+        		WHEN 'album' THEN EXISTS (SELECT 1 FROM item vs WHERE vs.parent_id = al.id AND vs.explicit = 0)
+        		WHEN 'artist' THEN EXISTS (SELECT 1 FROM item vs WHERE vs.explicit = 0 AND +vs.kind = 'song'
+        			AND (vs.artist_id = al.id OR vs.parent_id IN (SELECT va.id FROM item va WHERE va.parent_id = al.id)))
+        		ELSE 0 END)
+        			ORDER BY al.parsed_year IS NULL, al.parsed_year DESC, COALESCE(al.sort_title, al.parsed_title) COLLATE NOCASE, al.id LIMIT 1)
+        		ELSE COALESCE((SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = i.id), (SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = i.parent_id),
+        		(SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = (SELECT g.parent_id FROM item g WHERE g.id = i.parent_id))) END, ''), '') AS poster_url,
+        		'/api/v2/artwork/' || NULLIF(CASE WHEN i.kind = 'artist' THEN '' ELSE COALESCE(COALESCE((SELECT CASE WHEN COALESCE(m.backdrop_path, '') = '' THEN NULL WHEN m.backdrop_from = 'tmdb' THEN 'w1280' || m.backdrop_path
+        		ELSE CASE WHEN m.backdrop_path LIKE 'images/caa/%' OR m.backdrop_path LIKE 'thumbnails/local/%' OR m.backdrop_path LIKE 'thumbnails/music/%'
+        			OR m.backdrop_path LIKE 'cache/youtube/%' THEN substr(m.backdrop_path, instr(m.backdrop_path, '/') + 1)
+        		WHEN m.backdrop_path LIKE 'caa/%' OR m.backdrop_path LIKE 'local/%' OR m.backdrop_path LIKE 'music/%' OR m.backdrop_path LIKE 'youtube/%' THEN m.backdrop_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = i.id), (SELECT CASE WHEN COALESCE(m.backdrop_path, '') = '' THEN NULL WHEN m.backdrop_from = 'tmdb' THEN 'w1280' || m.backdrop_path
+        		ELSE CASE WHEN m.backdrop_path LIKE 'images/caa/%' OR m.backdrop_path LIKE 'thumbnails/local/%' OR m.backdrop_path LIKE 'thumbnails/music/%'
+        			OR m.backdrop_path LIKE 'cache/youtube/%' THEN substr(m.backdrop_path, instr(m.backdrop_path, '/') + 1)
+        		WHEN m.backdrop_path LIKE 'caa/%' OR m.backdrop_path LIKE 'local/%' OR m.backdrop_path LIKE 'music/%' OR m.backdrop_path LIKE 'youtube/%' THEN m.backdrop_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = i.parent_id),
+        		(SELECT CASE WHEN COALESCE(m.backdrop_path, '') = '' THEN NULL WHEN m.backdrop_from = 'tmdb' THEN 'w1280' || m.backdrop_path
+        		ELSE CASE WHEN m.backdrop_path LIKE 'images/caa/%' OR m.backdrop_path LIKE 'thumbnails/local/%' OR m.backdrop_path LIKE 'thumbnails/music/%'
+        			OR m.backdrop_path LIKE 'cache/youtube/%' THEN substr(m.backdrop_path, instr(m.backdrop_path, '/') + 1)
+        		WHEN m.backdrop_path LIKE 'caa/%' OR m.backdrop_path LIKE 'local/%' OR m.backdrop_path LIKE 'music/%' OR m.backdrop_path LIKE 'youtube/%' THEN m.backdrop_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = (SELECT g.parent_id FROM item g WHERE g.id = i.parent_id))), '') END, '') AS backdrop_url
+        	FROM profile_audience a CROSS JOIN item i
+        /* profile_art(account_id,item_id,poster_url,backdrop_url) */;
+        CREATE VIEW profile_collection_art AS SELECT a.account_id, c.id AS collection_id,
+        		'/api/v2/artwork/' || NULLIF(COALESCE('w500' || NULLIF(c.poster_path, ''), (SELECT COALESCE(CASE WHEN item.kind = 'artist' THEN (SELECT COALESCE((SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = al.id), (SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = al.parent_id),
+        		(SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = (SELECT g.parent_id FROM item g WHERE g.id = al.parent_id))) FROM item al
+        			WHERE al.parent_id = item.id AND al.kind = 'album' AND NULLIF(COALESCE((SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = al.id), (SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = al.parent_id),
+        		(SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = (SELECT g.parent_id FROM item g WHERE g.id = al.parent_id))), '') IS NOT NULL
+        				AND (NOT 0 OR CASE al.kind WHEN 'song' THEN al.explicit = 0
+        		WHEN 'album' THEN EXISTS (SELECT 1 FROM item vs WHERE vs.parent_id = al.id AND vs.explicit = 0)
+        		WHEN 'artist' THEN EXISTS (SELECT 1 FROM item vs WHERE vs.explicit = 0 AND +vs.kind = 'song'
+        			AND (vs.artist_id = al.id OR vs.parent_id IN (SELECT va.id FROM item va WHERE va.parent_id = al.id)))
+        		ELSE 0 END)
+        			ORDER BY al.parsed_year IS NULL, al.parsed_year DESC, COALESCE(al.sort_title, al.parsed_title) COLLATE NOCASE, al.id LIMIT 1)
+        		ELSE COALESCE((SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = item.id), (SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = item.parent_id),
+        		(SELECT CASE WHEN COALESCE(m.poster_path, '') = '' THEN NULL WHEN m.poster_from = 'tmdb' THEN 'w500' || m.poster_path
+        		ELSE CASE WHEN m.poster_path LIKE 'images/caa/%' OR m.poster_path LIKE 'thumbnails/local/%' OR m.poster_path LIKE 'thumbnails/music/%'
+        			OR m.poster_path LIKE 'cache/youtube/%' THEN substr(m.poster_path, instr(m.poster_path, '/') + 1)
+        		WHEN m.poster_path LIKE 'caa/%' OR m.poster_path LIKE 'local/%' OR m.poster_path LIKE 'music/%' OR m.poster_path LIKE 'youtube/%' THEN m.poster_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = (SELECT g.parent_id FROM item g WHERE g.id = item.parent_id))) END, '') FROM collection_movie cm JOIN item ON item.id = cm.item_id
+        		WHERE cm.collection_id = c.id AND (a.browse_mode = 0 OR a.browse_mode = 2 AND NOT EXISTS (SELECT 1 FROM item vr WHERE vr.id = COALESCE((SELECT vp.parent_id FROM item vp WHERE vp.id = item.parent_id), item.parent_id, item.id)
+        		AND COALESCE(vr.kids_content, vr.kind = 'movie' AND (SELECT vm.content_rating FROM item_shown vm WHERE vm.item_id = vr.id) IN ('G')
+        			OR vr.kind = 'show' AND (SELECT vm.content_rating FROM item_shown vm WHERE vm.item_id = vr.id) IN ('TV-Y','TV-Y7','TV-G')) = 1) OR a.browse_mode = 1 AND CASE (SELECT vl.kind FROM library vl WHERE vl.id = item.library_id)
+        	WHEN 'music' THEN CASE item.kind WHEN 'song' THEN item.explicit = 0
+        		WHEN 'album' THEN EXISTS (SELECT 1 FROM item vs WHERE vs.parent_id = item.id AND vs.explicit = 0)
+        		WHEN 'artist' THEN EXISTS (SELECT 1 FROM item vs WHERE vs.explicit = 0 AND +vs.kind = 'song'
+        			AND (vs.artist_id = item.id OR vs.parent_id IN (SELECT va.id FROM item va WHERE va.parent_id = item.id)))
+        		ELSE 0 END
+        	WHEN 'youtube' THEN CASE WHEN a.allow_list = 1
+        		THEN EXISTS (SELECT 1 FROM account_allow vw WHERE vw.account_id = a.account_id AND vw.item_id = COALESCE((SELECT vp.parent_id FROM item vp WHERE vp.id = item.parent_id), item.parent_id, item.id))
+        		ELSE EXISTS (SELECT 1 FROM item vc WHERE vc.id = COALESCE((SELECT vp.parent_id FROM item vp WHERE vp.id = item.parent_id), item.parent_id, item.id) AND vc.kids_content = 1) END
+        	ELSE CASE WHEN a.allow_list = 1
+        		THEN EXISTS (SELECT 1 FROM account_allow vw WHERE vw.account_id = a.account_id AND vw.item_id IN (item.id, item.parent_id,
+        			(SELECT vp.parent_id FROM item vp WHERE vp.id = item.parent_id)))
+        		ELSE EXISTS (SELECT 1 FROM item vr JOIN item_shown vm ON vm.item_id = vr.id WHERE vr.id = COALESCE((SELECT vp.parent_id FROM item vp WHERE vp.id = item.parent_id), item.parent_id, item.id)
+        			AND instr(CASE vr.kind WHEN 'movie' THEN a.movie ELSE a.tv END, ',' || vm.content_rating || ',') > 0)
+        	END END) ORDER BY cm.position IS NULL, cm.position, COALESCE((SELECT md.release_date FROM item_shown md WHERE md.item_id = item.id), CAST(item.parsed_year AS TEXT)) IS NULL, COALESCE((SELECT md.release_date FROM item_shown md WHERE md.item_id = item.id), CAST(item.parsed_year AS TEXT)), item.sort_title COLLATE NOCASE, item.id LIMIT 1), ''), '') AS poster_url,
+        		'/api/v2/artwork/' || NULLIF(COALESCE('w1280' || NULLIF(c.backdrop_path, ''), (SELECT CASE WHEN item.kind = 'artist' THEN '' ELSE COALESCE(COALESCE((SELECT CASE WHEN COALESCE(m.backdrop_path, '') = '' THEN NULL WHEN m.backdrop_from = 'tmdb' THEN 'w1280' || m.backdrop_path
+        		ELSE CASE WHEN m.backdrop_path LIKE 'images/caa/%' OR m.backdrop_path LIKE 'thumbnails/local/%' OR m.backdrop_path LIKE 'thumbnails/music/%'
+        			OR m.backdrop_path LIKE 'cache/youtube/%' THEN substr(m.backdrop_path, instr(m.backdrop_path, '/') + 1)
+        		WHEN m.backdrop_path LIKE 'caa/%' OR m.backdrop_path LIKE 'local/%' OR m.backdrop_path LIKE 'music/%' OR m.backdrop_path LIKE 'youtube/%' THEN m.backdrop_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = item.id), (SELECT CASE WHEN COALESCE(m.backdrop_path, '') = '' THEN NULL WHEN m.backdrop_from = 'tmdb' THEN 'w1280' || m.backdrop_path
+        		ELSE CASE WHEN m.backdrop_path LIKE 'images/caa/%' OR m.backdrop_path LIKE 'thumbnails/local/%' OR m.backdrop_path LIKE 'thumbnails/music/%'
+        			OR m.backdrop_path LIKE 'cache/youtube/%' THEN substr(m.backdrop_path, instr(m.backdrop_path, '/') + 1)
+        		WHEN m.backdrop_path LIKE 'caa/%' OR m.backdrop_path LIKE 'local/%' OR m.backdrop_path LIKE 'music/%' OR m.backdrop_path LIKE 'youtube/%' THEN m.backdrop_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = item.parent_id),
+        		(SELECT CASE WHEN COALESCE(m.backdrop_path, '') = '' THEN NULL WHEN m.backdrop_from = 'tmdb' THEN 'w1280' || m.backdrop_path
+        		ELSE CASE WHEN m.backdrop_path LIKE 'images/caa/%' OR m.backdrop_path LIKE 'thumbnails/local/%' OR m.backdrop_path LIKE 'thumbnails/music/%'
+        			OR m.backdrop_path LIKE 'cache/youtube/%' THEN substr(m.backdrop_path, instr(m.backdrop_path, '/') + 1)
+        		WHEN m.backdrop_path LIKE 'caa/%' OR m.backdrop_path LIKE 'local/%' OR m.backdrop_path LIKE 'music/%' OR m.backdrop_path LIKE 'youtube/%' THEN m.backdrop_path
+        		ELSE '' END END FROM item_shown m WHERE m.item_id = (SELECT g.parent_id FROM item g WHERE g.id = item.parent_id))), '') END FROM collection_movie cm JOIN item ON item.id = cm.item_id
+        		WHERE cm.collection_id = c.id AND (a.browse_mode = 0 OR a.browse_mode = 2 AND NOT EXISTS (SELECT 1 FROM item vr WHERE vr.id = COALESCE((SELECT vp.parent_id FROM item vp WHERE vp.id = item.parent_id), item.parent_id, item.id)
+        		AND COALESCE(vr.kids_content, vr.kind = 'movie' AND (SELECT vm.content_rating FROM item_shown vm WHERE vm.item_id = vr.id) IN ('G')
+        			OR vr.kind = 'show' AND (SELECT vm.content_rating FROM item_shown vm WHERE vm.item_id = vr.id) IN ('TV-Y','TV-Y7','TV-G')) = 1) OR a.browse_mode = 1 AND CASE (SELECT vl.kind FROM library vl WHERE vl.id = item.library_id)
+        	WHEN 'music' THEN CASE item.kind WHEN 'song' THEN item.explicit = 0
+        		WHEN 'album' THEN EXISTS (SELECT 1 FROM item vs WHERE vs.parent_id = item.id AND vs.explicit = 0)
+        		WHEN 'artist' THEN EXISTS (SELECT 1 FROM item vs WHERE vs.explicit = 0 AND +vs.kind = 'song'
+        			AND (vs.artist_id = item.id OR vs.parent_id IN (SELECT va.id FROM item va WHERE va.parent_id = item.id)))
+        		ELSE 0 END
+        	WHEN 'youtube' THEN CASE WHEN a.allow_list = 1
+        		THEN EXISTS (SELECT 1 FROM account_allow vw WHERE vw.account_id = a.account_id AND vw.item_id = COALESCE((SELECT vp.parent_id FROM item vp WHERE vp.id = item.parent_id), item.parent_id, item.id))
+        		ELSE EXISTS (SELECT 1 FROM item vc WHERE vc.id = COALESCE((SELECT vp.parent_id FROM item vp WHERE vp.id = item.parent_id), item.parent_id, item.id) AND vc.kids_content = 1) END
+        	ELSE CASE WHEN a.allow_list = 1
+        		THEN EXISTS (SELECT 1 FROM account_allow vw WHERE vw.account_id = a.account_id AND vw.item_id IN (item.id, item.parent_id,
+        			(SELECT vp.parent_id FROM item vp WHERE vp.id = item.parent_id)))
+        		ELSE EXISTS (SELECT 1 FROM item vr JOIN item_shown vm ON vm.item_id = vr.id WHERE vr.id = COALESCE((SELECT vp.parent_id FROM item vp WHERE vp.id = item.parent_id), item.parent_id, item.id)
+        			AND instr(CASE vr.kind WHEN 'movie' THEN a.movie ELSE a.tv END, ',' || vm.content_rating || ',') > 0)
+        	END END) ORDER BY cm.position IS NULL, cm.position, COALESCE((SELECT md.release_date FROM item_shown md WHERE md.item_id = item.id), CAST(item.parsed_year AS TEXT)) IS NULL, COALESCE((SELECT md.release_date FROM item_shown md WHERE md.item_id = item.id), CAST(item.parsed_year AS TEXT)), item.sort_title COLLATE NOCASE, item.id LIMIT 1), ''), '') AS backdrop_url
+        	FROM profile_audience a CROSS JOIN collection c
+        /* profile_collection_art(account_id,collection_id,poster_url,backdrop_url) */;
         CREATE VIEW kids_item AS SELECT id AS item_id FROM item WHERE EXISTS (SELECT 1 FROM item vr WHERE vr.id = COALESCE((SELECT vp.parent_id FROM item vp WHERE vp.id = item.parent_id), item.parent_id, item.id)
         		AND COALESCE(vr.kids_content, vr.kind = 'movie' AND (SELECT vm.content_rating FROM item_shown vm WHERE vm.item_id = vr.id) IN ('G')
         			OR vr.kind = 'show' AND (SELECT vm.content_rating FROM item_shown vm WHERE vm.item_id = vr.id) IN ('TV-Y','TV-Y7','TV-G')) = 1)
@@ -310,6 +478,12 @@ enum ReplicaSchema {
         CREATE INDEX edition_file_file ON edition_file(media_file_id);
         CREATE INDEX edition_item ON edition(item_id, id);
         CREATE INDEX edition_tag ON edition(item_id, tag COLLATE NOCASE) WHERE tag IS NOT NULL;
+        CREATE INDEX favorite_item ON favorite(item_id);
+        CREATE INDEX favorite_recent ON favorite(account_id, created_at);
+        CREATE INDEX friend_request_decline_request ON friend_request_decline(request_id);
+        CREATE INDEX friend_request_email ON friend_request(email);
+        CREATE INDEX friend_request_expires ON friend_request(expires_at);
+        CREATE INDEX friendship_b ON friendship(b_id);
         CREATE INDEX household_member_account ON household_member(account_id);
         CREATE INDEX item_artist ON item(artist_id) WHERE artist_id IS NOT NULL;
         CREATE INDEX item_episode ON item(parent_id, episode_number) WHERE kind = 'episode';
@@ -412,7 +586,7 @@ enum ReplicaSchema {
         INSERT INTO item_metadata VALUES(x'00000000000070008000000000000002','remote','tmdb',NULL,'unmatched',NULL,NULL,NULL,NULL,'R',NULL,NULL,NULL,NULL,NULL,NULL);
         INSERT INTO item_genre VALUES(x'00000000000070008000000000000001',x'00000000000070008000000000000001','local');
         INSERT INTO genre VALUES(x'00000000000070008000000000000001','Drama',NULL);
-        INSERT INTO person VALUES(x'00000000000070008000000000000001',NULL,'Pat',NULL);
+        INSERT INTO person VALUES(x'00000000000070008000000000000001',NULL,'Pat',NULL,NULL);
         INSERT INTO credit VALUES(x'00000000000070008000000000000001',x'00000000000070008000000000000001',x'00000000000070008000000000000001','cast','Lead',NULL,NULL,0);
         INSERT INTO item_keyword VALUES(x'00000000000070008000000000000001',900);
         INSERT INTO item_keyword VALUES(x'00000000000070008000000000000001',901);
@@ -465,8 +639,8 @@ enum ReplicaSchema {
         INSERT INTO occasion_item VALUES(x'0000000000007000800000000000012e',x'00000000000070008000000000000003');
         INSERT INTO occasion_exclusion VALUES(x'0000000000007000800000000000012d',x'0000000000007000800000000000000a');
         INSERT INTO server_info VALUES(1,'Test','local','preferred');
-        INSERT INTO collection VALUES(x'00000000000070008000000000000191','custom',x'000000000000700080000000000000c9',NULL,'Picks',NULL,0,0,NULL,NULL);
-        INSERT INTO collection VALUES(x'00000000000070008000000000000193','custom',x'000000000000700080000000000000ca',NULL,'Lent',NULL,0,0,NULL,NULL);
+        INSERT INTO collection VALUES(x'00000000000070008000000000000191','custom',x'000000000000700080000000000000c9',NULL,'Picks',NULL,NULL,NULL,0,0,NULL,NULL);
+        INSERT INTO collection VALUES(x'00000000000070008000000000000193','custom',x'000000000000700080000000000000ca',NULL,'Lent',NULL,NULL,NULL,0,0,NULL,NULL);
         INSERT INTO collection_movie VALUES(x'00000000000070008000000000000191',x'00000000000070008000000000000001',1);
         INSERT INTO collection_movie VALUES(x'00000000000070008000000000000191',x'00000000000070008000000000000002',NULL);
         INSERT INTO collection_movie VALUES(x'00000000000070008000000000000191',x'00000000000070008000000000000004',0);

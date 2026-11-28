@@ -58,6 +58,8 @@ extension Components {
         public typealias DeviceLinkId = Components.Schemas.Id
         /// - Remark: Generated from `#/components/parameters/OfferId`.
         public typealias OfferId = Components.Schemas.Id
+        /// - Remark: Generated from `#/components/parameters/FriendRequestId`.
+        public typealias FriendRequestId = Components.Schemas.Id
         /// The link's poll token. In the query so a TV can load the QR image by URL alone.
         ///
         /// - Remark: Generated from `#/components/parameters/LinkToken`.

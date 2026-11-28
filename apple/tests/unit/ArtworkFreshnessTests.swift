@@ -18,8 +18,10 @@ final class ArtworkFreshnessTests: XCTestCase {
         let kept = URLCache(
             memoryCapacity: 1 << 20, diskCapacity: 16 << 20, directory: harness.directory.appending(path: "Cache"))
         try await harness.replica.write { db in
-            try db.art(30, poster: ArtworkTests.address("seen"))
-            try db.art(31, poster: ArtworkTests.address("unseen"))
+            try db.item(30, "movie", "Dune")
+            try db.item(31, "movie", "Heat")
+            try db.art(30, poster: "seen")
+            try db.art(31, poster: "unseen")
         }
         harness.transport.headers[.eTag] = #""w500/seen.jpg""#
         harness.transport.headers[.cacheControl] = "private, max-age=31536000, immutable"

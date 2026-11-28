@@ -332,7 +332,7 @@ extension Database {
         try item(101, "episode", "Good News", parent: 11, season: 1, episode: 1)
         try item(103, "episode", "In Perpetuity", parent: 11, season: 1, episode: 3)
         try item(20, "movie", "Dune", runtime: 166)
-        try art(20, poster: ArtworkTests.address("dune"))
+        try art(20, poster: "dune")
         try artist(40, "Radiohead")
         try album(50, "In Rainbows", artist: 40)
         try song(5, "Reckoner", album: 50, track: 7)

@@ -1086,6 +1086,73 @@ extension Components {
                 case itemIds
             }
         }
+        /// The kinds of item a profile favorites.
+        ///
+        /// - Remark: Generated from `#/components/schemas/FavoriteKind`.
+        @frozen public enum FavoriteKind: String, Codable, Hashable, Sendable, CaseIterable {
+            case movie = "movie"
+            case show = "show"
+            case season = "season"
+            case episode = "episode"
+            case artist = "artist"
+            case album = "album"
+            case song = "song"
+            case video = "video"
+        }
+        /// - Remark: Generated from `#/components/schemas/Favorite`.
+        public struct Favorite: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Favorite/itemId`.
+            public var itemId: Components.Schemas.Id
+            /// - Remark: Generated from `#/components/schemas/Favorite/kind`.
+            public var kind: Components.Schemas.FavoriteKind
+            /// When the profile favorited it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Favorite/createdAt`.
+            public var createdAt: Foundation.Date
+            /// Creates a new `Favorite`.
+            ///
+            /// - Parameters:
+            ///   - itemId:
+            ///   - kind:
+            ///   - createdAt: When the profile favorited it.
+            public init(
+                itemId: Components.Schemas.Id,
+                kind: Components.Schemas.FavoriteKind,
+                createdAt: Foundation.Date
+            ) {
+                self.itemId = itemId
+                self.kind = kind
+                self.createdAt = createdAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case itemId
+                case kind
+                case createdAt
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/FavoritePage`.
+        public struct FavoritePage: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/FavoritePage/items`.
+            public var items: [Components.Schemas.Favorite]
+            /// - Remark: Generated from `#/components/schemas/FavoritePage/nextOffset`.
+            public var nextOffset: Swift.Int?
+            /// Creates a new `FavoritePage`.
+            ///
+            /// - Parameters:
+            ///   - items:
+            ///   - nextOffset:
+            public init(
+                items: [Components.Schemas.Favorite],
+                nextOffset: Swift.Int? = nil
+            ) {
+                self.items = items
+                self.nextOffset = nextOffset
+            }
+            public enum CodingKeys: String, CodingKey {
+                case items
+                case nextOffset
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/AllowedFor`.
         public struct AllowedFor: Codable, Hashable, Sendable {
             /// The kids of the device household on a manual allow list whose list holds the item itself, by id.
@@ -1351,6 +1418,146 @@ extension Components {
             public init(
                 incoming: [Components.Schemas.ProfileOffer],
                 outgoing: [Components.Schemas.ProfileOffer]
+            ) {
+                self.incoming = incoming
+                self.outgoing = outgoing
+            }
+            public enum CodingKeys: String, CodingKey {
+                case incoming
+                case outgoing
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/FriendRequestInput`.
+        public struct FriendRequestInput: Codable, Hashable, Sendable {
+            /// The new request's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409.
+            ///
+            /// - Remark: Generated from `#/components/schemas/FriendRequestInput/id`.
+            public var id: Components.Schemas.Id?
+            /// - Remark: Generated from `#/components/schemas/FriendRequestInput/email`.
+            public var email: Swift.String
+            /// Creates a new `FriendRequestInput`.
+            ///
+            /// - Parameters:
+            ///   - id: The new request's id, a UUIDv7 the client chose; absent, the server chooses one. An id already in use answers 409.
+            ///   - email:
+            public init(
+                id: Components.Schemas.Id? = nil,
+                email: Swift.String
+            ) {
+                self.id = id
+                self.email = email
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case email
+            }
+        }
+        /// A request the active adult sent, as they sent it. It reads the same whoever holds the email, so it says nothing of them.
+        ///
+        /// - Remark: Generated from `#/components/schemas/OutgoingFriendRequest`.
+        public struct OutgoingFriendRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/OutgoingFriendRequest/id`.
+            public var id: Components.Schemas.Id
+            /// As the sender wrote it, less surrounding space.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OutgoingFriendRequest/email`.
+            public var email: Swift.String
+            /// - Remark: Generated from `#/components/schemas/OutgoingFriendRequest/createdAt`.
+            public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/OutgoingFriendRequest/expiresAt`.
+            public var expiresAt: Foundation.Date
+            /// Creates a new `OutgoingFriendRequest`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - email: As the sender wrote it, less surrounding space.
+            ///   - createdAt:
+            ///   - expiresAt:
+            public init(
+                id: Components.Schemas.Id,
+                email: Swift.String,
+                createdAt: Foundation.Date,
+                expiresAt: Foundation.Date
+            ) {
+                self.id = id
+                self.email = email
+                self.createdAt = createdAt
+                self.expiresAt = expiresAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case email
+                case createdAt
+                case expiresAt
+            }
+        }
+        /// A request to the active adult from another.
+        ///
+        /// - Remark: Generated from `#/components/schemas/IncomingFriendRequest`.
+        public struct IncomingFriendRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/IncomingFriendRequest/id`.
+            public var id: Components.Schemas.Id
+            /// - Remark: Generated from `#/components/schemas/IncomingFriendRequest/fromProfileId`.
+            public var fromProfileId: Components.Schemas.Id
+            /// - Remark: Generated from `#/components/schemas/IncomingFriendRequest/fromName`.
+            public var fromName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/IncomingFriendRequest/fromColor`.
+            public var fromColor: Components.Schemas.ProfileColor
+            /// - Remark: Generated from `#/components/schemas/IncomingFriendRequest/createdAt`.
+            public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/IncomingFriendRequest/expiresAt`.
+            public var expiresAt: Foundation.Date
+            /// Creates a new `IncomingFriendRequest`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - fromProfileId:
+            ///   - fromName:
+            ///   - fromColor:
+            ///   - createdAt:
+            ///   - expiresAt:
+            public init(
+                id: Components.Schemas.Id,
+                fromProfileId: Components.Schemas.Id,
+                fromName: Swift.String,
+                fromColor: Components.Schemas.ProfileColor,
+                createdAt: Foundation.Date,
+                expiresAt: Foundation.Date
+            ) {
+                self.id = id
+                self.fromProfileId = fromProfileId
+                self.fromName = fromName
+                self.fromColor = fromColor
+                self.createdAt = createdAt
+                self.expiresAt = expiresAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case fromProfileId
+                case fromName
+                case fromColor
+                case createdAt
+                case expiresAt
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/FriendRequestList`.
+        public struct FriendRequestList: Codable, Hashable, Sendable {
+            /// To the active adult, those they declined left out.
+            ///
+            /// - Remark: Generated from `#/components/schemas/FriendRequestList/incoming`.
+            public var incoming: [Components.Schemas.IncomingFriendRequest]
+            /// From the active adult.
+            ///
+            /// - Remark: Generated from `#/components/schemas/FriendRequestList/outgoing`.
+            public var outgoing: [Components.Schemas.OutgoingFriendRequest]
+            /// Creates a new `FriendRequestList`.
+            ///
+            /// - Parameters:
+            ///   - incoming: To the active adult, those they declined left out.
+            ///   - outgoing: From the active adult.
+            public init(
+                incoming: [Components.Schemas.IncomingFriendRequest],
+                outgoing: [Components.Schemas.OutgoingFriendRequest]
             ) {
                 self.incoming = incoming
                 self.outgoing = outgoing

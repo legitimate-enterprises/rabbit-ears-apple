@@ -6341,6 +6341,1172 @@ public enum Operations {
             }
         }
     }
+    /// The active adult's friends, by name. Friends offer each other as share and Watch together targets off TVs, and are never in each other's households. Kids get 403. `email` and `householdId` are left out.
+    ///
+    /// - Remark: HTTP `GET /friends`.
+    /// - Remark: Generated from `#/paths//friends/get(listFriends)`.
+    public enum ListFriends {
+        public static let id: Swift.String = "listFriends"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/friends/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/friends/GET/query/limit`.
+                public var limit: Components.Parameters.Limit?
+                /// - Remark: Generated from `#/paths/friends/GET/query/offset`.
+                public var offset: Components.Parameters.Offset?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - limit:
+                ///   - offset:
+                public init(
+                    limit: Components.Parameters.Limit? = nil,
+                    offset: Components.Parameters.Offset? = nil
+                ) {
+                    self.limit = limit
+                    self.offset = offset
+                }
+            }
+            public var query: Operations.ListFriends.Input.Query
+            /// - Remark: Generated from `#/paths/friends/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListFriends.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListFriends.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ListFriends.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.ListFriends.Input.Query = .init(),
+                headers: Operations.ListFriends.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/friends/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/friends/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.AccountPage)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.AccountPage {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ListFriends.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ListFriends.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Friends.
+            ///
+            /// - Remark: Generated from `#/paths//friends/get(listFriends)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListFriends.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ListFriends.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//friends/get(listFriends)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//friends/get(listFriends)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Authenticated but not allowed, such as a non-admin on an admin operation.
+            ///
+            /// - Remark: Generated from `#/paths//friends/get(listFriends)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Either friend ends a friendship, and the other is not told.
+    ///
+    /// Neither then offers the other as a target anew. What they shared already stays as it is: a playlist shared with the other stays shared until its owner stops sharing it, and a Watch together both are in plays on. One who is not the active adult's friend is 404. Kids get 403.
+    ///
+    /// - Remark: HTTP `DELETE /friends/{profileId}`.
+    /// - Remark: Generated from `#/paths//friends/{profileId}/delete(deleteFriend)`.
+    public enum DeleteFriend {
+        public static let id: Swift.String = "deleteFriend"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/friends/{profileId}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/friends/{profileId}/DELETE/path/profileId`.
+                public var profileId: Components.Parameters.ProfileId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - profileId:
+                public init(profileId: Components.Parameters.ProfileId) {
+                    self.profileId = profileId
+                }
+            }
+            public var path: Operations.DeleteFriend.Input.Path
+            /// - Remark: Generated from `#/paths/friends/{profileId}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteFriend.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteFriend.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.DeleteFriend.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.DeleteFriend.Input.Path,
+                headers: Operations.DeleteFriend.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// No longer friends.
+            ///
+            /// - Remark: Generated from `#/paths//friends/{profileId}/delete(deleteFriend)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.DeleteFriend.Output.NoContent)
+            /// No longer friends.
+            ///
+            /// - Remark: Generated from `#/paths//friends/{profileId}/delete(deleteFriend)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.DeleteFriend.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//friends/{profileId}/delete(deleteFriend)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Authenticated but not allowed, such as a non-admin on an admin operation.
+            ///
+            /// - Remark: Generated from `#/paths//friends/{profileId}/delete(deleteFriend)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// No such resource visible to this device.
+            ///
+            /// - Remark: Generated from `#/paths//friends/{profileId}/delete(deleteFriend)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// The friend requests the active adult received and has not declined, and those they sent, newest first, until each expires. Kids get 403.
+    ///
+    /// - Remark: HTTP `GET /friend-requests`.
+    /// - Remark: Generated from `#/paths//friend-requests/get(listFriendRequests)`.
+    public enum ListFriendRequests {
+        public static let id: Swift.String = "listFriendRequests"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/friend-requests/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListFriendRequests.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListFriendRequests.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ListFriendRequests.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.ListFriendRequests.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/friend-requests/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/friend-requests/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.FriendRequestList)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.FriendRequestList {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ListFriendRequests.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ListFriendRequests.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Requests.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/get(listFriendRequests)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListFriendRequests.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ListFriendRequests.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/get(listFriendRequests)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Authenticated but not allowed, such as a non-admin on an admin operation.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/get(listFriendRequests)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Asks whoever holds an email to be friends; the answer says nothing of them.
+    ///
+    /// The adult who holds the email, unless it is the sender, receives the request. The answer, and all the sender can later read of the request, is the same whoever holds the email: no one, an adult who has not answered or has declined, a pending or revoked adult, the sender themself, a friend already, or an adult who asked the sender first or ended a friendship with them. The request stays as sent among the sender's until it expires, 30 days on, or the sender withdraws it; it goes early only when accepted. A second request to an email while one is listed answers that one. Emails compare as sign-in compares them, ignoring case and surrounding space. More than 20 requests from one adult within a day answer 429. Kids get 403.
+    ///
+    /// - Remark: HTTP `POST /friend-requests`.
+    /// - Remark: Generated from `#/paths//friend-requests/post(sendFriendRequest)`.
+    public enum SendFriendRequest {
+        public static let id: Swift.String = "sendFriendRequest"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/friend-requests/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.SendFriendRequest.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.SendFriendRequest.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.SendFriendRequest.Input.Headers
+            /// - Remark: Generated from `#/paths/friend-requests/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/friend-requests/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.FriendRequestInput)
+            }
+            public var body: Operations.SendFriendRequest.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.SendFriendRequest.Input.Headers = .init(),
+                body: Operations.SendFriendRequest.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Accepted: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/friend-requests/POST/responses/202/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/friend-requests/POST/responses/202/content/application\/json`.
+                    case json(Components.Schemas.OutgoingFriendRequest)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.OutgoingFriendRequest {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.SendFriendRequest.Output.Accepted.Body
+                /// Creates a new `Accepted`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.SendFriendRequest.Output.Accepted.Body) {
+                    self.body = body
+                }
+            }
+            /// If they're on this server, they'll get the request.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/post(sendFriendRequest)/responses/202`.
+            ///
+            /// HTTP response code: `202 accepted`.
+            case accepted(Operations.SendFriendRequest.Output.Accepted)
+            /// The associated value of the enum case if `self` is `.accepted`.
+            ///
+            /// - Throws: An error if `self` is not `.accepted`.
+            /// - SeeAlso: `.accepted`.
+            public var accepted: Operations.SendFriendRequest.Output.Accepted {
+                get throws {
+                    switch self {
+                    case let .accepted(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "accepted",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/post(sendFriendRequest)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/post(sendFriendRequest)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Authenticated but not allowed, such as a non-admin on an admin operation.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/post(sendFriendRequest)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The write collides with existing state.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/post(sendFriendRequest)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many attempts; try again after Retry-After seconds.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/post(sendFriendRequest)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// The sender withdraws a request, or the adult asked declines it. A declined request leaves the decliner's list only: nothing the sender reads of it changes. A request the active adult does not list is 404. Kids get 403.
+    ///
+    /// - Remark: HTTP `DELETE /friend-requests/{requestId}`.
+    /// - Remark: Generated from `#/paths//friend-requests/{requestId}/delete(deleteFriendRequest)`.
+    public enum DeleteFriendRequest {
+        public static let id: Swift.String = "deleteFriendRequest"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/friend-requests/{requestId}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/friend-requests/{requestId}/DELETE/path/requestId`.
+                public var requestId: Components.Parameters.FriendRequestId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - requestId:
+                public init(requestId: Components.Parameters.FriendRequestId) {
+                    self.requestId = requestId
+                }
+            }
+            public var path: Operations.DeleteFriendRequest.Input.Path
+            /// - Remark: Generated from `#/paths/friend-requests/{requestId}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteFriendRequest.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteFriendRequest.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.DeleteFriendRequest.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.DeleteFriendRequest.Input.Path,
+                headers: Operations.DeleteFriendRequest.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Withdrawn or declined.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/{requestId}/delete(deleteFriendRequest)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.DeleteFriendRequest.Output.NoContent)
+            /// Withdrawn or declined.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/{requestId}/delete(deleteFriendRequest)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.DeleteFriendRequest.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/{requestId}/delete(deleteFriendRequest)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Authenticated but not allowed, such as a non-admin on an admin operation.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/{requestId}/delete(deleteFriendRequest)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// No such resource visible to this device.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/{requestId}/delete(deleteFriendRequest)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// The adult asked accepts: the two are friends, and the request goes with any between them the other way. A request the active adult received and lists is the only one they accept (404); a sender no longer to be had, as one revoked, is 409. Kids get 403.
+    ///
+    /// - Remark: HTTP `POST /friend-requests/{requestId}/accept`.
+    /// - Remark: Generated from `#/paths//friend-requests/{requestId}/accept/post(acceptFriendRequest)`.
+    public enum AcceptFriendRequest {
+        public static let id: Swift.String = "acceptFriendRequest"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/friend-requests/{requestId}/accept/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/friend-requests/{requestId}/accept/POST/path/requestId`.
+                public var requestId: Components.Parameters.FriendRequestId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - requestId:
+                public init(requestId: Components.Parameters.FriendRequestId) {
+                    self.requestId = requestId
+                }
+            }
+            public var path: Operations.AcceptFriendRequest.Input.Path
+            /// - Remark: Generated from `#/paths/friend-requests/{requestId}/accept/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.AcceptFriendRequest.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.AcceptFriendRequest.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.AcceptFriendRequest.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.AcceptFriendRequest.Input.Path,
+                headers: Operations.AcceptFriendRequest.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Friends.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/{requestId}/accept/post(acceptFriendRequest)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.AcceptFriendRequest.Output.NoContent)
+            /// Friends.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/{requestId}/accept/post(acceptFriendRequest)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.AcceptFriendRequest.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/{requestId}/accept/post(acceptFriendRequest)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Authenticated but not allowed, such as a non-admin on an admin operation.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/{requestId}/accept/post(acceptFriendRequest)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// No such resource visible to this device.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/{requestId}/accept/post(acceptFriendRequest)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The write collides with existing state.
+            ///
+            /// - Remark: Generated from `#/paths//friend-requests/{requestId}/accept/post(acceptFriendRequest)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Everyone in the device household, owner first, then adults, then kids.
     ///
     /// A profile may be in several households: a kid shared with another
@@ -9604,6 +10770,643 @@ public enum Operations {
             }
         }
     }
+    /// The profile's favorites, most recently favorited first, then by item id.
+    ///
+    /// Only items the profile browses: a favorite hidden from it, as by a kid's ceilings, is kept and listed again once it may be seen. An adult with hideKidsContent is not listed kids' content (Item.kidsContent, YouTubeChannel.forKids).
+    ///
+    /// - Remark: HTTP `GET /profiles/{profileId}/favorites`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/get(listFavorites)`.
+    public enum ListFavorites {
+        public static let id: Swift.String = "listFavorites"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/GET/path/profileId`.
+                public var profileId: Components.Parameters.ProfileId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - profileId:
+                public init(profileId: Components.Parameters.ProfileId) {
+                    self.profileId = profileId
+                }
+            }
+            public var path: Operations.ListFavorites.Input.Path
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/GET/query/limit`.
+                public var limit: Components.Parameters.Limit?
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/GET/query/offset`.
+                public var offset: Components.Parameters.Offset?
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/GET/query/kind`.
+                public var kind: Components.Schemas.FavoriteKind?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - limit:
+                ///   - offset:
+                ///   - kind:
+                public init(
+                    limit: Components.Parameters.Limit? = nil,
+                    offset: Components.Parameters.Offset? = nil,
+                    kind: Components.Schemas.FavoriteKind? = nil
+                ) {
+                    self.limit = limit
+                    self.offset = offset
+                    self.kind = kind
+                }
+            }
+            public var query: Operations.ListFavorites.Input.Query
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListFavorites.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListFavorites.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ListFavorites.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.ListFavorites.Input.Path,
+                query: Operations.ListFavorites.Input.Query = .init(),
+                headers: Operations.ListFavorites.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.FavoritePage)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.FavoritePage {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ListFavorites.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ListFavorites.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Favorites.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/get(listFavorites)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListFavorites.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ListFavorites.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/get(listFavorites)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/get(listFavorites)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// No such resource visible to this device.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/get(listFavorites)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Favorite an item of a FavoriteKind the profile may see.
+    ///
+    /// - Remark: HTTP `PUT /profiles/{profileId}/favorites/{itemId}`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/{itemId}/put(putFavorite)`.
+    public enum PutFavorite {
+        public static let id: Swift.String = "putFavorite"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/{itemId}/PUT/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/{itemId}/PUT/path/profileId`.
+                public var profileId: Components.Parameters.ProfileId
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/{itemId}/PUT/path/itemId`.
+                public var itemId: Components.Parameters.ItemId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - profileId:
+                ///   - itemId:
+                public init(
+                    profileId: Components.Parameters.ProfileId,
+                    itemId: Components.Parameters.ItemId
+                ) {
+                    self.profileId = profileId
+                    self.itemId = itemId
+                }
+            }
+            public var path: Operations.PutFavorite.Input.Path
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/{itemId}/PUT/query`.
+            public struct Query: Sendable, Hashable {
+                /// When it was favorited, as a device that was offline knows it; absent is now, and a time ahead of the server's is taken as now. An item already a favorite keeps its createdAt.
+                ///
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/{itemId}/PUT/query/at`.
+                public var at: Foundation.Date?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - at: When it was favorited, as a device that was offline knows it; absent is now, and a time ahead of the server's is taken as now. An item already a favorite keeps its createdAt.
+                public init(at: Foundation.Date? = nil) {
+                    self.at = at
+                }
+            }
+            public var query: Operations.PutFavorite.Input.Query
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/{itemId}/PUT/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.PutFavorite.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.PutFavorite.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.PutFavorite.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.PutFavorite.Input.Path,
+                query: Operations.PutFavorite.Input.Query = .init(),
+                headers: Operations.PutFavorite.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Favorited; idempotent.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/{itemId}/put(putFavorite)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.PutFavorite.Output.NoContent)
+            /// Favorited; idempotent.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/{itemId}/put(putFavorite)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.PutFavorite.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/{itemId}/put(putFavorite)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/{itemId}/put(putFavorite)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// No such resource visible to this device.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/{itemId}/put(putFavorite)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// - Remark: HTTP `DELETE /profiles/{profileId}/favorites/{itemId}`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/{itemId}/delete(deleteFavorite)`.
+    public enum DeleteFavorite {
+        public static let id: Swift.String = "deleteFavorite"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/{itemId}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/{itemId}/DELETE/path/profileId`.
+                public var profileId: Components.Parameters.ProfileId
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/{itemId}/DELETE/path/itemId`.
+                public var itemId: Components.Parameters.ItemId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - profileId:
+                ///   - itemId:
+                public init(
+                    profileId: Components.Parameters.ProfileId,
+                    itemId: Components.Parameters.ItemId
+                ) {
+                    self.profileId = profileId
+                    self.itemId = itemId
+                }
+            }
+            public var path: Operations.DeleteFavorite.Input.Path
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/{itemId}/DELETE/query`.
+            public struct Query: Sendable, Hashable {
+                /// When it was unfavorited, as a device that was offline knows it; a time ahead of the server's is taken as now. A favorite made later stays, and the answer is still 204.
+                ///
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/{itemId}/DELETE/query/at`.
+                public var at: Foundation.Date?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - at: When it was unfavorited, as a device that was offline knows it; a time ahead of the server's is taken as now. A favorite made later stays, and the answer is still 204.
+                public init(at: Foundation.Date? = nil) {
+                    self.at = at
+                }
+            }
+            public var query: Operations.DeleteFavorite.Input.Query
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/favorites/{itemId}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteFavorite.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteFavorite.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.DeleteFavorite.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.DeleteFavorite.Input.Path,
+                query: Operations.DeleteFavorite.Input.Query = .init(),
+                headers: Operations.DeleteFavorite.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Removed; idempotent, also for an item that is gone or hidden.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/{itemId}/delete(deleteFavorite)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.DeleteFavorite.Output.NoContent)
+            /// Removed; idempotent, also for an item that is gone or hidden.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/{itemId}/delete(deleteFavorite)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.DeleteFavorite.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/{itemId}/delete(deleteFavorite)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/{itemId}/delete(deleteFavorite)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// No such resource visible to this device.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/{itemId}/delete(deleteFavorite)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// The profile's watch state, most recently played first.
     ///
     /// An adult with hideKidsContent is not listed kids' content (Item.kidsContent, YouTubeChannel.forKids).
@@ -10378,6 +12181,214 @@ public enum Operations {
             /// No such resource visible to this device.
             ///
             /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/delete(deleteWatchState)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Dismiss from in progress, forgetting where to resume.
+    ///
+    /// positionMs becomes 0, so the item is no longer in progress anywhere; watched, playCount, lastPlayedAt and editionId stay. Playing it again starts at the beginning. A state not in progress is left as it is.
+    ///
+    /// - Remark: HTTP `DELETE /profiles/{profileId}/watch-state/{itemId}/position`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/position/delete(dismissWatchState)`.
+    public enum DismissWatchState {
+        public static let id: Swift.String = "dismissWatchState"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/position/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/position/DELETE/path/profileId`.
+                public var profileId: Components.Parameters.ProfileId
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/position/DELETE/path/itemId`.
+                public var itemId: Components.Parameters.ItemId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - profileId:
+                ///   - itemId:
+                public init(
+                    profileId: Components.Parameters.ProfileId,
+                    itemId: Components.Parameters.ItemId
+                ) {
+                    self.profileId = profileId
+                    self.itemId = itemId
+                }
+            }
+            public var path: Operations.DismissWatchState.Input.Path
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/position/DELETE/query`.
+            public struct Query: Sendable, Hashable {
+                /// When it was dismissed, as a device that was offline knows it; a time ahead of the server's is taken as now. A state that changed later stays, and the answer is still 204.
+                ///
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/position/DELETE/query/at`.
+                public var at: Foundation.Date?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - at: When it was dismissed, as a device that was offline knows it; a time ahead of the server's is taken as now. A state that changed later stays, and the answer is still 204.
+                public init(at: Foundation.Date? = nil) {
+                    self.at = at
+                }
+            }
+            public var query: Operations.DismissWatchState.Input.Query
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/watch-state/{itemId}/position/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DismissWatchState.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DismissWatchState.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.DismissWatchState.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.DismissWatchState.Input.Path,
+                query: Operations.DismissWatchState.Input.Query = .init(),
+                headers: Operations.DismissWatchState.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Dismissed.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/position/delete(dismissWatchState)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.DismissWatchState.Output.NoContent)
+            /// Dismissed.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/position/delete(dismissWatchState)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.DismissWatchState.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/position/delete(dismissWatchState)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/position/delete(dismissWatchState)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// No such resource visible to this device.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/position/delete(dismissWatchState)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Components.Responses.NotFound)

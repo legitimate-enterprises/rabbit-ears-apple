@@ -25,7 +25,9 @@ final class ReplicaRowsTests: XCTestCase {
             [
                 "credit_shown", "item_file", "item_genre_shown", "item_keyword_shown", "item_shown", "kids_item",
                 "membership", "metadata_setting", "music_album", "music_artist", "music_song", "occasion_member",
-                "playlist_reach", "playlist_row", "profile_audience", "profile_item", "profile_item_open",
+                "playlist_reach", "playlist_row", "profile_art", "profile_audience", "profile_collection_art",
+                "profile_item",
+                "profile_item_open",
                 "profile_station",
             ])
         for view in views {

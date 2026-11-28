@@ -256,6 +256,40 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /household/offers/{offerId}/accept`.
     /// - Remark: Generated from `#/paths//household/offers/{offerId}/accept/post(acceptProfileOffer)`.
     func acceptProfileOffer(_ input: Operations.AcceptProfileOffer.Input) async throws -> Operations.AcceptProfileOffer.Output
+    /// The active adult's friends, by name. Friends offer each other as share and Watch together targets off TVs, and are never in each other's households. Kids get 403. `email` and `householdId` are left out.
+    ///
+    /// - Remark: HTTP `GET /friends`.
+    /// - Remark: Generated from `#/paths//friends/get(listFriends)`.
+    func listFriends(_ input: Operations.ListFriends.Input) async throws -> Operations.ListFriends.Output
+    /// Either friend ends a friendship, and the other is not told.
+    ///
+    /// Neither then offers the other as a target anew. What they shared already stays as it is: a playlist shared with the other stays shared until its owner stops sharing it, and a Watch together both are in plays on. One who is not the active adult's friend is 404. Kids get 403.
+    ///
+    /// - Remark: HTTP `DELETE /friends/{profileId}`.
+    /// - Remark: Generated from `#/paths//friends/{profileId}/delete(deleteFriend)`.
+    func deleteFriend(_ input: Operations.DeleteFriend.Input) async throws -> Operations.DeleteFriend.Output
+    /// The friend requests the active adult received and has not declined, and those they sent, newest first, until each expires. Kids get 403.
+    ///
+    /// - Remark: HTTP `GET /friend-requests`.
+    /// - Remark: Generated from `#/paths//friend-requests/get(listFriendRequests)`.
+    func listFriendRequests(_ input: Operations.ListFriendRequests.Input) async throws -> Operations.ListFriendRequests.Output
+    /// Asks whoever holds an email to be friends; the answer says nothing of them.
+    ///
+    /// The adult who holds the email, unless it is the sender, receives the request. The answer, and all the sender can later read of the request, is the same whoever holds the email: no one, an adult who has not answered or has declined, a pending or revoked adult, the sender themself, a friend already, or an adult who asked the sender first or ended a friendship with them. The request stays as sent among the sender's until it expires, 30 days on, or the sender withdraws it; it goes early only when accepted. A second request to an email while one is listed answers that one. Emails compare as sign-in compares them, ignoring case and surrounding space. More than 20 requests from one adult within a day answer 429. Kids get 403.
+    ///
+    /// - Remark: HTTP `POST /friend-requests`.
+    /// - Remark: Generated from `#/paths//friend-requests/post(sendFriendRequest)`.
+    func sendFriendRequest(_ input: Operations.SendFriendRequest.Input) async throws -> Operations.SendFriendRequest.Output
+    /// The sender withdraws a request, or the adult asked declines it. A declined request leaves the decliner's list only: nothing the sender reads of it changes. A request the active adult does not list is 404. Kids get 403.
+    ///
+    /// - Remark: HTTP `DELETE /friend-requests/{requestId}`.
+    /// - Remark: Generated from `#/paths//friend-requests/{requestId}/delete(deleteFriendRequest)`.
+    func deleteFriendRequest(_ input: Operations.DeleteFriendRequest.Input) async throws -> Operations.DeleteFriendRequest.Output
+    /// The adult asked accepts: the two are friends, and the request goes with any between them the other way. A request the active adult received and lists is the only one they accept (404); a sender no longer to be had, as one revoked, is 409. Kids get 403.
+    ///
+    /// - Remark: HTTP `POST /friend-requests/{requestId}/accept`.
+    /// - Remark: Generated from `#/paths//friend-requests/{requestId}/accept/post(acceptFriendRequest)`.
+    func acceptFriendRequest(_ input: Operations.AcceptFriendRequest.Input) async throws -> Operations.AcceptFriendRequest.Output
     /// Everyone in the device household, owner first, then adults, then kids.
     ///
     /// A profile may be in several households: a kid shared with another
@@ -360,6 +394,21 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /profiles/{profileId}/allowed-items/{itemId}`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/allowed-items/{itemId}/delete(disallowItem)`.
     func disallowItem(_ input: Operations.DisallowItem.Input) async throws -> Operations.DisallowItem.Output
+    /// The profile's favorites, most recently favorited first, then by item id.
+    ///
+    /// Only items the profile browses: a favorite hidden from it, as by a kid's ceilings, is kept and listed again once it may be seen. An adult with hideKidsContent is not listed kids' content (Item.kidsContent, YouTubeChannel.forKids).
+    ///
+    /// - Remark: HTTP `GET /profiles/{profileId}/favorites`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/get(listFavorites)`.
+    func listFavorites(_ input: Operations.ListFavorites.Input) async throws -> Operations.ListFavorites.Output
+    /// Favorite an item of a FavoriteKind the profile may see.
+    ///
+    /// - Remark: HTTP `PUT /profiles/{profileId}/favorites/{itemId}`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/{itemId}/put(putFavorite)`.
+    func putFavorite(_ input: Operations.PutFavorite.Input) async throws -> Operations.PutFavorite.Output
+    /// - Remark: HTTP `DELETE /profiles/{profileId}/favorites/{itemId}`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/{itemId}/delete(deleteFavorite)`.
+    func deleteFavorite(_ input: Operations.DeleteFavorite.Input) async throws -> Operations.DeleteFavorite.Output
     /// The profile's watch state, most recently played first.
     ///
     /// An adult with hideKidsContent is not listed kids' content (Item.kidsContent, YouTubeChannel.forKids).
@@ -378,6 +427,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /profiles/{profileId}/watch-state/{itemId}`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/delete(deleteWatchState)`.
     func deleteWatchState(_ input: Operations.DeleteWatchState.Input) async throws -> Operations.DeleteWatchState.Output
+    /// Dismiss from in progress, forgetting where to resume.
+    ///
+    /// positionMs becomes 0, so the item is no longer in progress anywhere; watched, playCount, lastPlayedAt and editionId stay. Playing it again starts at the beginning. A state not in progress is left as it is.
+    ///
+    /// - Remark: HTTP `DELETE /profiles/{profileId}/watch-state/{itemId}/position`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/position/delete(dismissWatchState)`.
+    func dismissWatchState(_ input: Operations.DismissWatchState.Input) async throws -> Operations.DismissWatchState.Output
     /// Count one finished play the server did not see.
     ///
     /// For a play the server did not stream, such as of a downloaded file, sent once per play when it ends. playCount goes up by one, and lastPlayedAt becomes the latest play, in whatever order plays and putWatchState arrive. Over a state that changed no later than at, the item is watched and resumes from the start of the edition played; a state that changed later stays. Playback the server streams counts a play only when it marks the item watched, so a client sends no putWatchState with watched true for a play it records.
@@ -2505,6 +2561,82 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// The active adult's friends, by name. Friends offer each other as share and Watch together targets off TVs, and are never in each other's households. Kids get 403. `email` and `householdId` are left out.
+    ///
+    /// - Remark: HTTP `GET /friends`.
+    /// - Remark: Generated from `#/paths//friends/get(listFriends)`.
+    public func listFriends(
+        query: Operations.ListFriends.Input.Query = .init(),
+        headers: Operations.ListFriends.Input.Headers = .init()
+    ) async throws -> Operations.ListFriends.Output {
+        try await listFriends(Operations.ListFriends.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Either friend ends a friendship, and the other is not told.
+    ///
+    /// Neither then offers the other as a target anew. What they shared already stays as it is: a playlist shared with the other stays shared until its owner stops sharing it, and a Watch together both are in plays on. One who is not the active adult's friend is 404. Kids get 403.
+    ///
+    /// - Remark: HTTP `DELETE /friends/{profileId}`.
+    /// - Remark: Generated from `#/paths//friends/{profileId}/delete(deleteFriend)`.
+    public func deleteFriend(
+        path: Operations.DeleteFriend.Input.Path,
+        headers: Operations.DeleteFriend.Input.Headers = .init()
+    ) async throws -> Operations.DeleteFriend.Output {
+        try await deleteFriend(Operations.DeleteFriend.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// The friend requests the active adult received and has not declined, and those they sent, newest first, until each expires. Kids get 403.
+    ///
+    /// - Remark: HTTP `GET /friend-requests`.
+    /// - Remark: Generated from `#/paths//friend-requests/get(listFriendRequests)`.
+    public func listFriendRequests(headers: Operations.ListFriendRequests.Input.Headers = .init()) async throws -> Operations.ListFriendRequests.Output {
+        try await listFriendRequests(Operations.ListFriendRequests.Input(headers: headers))
+    }
+    /// Asks whoever holds an email to be friends; the answer says nothing of them.
+    ///
+    /// The adult who holds the email, unless it is the sender, receives the request. The answer, and all the sender can later read of the request, is the same whoever holds the email: no one, an adult who has not answered or has declined, a pending or revoked adult, the sender themself, a friend already, or an adult who asked the sender first or ended a friendship with them. The request stays as sent among the sender's until it expires, 30 days on, or the sender withdraws it; it goes early only when accepted. A second request to an email while one is listed answers that one. Emails compare as sign-in compares them, ignoring case and surrounding space. More than 20 requests from one adult within a day answer 429. Kids get 403.
+    ///
+    /// - Remark: HTTP `POST /friend-requests`.
+    /// - Remark: Generated from `#/paths//friend-requests/post(sendFriendRequest)`.
+    public func sendFriendRequest(
+        headers: Operations.SendFriendRequest.Input.Headers = .init(),
+        body: Operations.SendFriendRequest.Input.Body
+    ) async throws -> Operations.SendFriendRequest.Output {
+        try await sendFriendRequest(Operations.SendFriendRequest.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// The sender withdraws a request, or the adult asked declines it. A declined request leaves the decliner's list only: nothing the sender reads of it changes. A request the active adult does not list is 404. Kids get 403.
+    ///
+    /// - Remark: HTTP `DELETE /friend-requests/{requestId}`.
+    /// - Remark: Generated from `#/paths//friend-requests/{requestId}/delete(deleteFriendRequest)`.
+    public func deleteFriendRequest(
+        path: Operations.DeleteFriendRequest.Input.Path,
+        headers: Operations.DeleteFriendRequest.Input.Headers = .init()
+    ) async throws -> Operations.DeleteFriendRequest.Output {
+        try await deleteFriendRequest(Operations.DeleteFriendRequest.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// The adult asked accepts: the two are friends, and the request goes with any between them the other way. A request the active adult received and lists is the only one they accept (404); a sender no longer to be had, as one revoked, is 409. Kids get 403.
+    ///
+    /// - Remark: HTTP `POST /friend-requests/{requestId}/accept`.
+    /// - Remark: Generated from `#/paths//friend-requests/{requestId}/accept/post(acceptFriendRequest)`.
+    public func acceptFriendRequest(
+        path: Operations.AcceptFriendRequest.Input.Path,
+        headers: Operations.AcceptFriendRequest.Input.Headers = .init()
+    ) async throws -> Operations.AcceptFriendRequest.Output {
+        try await acceptFriendRequest(Operations.AcceptFriendRequest.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// Everyone in the device household, owner first, then adults, then kids.
     ///
     /// A profile may be in several households: a kid shared with another
@@ -2743,6 +2875,51 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// The profile's favorites, most recently favorited first, then by item id.
+    ///
+    /// Only items the profile browses: a favorite hidden from it, as by a kid's ceilings, is kept and listed again once it may be seen. An adult with hideKidsContent is not listed kids' content (Item.kidsContent, YouTubeChannel.forKids).
+    ///
+    /// - Remark: HTTP `GET /profiles/{profileId}/favorites`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/get(listFavorites)`.
+    public func listFavorites(
+        path: Operations.ListFavorites.Input.Path,
+        query: Operations.ListFavorites.Input.Query = .init(),
+        headers: Operations.ListFavorites.Input.Headers = .init()
+    ) async throws -> Operations.ListFavorites.Output {
+        try await listFavorites(Operations.ListFavorites.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Favorite an item of a FavoriteKind the profile may see.
+    ///
+    /// - Remark: HTTP `PUT /profiles/{profileId}/favorites/{itemId}`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/{itemId}/put(putFavorite)`.
+    public func putFavorite(
+        path: Operations.PutFavorite.Input.Path,
+        query: Operations.PutFavorite.Input.Query = .init(),
+        headers: Operations.PutFavorite.Input.Headers = .init()
+    ) async throws -> Operations.PutFavorite.Output {
+        try await putFavorite(Operations.PutFavorite.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// - Remark: HTTP `DELETE /profiles/{profileId}/favorites/{itemId}`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/favorites/{itemId}/delete(deleteFavorite)`.
+    public func deleteFavorite(
+        path: Operations.DeleteFavorite.Input.Path,
+        query: Operations.DeleteFavorite.Input.Query = .init(),
+        headers: Operations.DeleteFavorite.Input.Headers = .init()
+    ) async throws -> Operations.DeleteFavorite.Output {
+        try await deleteFavorite(Operations.DeleteFavorite.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// The profile's watch state, most recently played first.
     ///
     /// An adult with hideKidsContent is not listed kids' content (Item.kidsContent, YouTubeChannel.forKids).
@@ -2794,6 +2971,23 @@ extension APIProtocol {
         headers: Operations.DeleteWatchState.Input.Headers = .init()
     ) async throws -> Operations.DeleteWatchState.Output {
         try await deleteWatchState(Operations.DeleteWatchState.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Dismiss from in progress, forgetting where to resume.
+    ///
+    /// positionMs becomes 0, so the item is no longer in progress anywhere; watched, playCount, lastPlayedAt and editionId stay. Playing it again starts at the beginning. A state not in progress is left as it is.
+    ///
+    /// - Remark: HTTP `DELETE /profiles/{profileId}/watch-state/{itemId}/position`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/watch-state/{itemId}/position/delete(dismissWatchState)`.
+    public func dismissWatchState(
+        path: Operations.DismissWatchState.Input.Path,
+        query: Operations.DismissWatchState.Input.Query = .init(),
+        headers: Operations.DismissWatchState.Input.Headers = .init()
+    ) async throws -> Operations.DismissWatchState.Output {
+        try await dismissWatchState(Operations.DismissWatchState.Input(
             path: path,
             query: query,
             headers: headers

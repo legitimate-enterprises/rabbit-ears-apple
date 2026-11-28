@@ -154,13 +154,21 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(transport.json(.post, "/profiles/\(UID.n(2))/unlock")?["pin"] as? String, "1234")
     }
 
-    /// Each profile is shown the art the replica names for it: here, none for the kid and Dune's poster for Avery.
+    /// Each profile is shown the art the replica names for it: an artist whose one album has only an explicit
+    /// song shows that album's cover to Avery and nothing to the kid.
     func testArtIsAskedForAtTheAddressTheReplicaNamesForTheActiveProfile() async throws {
         try await model.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
         let fixture = ReplicaFixture()
         addTeardownBlock { fixture.remove() }
         try XCTUnwrap(model.sync).replica.adopt(
-            fixture.v1File { db in try db.art(7, for: 1, poster: ArtworkTests.address("dune")) })
+            fixture.v1File { db in
+                try db.account(1, "Avery")
+                try db.account(2, "Robin", kind: "kid")
+                try db.artist(7, "Radiohead")
+                try db.album(8, "In Rainbows", artist: 7)
+                try db.song(9, "Bodysnatchers", album: 8, explicit: true)
+                try db.art(8, poster: "dune")
+            })
         transport.routes["GET /artwork/w500/dune.jpg"] = (.ok, "jpeg")
         transport.headers[.eTag] = #""w500/dune.jpg""#
         transport.headers[.cacheControl] = "private, max-age=31536000, immutable"

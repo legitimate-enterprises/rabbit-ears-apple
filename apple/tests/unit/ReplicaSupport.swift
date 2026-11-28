@@ -120,7 +120,6 @@ struct ReplicaFixture {
                     INSERT INTO replica_meta VALUES (1, 1, \(sqlID(7)));
                     INSERT INTO server_info VALUES (1, 'Home', 'remote', 'only');
                     """)
-            try db.execute(sql: ReplicaSchema.art)
             try rows(db)
         }
         return file
@@ -206,20 +205,15 @@ extension Database {
                 """, arguments: [id, kind, name, UID.n(7), filter, movies, tv, hidingKids])
     }
 
-    /// The addresses `profile_art` names for an item's art as `profile` is shown it.
-    func art(_ item: UID, for profile: UID = 1, poster: String?, backdrop: String? = nil) throws {
-        try execute(
-            sql:
-                "INSERT OR REPLACE INTO profile_art(account_id, item_id, poster_url, backdrop_url) VALUES (?, ?, ?, ?)",
-            arguments: [profile, item, poster, backdrop])
-    }
-
-    func art(collection: UID, for profile: UID = 1, poster: String?, backdrop: String? = nil) throws {
+    /// TMDB's `/<poster>.jpg` and `/<backdrop>.jpg` as an item's art, which `profile_art` names as
+    /// `ArtworkTests.address(poster)` and `ArtworkTests.address(backdrop, store: "w1280")`.
+    func art(_ item: UID, poster: String?, backdrop: String? = nil) throws {
         try execute(
             sql: """
-                INSERT OR REPLACE INTO profile_collection_art(account_id, collection_id, poster_url, backdrop_url)
-                VALUES (?, ?, ?, ?)
-                """, arguments: [profile, collection, poster, backdrop])
+                INSERT INTO item_metadata(item_id, source, provider, status, poster_path, backdrop_path)
+                VALUES (?, 'remote', 'tmdb', 'matched', ?, ?) ON CONFLICT (item_id, source) DO UPDATE
+                SET provider = 'tmdb', poster_path = excluded.poster_path, backdrop_path = excluded.backdrop_path
+                """, arguments: [item, poster.map { "/\($0).jpg" }, backdrop.map { "/\($0).jpg" }])
     }
 
     func allow(_ item: UID, for profile: UID) throws {
@@ -298,16 +292,4 @@ extension Database {
                 ms(state.changedAt), state.editionId,
             ])
     }
-}
-
-extension ReplicaSchema {
-    /// shortcut: server 0.24.0's art in the replica, its views as tables, until replica-schema.sh is run on
-    /// a 0.24.0 snapshot; then ReplicaSchema.v1 has them and these fail as duplicates.
-    static let art = """
-        ALTER TABLE person ADD COLUMN headshot_url TEXT;
-        CREATE TABLE profile_art (account_id BLOB, item_id BLOB, poster_url TEXT, backdrop_url TEXT,
-            PRIMARY KEY (account_id, item_id));
-        CREATE TABLE profile_collection_art (account_id BLOB, collection_id BLOB, poster_url TEXT,
-            backdrop_url TEXT, PRIMARY KEY (account_id, collection_id));
-        """
 }

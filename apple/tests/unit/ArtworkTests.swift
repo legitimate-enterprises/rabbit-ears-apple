@@ -9,20 +9,20 @@ import XCTest
 
 @testable import RabbitEarsKit
 
-/// Answers the images `served` names, 503 for `/artwork/w500/down.jpg`, profile 1's avatar (a uid.N id),
-/// and 404 for anything else, counting requests.
+/// Answers any image under /artwork/ but gone.jpg (404) and down.jpg (503), and profile 1's avatar (a uid.N
+/// id); 404 for anything else. Counts requests.
 final class ArtworkTransport: ClientTransport, @unchecked Sendable {
     var paths: [String] = []
     var image = Data("jpg".utf8)
-    var served = ["a", "b", "c"].map { "/artwork/w500/\($0).jpg" }
 
     func send(
         _ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let path = request.path ?? ""
         paths.append(path)
-        guard served.contains(path) || path == "/profiles/\(UID.n(1))/avatar" else {
-            var response = HTTPResponse(status: path == "/artwork/w500/down.jpg" ? .serviceUnavailable : .notFound)
+        let art = path.hasPrefix("/artwork/") && !path.hasSuffix("/gone.jpg") && !path.hasSuffix("/down.jpg")
+        guard art || path == "/profiles/\(UID.n(1))/avatar" else {
+            var response = HTTPResponse(status: path.hasSuffix("/down.jpg") ? .serviceUnavailable : .notFound)
             response.headerFields[.contentType] = "application/json"
             return (response, HTTPBody(#"{"code":"not_found","message":"not found"}"#))
         }
@@ -36,19 +36,27 @@ final class ArtworkTransport: ClientTransport, @unchecked Sendable {
 
 @MainActor
 final class ArtworkTests: XCTestCase {
-    /// The address the server names for an image `name` of TMDB's w500 store.
-    nonisolated static func address(_ name: String) -> String { "/api/v2/artwork/w500/\(name).jpg" }
+    /// The address the server names for TMDB's image `name` in `store`, w500 for posters and w1280 for backdrops.
+    nonisolated static func address(_ name: String, store: String = "w500") -> String {
+        "/api/v2/artwork/\(store)/\(name).jpg"
+    }
 
-    /// A replica naming a.jpg for item 1's poster and b.jpg for item 2's, as profile 1 is shown them.
+    /// A replica whose movie 1 has poster a.jpg and movie 2 b.jpg, seen by adult 1 and kid 2; artist 40's
+    /// one album, 50, has poster e.jpg and only an explicit song, so only the adult is shown it.
     private func replica(_ rows: (Database) throws -> Void = { _ in }) throws -> Replica {
         let fixture = ReplicaFixture()
         addTeardownBlock { fixture.remove() }
         return try fixture.v1 { db in
             try db.account(1, "Avery")
+            try db.account(2, "Robin", kind: "kid")
             try db.item(1, "movie", "Dune")
             try db.item(2, "movie", "Heat")
-            try db.art(1, poster: Self.address("a"))
-            try db.art(2, poster: Self.address("b"))
+            try db.art(1, poster: "a")
+            try db.art(2, poster: "b")
+            try db.artist(40, "Radiohead")
+            try db.album(50, "In Rainbows", artist: 40)
+            try db.song(5, "Bodysnatchers", album: 50, explicit: true)
+            try db.art(50, poster: "e")
             try rows(db)
         }
     }
@@ -78,7 +86,7 @@ final class ArtworkTests: XCTestCase {
         let store = Self.store(transport, replica)
         _ = await store.data(1, .poster)
         _ = await store.data(2, .poster)
-        try await replica.write { try $0.art(1, poster: Self.address("c")) }
+        try await replica.write { try $0.art(1, poster: "c") }
         _ = await store.data(1, .poster)
         _ = await store.data(2, .poster)
         XCTAssertEqual(transport.paths, ["/artwork/w500/a.jpg", "/artwork/w500/b.jpg", "/artwork/w500/c.jpg"])
@@ -93,7 +101,7 @@ final class ArtworkTests: XCTestCase {
             try db.execute(sql: "UPDATE item SET parsed_title = 'Dune: Part One' WHERE id = ?", arguments: [UID.n(1)])
             try db.watch(1, for: 1, position: 60_000)
             try db.item(3, "movie", "Alien")
-            try db.art(3, poster: Self.address("c"))
+            try db.art(3, poster: "c")
         }
         _ = await store.data(1, .poster)
         XCTAssertEqual(transport.paths, ["/artwork/w500/a.jpg"])
@@ -101,31 +109,33 @@ final class ArtworkTests: XCTestCase {
 
     func testArtWithNoAddressIsNotAskedFor() async throws {
         let transport = ArtworkTransport()
-        let replica = try replica { db in try db.account(2, "Robin") }
+        let replica = try replica()
         let none = await Self.store(transport, replica).data(1, .backdrop)
-        let unseen = await Self.store(transport, replica, profile: 2).data(1, .poster)
+        let unseen = await Self.store(transport, replica, profile: 2).data(40, .poster)
         XCTAssertNil(none)
-        XCTAssertNil(unseen, "the replica names it for profile 1 only")
+        XCTAssertNil(unseen, "the kid may hear none of the artist's albums")
         XCTAssertEqual(transport.paths, [])
+        let adults = try await replica.read { try ArtKey(id: 40, kind: .poster).address(for: 1, $0) }
+        XCTAssertEqual(adults, Self.address("e"))
     }
 
     func testAMissingImageIsAskedForOnceButATransientFailureIsAskedAgain() async throws {
         let transport = ArtworkTransport()
         let replica = try replica { db in
-            try db.art(1, poster: Self.address("gone"), backdrop: Self.address("down"))
+            try db.art(1, poster: "gone", backdrop: "down")
         }
         let store = Self.store(transport, replica)
         for _ in 0..<2 { _ = await store.data(1, .poster) }
         for _ in 0..<2 { _ = await store.data(1, .backdrop) }
         XCTAssertEqual(
-            transport.paths, ["/artwork/w500/gone.jpg", "/artwork/w500/down.jpg", "/artwork/w500/down.jpg"])
+            transport.paths, ["/artwork/w500/gone.jpg", "/artwork/w1280/down.jpg", "/artwork/w1280/down.jpg"])
     }
 
     func testACollectionShowingAnItemsArtSharesItsFetch() async throws {
         let transport = ArtworkTransport()
         let replica = try replica { db in
-            try db.collection(9, "Dune Collection")
-            try db.art(collection: 9, poster: Self.address("a"), backdrop: Self.address("b"))
+            try db.art(1, poster: "a", backdrop: "b")
+            try db.collection(9, "Dune Collection", movies: [1])
         }
         let store = Self.store(transport, replica)
         let poster = await store.data(collection: 9, .poster)
@@ -136,28 +146,26 @@ final class ArtworkTests: XCTestCase {
         XCTAssertEqual(item, poster)
         XCTAssertEqual(backdrop, poster)
         XCTAssertNil(other)
-        XCTAssertEqual(transport.paths, ["/artwork/w500/a.jpg", "/artwork/w500/b.jpg"])
+        XCTAssertEqual(transport.paths, ["/artwork/w500/a.jpg", "/artwork/w1280/b.jpg"])
     }
 
     func testAnAddressIsReadForTheActiveProfileAgainAfterItChanges() async throws {
         let transport = ArtworkTransport()
-        let replica = try replica { db in
-            try db.account(2, "Robin")
-            try db.art(1, for: 2, poster: Self.address("c"))
-        }
+        let replica = try replica()
         var profile: UID = 1
         let store = ArtworkStore(client: ServerEndpoint.default.client(token: "tok", transport: transport)) { key in
             let shown = profile
             return (try? await replica.read { try key.address(for: shown, $0) }) ?? nil
         }
         transport.image = Self.png(width: 50, height: 75)
-        _ = await store.image(1, .poster, maxPixel: 128)
-        XCTAssertNotNil(store.resident(1, .poster, maxPixel: 128))
+        _ = await store.image(40, .poster, maxPixel: 128)
+        XCTAssertNotNil(store.resident(40, .poster, maxPixel: 128))
         profile = 2
         store.profileChanged()
-        XCTAssertNil(store.resident(1, .poster, maxPixel: 128), "profile 1's art is not shown to profile 2")
-        _ = await store.image(1, .poster, maxPixel: 128)
-        XCTAssertEqual(transport.paths, ["/artwork/w500/a.jpg", "/artwork/w500/c.jpg"])
+        XCTAssertNil(store.resident(40, .poster, maxPixel: 128), "the adult's art is not shown to the kid")
+        let kids = await store.image(40, .poster, maxPixel: 128)
+        XCTAssertNil(kids)
+        XCTAssertEqual(transport.paths, ["/artwork/w500/e.jpg"])
     }
 
     func testAHeadshotIsFetchedOnceAtTheAddressItsPersonCarries() async throws {
@@ -193,8 +201,8 @@ final class ArtworkTests: XCTestCase {
         let transport = ArtworkTransport()
         transport.image = Self.png(width: 500, height: 750)
         let replica = try replica { db in
-            try db.collection(9, "Dune Collection")
-            try db.art(collection: 9, poster: Self.address("c"))
+            try db.collection(9, "Dune Collection", movies: [2])
+            try db.execute(sql: "UPDATE collection SET poster_path = '/c.jpg' WHERE id = ?", arguments: [UID.n(9)])
         }
         let store = Self.store(transport, replica)
         XCTAssertNil(store.resident(1, .poster, maxPixel: 330))
