@@ -280,6 +280,7 @@ struct MainView: View {
             ForEach(SidebarSection.libraries.filter(shows), id: \.self) {
                 Label($0.title, systemImage: $0.icon).tag($0)
             }
+            FavoritesSidebarSection()
             if let playlists, !playlists.playlists.isEmpty || model.isAdult {
                 Section {
                     ForEach(playlists.playlists, id: \.id) { playlist in
@@ -338,6 +339,7 @@ struct MainView: View {
         case .music: MusicScreen()
         case .playlist(let id): PlaylistScreen(id: id)
         case .station(let id): StationScreen(id: id)
+        case .favorites(let kind): FavoriteScreen(section: kind) { section = .home }
         case .home: HomeView()
         case .tv: GridView(kind: .show)
         case .movies: GridView(kind: .movie)

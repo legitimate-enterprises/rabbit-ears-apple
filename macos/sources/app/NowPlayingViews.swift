@@ -195,6 +195,7 @@ struct NowPlayingScreen: View {
                         .foregroundStyle(player.queue.repeatMode == .off ? .white : Theme.amber)
                 }
                 .buttonStyle(SecondaryButtonStyle())
+                FavoriteButton(id: song.id, titled: true)
             }
             Spacer(minLength: 0)
         }

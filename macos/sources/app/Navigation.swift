@@ -7,6 +7,7 @@ enum SidebarSection: Hashable {
     case home, tv, movies, music, youtube, stations
     case playlist(UID)
     case station(UID)
+    case favorites(FavoriteSection)
 
     /// Every profile's libraries; the server filters what a kid sees in each.
     static let libraries: [SidebarSection] = [.home, .tv, .movies, .music, .youtube, .stations]
@@ -34,6 +35,7 @@ enum SidebarSection: Hashable {
         case .stations: "Stations"
         case .playlist: "Playlist"
         case .station: "Station"
+        case .favorites(let section): "Favorite \(section.rawValue)"
         }
     }
 
@@ -46,6 +48,7 @@ enum SidebarSection: Hashable {
         case .youtube: "play.rectangle"
         case .playlist: "music.note.list"
         case .station, .stations: "antenna.radiowaves.left.and.right"
+        case .favorites: "star"
         }
     }
 }

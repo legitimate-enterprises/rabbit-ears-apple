@@ -7,7 +7,7 @@ struct Heading: View {
     var body: some View { Text(text).font(.system(size: 15, weight: .bold)) }
 }
 
-/// Play, Shuffle, Add to playlist, Add to station and Download under an album's or artist's name.
+/// Play, Shuffle, Favorite, Add to playlist, Add to station and Download under an album's or artist's name.
 struct PlayShuffle: View {
     let itemId: UID
     let download: DownloadTarget
@@ -32,6 +32,7 @@ struct PlayShuffle: View {
         Button(action: play) { Label("Play", systemImage: "play.fill") }.buttonStyle(PrimaryButtonStyle()).fixedSize()
         Button(action: shuffle) { Label("Shuffle", systemImage: "shuffle") }.buttonStyle(SecondaryButtonStyle())
             .fixedSize()
+        FavoriteButton(id: itemId)
     }
 
     @ViewBuilder private var adding: some View {

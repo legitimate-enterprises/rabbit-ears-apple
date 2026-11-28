@@ -114,6 +114,7 @@ struct VideoScreen: View {
                 Label(video.watched ? "Mark unwatched" : "Mark watched", systemImage: "checkmark")
             }
             .buttonStyle(SecondaryButtonStyle())
+            FavoriteButton(id: video.id)
             TogetherControl(together: together)
             DownloadButton(target: .video(video))
         }

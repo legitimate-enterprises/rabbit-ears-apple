@@ -156,6 +156,7 @@ struct AlbumTile: View {
             Button("Play") { play(shuffled: false) }
             Button("Shuffle") { play(shuffled: true) }
             Button("Go to artist") { browser.open(.artist(album.artistId)) }
+            FavoriteMenuItem(id: album.id)
         }
     }
 
@@ -184,6 +185,7 @@ struct ArtistTile: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .contextMenu { FavoriteMenuItem(id: artist.id) }
     }
 }
 
@@ -230,6 +232,7 @@ struct SongRow: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
+            FavoriteMenuItem(id: song.id)
             PlaylistMenu(itemId: song.id, kind: .music)
             DownloadMenu(.song(song))
         }
