@@ -188,6 +188,7 @@ struct PlayableDetail: View {
             Label(watched ? "Mark unwatched" : "Mark watched", systemImage: "checkmark")
         }
         .buttonStyle(TVButtonStyle())
+        DismissButton(item: item)
         FavoriteButton(id: item.id)
         if let together { TogetherButtons(together: together) }
     }

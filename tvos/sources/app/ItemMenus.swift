@@ -23,6 +23,9 @@ struct ItemContextMenu: View {
         ) {
             Task { await model.setWatched(mark, for: item) }
         }
+        if catalog.isInProgress(item.id) {
+            Button("Dismiss", systemImage: "xmark") { Task { await model.dismiss(item) } }
+        }
         if FavoriteKind(rawValue: item.kind.rawValue) != nil { FavoriteMenuItem(id: item.id) }
     }
 }
@@ -41,6 +44,31 @@ struct VideoContextMenu: View {
                 browser.changed()
             }
         }
+        if video.positionMs > 0 {
+            Button("Dismiss", systemImage: "xmark") {
+                Task {
+                    await catalog.dismiss(Item(video: video))
+                    browser.changed()
+                }
+            }
+        }
         FavoriteMenuItem(id: video.id)
+    }
+}
+
+/// Dismiss in a details row, shown while the title is in progress.
+struct DismissButton: View {
+    @Environment(CatalogModel.self) private var model
+    let item: Item
+
+    var body: some View {
+        if model.catalog.isInProgress(item.id) {
+            Button {
+                Task { await model.dismiss(item) }
+            } label: {
+                Label("Dismiss", systemImage: "xmark")
+            }
+            .buttonStyle(TVButtonStyle())
+        }
     }
 }

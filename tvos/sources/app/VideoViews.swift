@@ -134,6 +134,17 @@ struct VideoDetailView: View {
                 Label(video.watched ? "Mark unwatched" : "Mark watched", systemImage: "checkmark")
             }
             .buttonStyle(TVButtonStyle())
+            if video.positionMs > 0 {
+                Button {
+                    Task {
+                        await catalog.dismiss(Item(video: video))
+                        detail = try? await app.youTubeModel?.video(id)
+                    }
+                } label: {
+                    Label("Dismiss", systemImage: "xmark")
+                }
+                .buttonStyle(TVButtonStyle())
+            }
             FavoriteButton(id: video.id)
             if let together { TogetherButtons(together: together) }
         }
