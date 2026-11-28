@@ -12,6 +12,8 @@ final class ProfileViewsTests: XCTestCase {
     private var transport: RoutingTransport!
     private var model: AppModel!
     private var window: NSWindow?
+    /// Removed in tearDown: XCTest reports the error a `defer` swallows in place of one thrown past it.
+    private var fixture: ReplicaFixture?
 
     override func setUp() async throws {
         let admin = Fixtures.adult.replacingOccurrences(of: #""isAdmin":false"#, with: #""isAdmin":true"#)
@@ -32,6 +34,8 @@ final class ProfileViewsTests: XCTestCase {
 
     override func tearDown() async throws {
         window?.close()
+        fixture?.remove()
+        fixture = nil
     }
 
     func testWhoIsWatchingOnlyPicksAProfileEvenForTheOwner() async throws {
@@ -62,7 +66,7 @@ final class ProfileViewsTests: XCTestCase {
     func testAnAdultsPreferencesEndWithFriendsCountedFromTheReplica() async throws {
         try await model.choose(model.profiles[0])
         let fixture = ReplicaFixture()
-        defer { fixture.remove() }
+        self.fixture = fixture
         try XCTUnwrap(model.sync).replica.adopt(
             fixture.v1File { db in
                 try db.account(1, "Avery")
@@ -105,7 +109,7 @@ final class ProfileViewsTests: XCTestCase {
     func testAPreferenceSavesAsItIsChanged() async throws {
         try await model.choose(model.profiles[0])
         let fixture = ReplicaFixture()
-        defer { fixture.remove() }
+        self.fixture = fixture
         try XCTUnwrap(model.sync).replica.adopt(fixture.v1File { db in try db.account(1, "Avery") })
         try await show(PreferencesSheet(), height: 900)
         XCTAssertNotEqual(model.activeProfile?.autoplay, false)
@@ -197,6 +201,7 @@ final class ProfileViewsTests: XCTestCase {
     }
 
     private func shown(in shownWindow: NSWindow? = nil) async throws -> [Line] {
+        try await TextRecognition.require()
         let view = try XCTUnwrap((shownWindow ?? window)?.contentView)
         let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
         view.cacheDisplay(in: view.bounds, to: bitmap)

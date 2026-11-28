@@ -106,6 +106,7 @@ final class FavoriteViewsTests: XCTestCase {
 
     /// The sidebar column's lines, top to bottom.
     private func sidebarText() async throws -> [String] {
+        try await TextRecognition.require()
         let view = try XCTUnwrap(window?.contentView)
         let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
         view.cacheDisplay(in: view.bounds, to: bitmap)

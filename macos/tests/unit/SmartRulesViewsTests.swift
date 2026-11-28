@@ -111,6 +111,7 @@ final class SmartRulesViewsTests: XCTestCase {
     }
 
     private func shown() async throws -> [String] {
+        try await TextRecognition.require()
         let view = try XCTUnwrap(window?.contentView)
         let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
         view.cacheDisplay(in: view.bounds, to: bitmap)
