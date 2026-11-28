@@ -273,6 +273,7 @@ struct ShellView: View {
             case .search: SearchView()
             case .music: MusicScreen()
             case .youTube: YouTubeScreen()
+            case .favorites: FavoritesView()
             }
         }
     }

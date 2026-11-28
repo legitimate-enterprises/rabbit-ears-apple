@@ -63,6 +63,7 @@ struct ArtistView: View {
                         Label("Shuffle", systemImage: "shuffle")
                     }
                     .buttonStyle(TVButtonStyle())
+                    FavoriteButton(id: artist.id)
                 }
                 .padding(.top, 28)
                 .focusSection()
@@ -179,6 +180,7 @@ struct AlbumView: View {
                     Label("Shuffle", systemImage: "shuffle")
                 }
                 .buttonStyle(TVButtonStyle())
+                FavoriteButton(id: album.id)
             }
             .padding(.top, 28)
             .focusSection()

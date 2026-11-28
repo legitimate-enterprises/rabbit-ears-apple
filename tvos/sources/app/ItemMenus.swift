@@ -23,6 +23,7 @@ struct ItemContextMenu: View {
         ) {
             Task { await model.setWatched(mark, for: item) }
         }
+        if FavoriteKind(rawValue: item.kind.rawValue) != nil { FavoriteMenuItem(id: item.id) }
     }
 }
 
@@ -40,5 +41,6 @@ struct VideoContextMenu: View {
                 browser.changed()
             }
         }
+        FavoriteMenuItem(id: video.id)
     }
 }

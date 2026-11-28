@@ -188,6 +188,7 @@ struct PlayableDetail: View {
             Label(watched ? "Mark unwatched" : "Mark watched", systemImage: "checkmark")
         }
         .buttonStyle(TVButtonStyle())
+        FavoriteButton(id: item.id)
         if let together { TogetherButtons(together: together) }
     }
 
@@ -279,6 +280,7 @@ struct ShowDetail: View {
                             }
                             ShuffleButton(items: catalog.episodes(under: item.id))
                             MarkAllButton(item: item, unwatched: unwatched)
+                            FavoriteButton(id: item.id)
                         }
                         .padding(.top, 32)
                         .focusSection()
@@ -343,7 +345,10 @@ struct SeasonDetail: View {
                         }
                         ShuffleButton(items: catalog.episodes(under: item.id))
                     }
-                    MarkAllButton(item: item, unwatched: unwatched)
+                    HStack(spacing: 20) {
+                        MarkAllButton(item: item, unwatched: unwatched)
+                        FavoriteButton(id: item.id)
+                    }
                 }
                 .padding(.top, 30)
                 .focusSection()

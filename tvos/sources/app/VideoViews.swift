@@ -134,6 +134,7 @@ struct VideoDetailView: View {
                 Label(video.watched ? "Mark unwatched" : "Mark watched", systemImage: "checkmark")
             }
             .buttonStyle(TVButtonStyle())
+            FavoriteButton(id: video.id)
             if let together { TogetherButtons(together: together) }
         }
     }

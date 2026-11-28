@@ -9,6 +9,7 @@ struct NowPlayingView: View {
     enum Focus: Hashable { case art, surface, shuffle, `repeat` }
 
     @Environment(MusicPlayer.self) private var player
+    @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var focus: Focus?
@@ -90,6 +91,14 @@ struct NowPlayingView: View {
                 }
                 .buttonStyle(ToggleStyle(on: player.queue.repeatMode != .off))
                 .focused($focus, equals: .repeat)
+                let starred = app.favorites.contains(song.id)
+                Button {
+                    Task { await app.setFavorite(!starred, song.id) }
+                } label: {
+                    Label("Favorite", systemImage: starred ? "star.fill" : "star")
+                }
+                .buttonStyle(ToggleStyle(on: starred))
+                .accessibilityAddTraits(starred ? .isSelected : [])
                 Button {
                     Task { await player.stop() }
                 } label: {

@@ -50,7 +50,7 @@ struct GridView: View {
 
     var body: some View {
         let catalog = model.catalog
-        let items = catalog.grid(kind, filter: shown, sort: sort, genre: genre)
+        let items = catalog.grid(kind, filter: shown, sort: sort, genre: genre, favorites: app.favorites.ids)
         let total = catalog.total(kind, filter: shown)
         let genres = catalog.genres(kind)
         ScrollView {

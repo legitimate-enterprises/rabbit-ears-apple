@@ -133,6 +133,7 @@ struct AlbumTile: View {
         .contextMenu {
             Button("Play", systemImage: "play.fill") { play(shuffled: false) }
             Button("Shuffle", systemImage: "shuffle") { play(shuffled: true) }
+            FavoriteMenuItem(id: album.id)
         }
     }
 
