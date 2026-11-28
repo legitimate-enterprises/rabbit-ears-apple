@@ -32,8 +32,6 @@ struct MainView: View {
     var entered: (MusicPlayer) -> Void = { _ in }
     @State private var section = SidebarSection.home
     @State private var catalog: CatalogModel?
-    private var music: MusicPlayer? { app.music }
-    private var audio: AVAudioOutput? { app.audio }
     /// Outlives every player: a new one knows no network path until its monitor first reports.
     @State private var capabilities = SystemCapabilities()
     @State private var playlists: PlaylistsModel?
@@ -346,6 +344,11 @@ struct MainView: View {
         case .movies: GridView(kind: .movie)
         }
     }
+}
+
+extension MainView {
+    private var music: MusicPlayer? { app.music }
+    private var audio: AVAudioOutput? { app.audio }
 }
 
 /// The screen a pushed route shows.
