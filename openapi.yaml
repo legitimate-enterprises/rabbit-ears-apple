@@ -3737,6 +3737,40 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /client-errors:
+    post:
+      operationId: reportClientErrors
+      tags: [system]
+      summary: Stores errors a client app met, for the admin Logs page.
+      description: >-
+        For an error worth an admin's attention: one that put an error
+        screen in front of the person, stopped what they asked for, or was
+        not caught. The device, its platform and the acting profile are the
+        caller's, never the body's. An entry whose id is stored already,
+        sent before or replayed, is skipped, and the answer is still 204.
+        An `at` ahead of the server's clock is taken as now. listLogs shows
+        each entry at level error with source `client`. More than 100
+        entries from one device within an hour answer 429 and store none of
+        the batch, so a replayed batch past that is rejected with
+        too_many_requests. The server keeps client entries 30 days, at most
+        the newest 10,000, apart from its own entries, so clients cannot
+        push those out. The text is shown to admins as sent, with control
+        characters escaped and credentials the server recognizes redacted:
+        a client sends no tokens, passwords, PINs, email addresses, stream
+        URLs or other URLs with credentials in them.
+      x-replayable: true
+      x-while-locked: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClientErrorBatch" }
+      responses:
+        "204": { description: Stored. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
   /logs:
     get:
       operationId: listLogs
@@ -3747,6 +3781,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/LogLevel"
         - $ref: "#/components/parameters/LogSource"
+        - $ref: "#/components/parameters/LogPlatform"
         - $ref: "#/components/parameters/LogSince"
         - $ref: "#/components/parameters/LogUntil"
         - $ref: "#/components/parameters/LogQuery"
@@ -3772,6 +3807,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/LogLevel"
         - $ref: "#/components/parameters/LogSource"
+        - $ref: "#/components/parameters/LogPlatform"
         - $ref: "#/components/parameters/LogSince"
         - $ref: "#/components/parameters/LogUntil"
         - $ref: "#/components/parameters/LogQuery"
@@ -6574,6 +6610,11 @@ components:
       name: source
       in: query
       schema: { type: string }
+    LogPlatform:
+      name: platform
+      in: query
+      description: Only client entries from this platform.
+      schema: { $ref: "#/components/schemas/Platform" }
     LogSince:
       name: since
       in: query
@@ -8617,12 +8658,58 @@ components:
         id: { $ref: "#/components/schemas/Id" }
         at: { type: string, format: date-time }
         level: { $ref: "#/components/schemas/LogLevel" }
-        source: { type: string, description: "Subsystem: scan, tmdb, playback, transcode, task, auth, http or server." }
+        source: { type: string, description: "Subsystem: scan, tmdb, playback, transcode, task, auth, http or server; client for an entry a client app reported." }
         message: { type: string }
         sessionId: { $ref: "#/components/schemas/Id" }
         itemId: { $ref: "#/components/schemas/Id" }
         ffmpegCommand: { type: string, description: The exact command line an encoder was started with. }
         transcodeReason: { type: string, description: Why the playback decision was not direct play. }
+        client: { $ref: "#/components/schemas/ClientErrorOrigin" }
+
+    ClientErrorOrigin:
+      type: object
+      description: With source client, what reported the entry.
+      required: [platform, appVersion, osVersion, context]
+      properties:
+        platform: { $ref: "#/components/schemas/Platform" }
+        appVersion: { type: string }
+        osVersion: { type: string }
+        context: { type: string }
+        detail: { type: string }
+        deviceId: { $ref: "#/components/schemas/Id", description: Absent once the device is gone. }
+        deviceName: { type: string, description: Absent once the device is gone. }
+        profileId: { $ref: "#/components/schemas/Id", description: "Absent once the profile is gone, as when its account is deleted." }
+        profileName: { type: string, description: Absent once the profile is gone. }
+
+    ClientErrorBatch:
+      type: object
+      required: [appVersion, osVersion, entries]
+      properties:
+        appVersion:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: The reporting app's version, as M.m.N; the web viewer sends the server's.
+        osVersion:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: "The operating system and its version, as \"iOS 27.1\"; the web viewer sends the browser's user agent."
+        entries:
+          type: array
+          minItems: 1
+          maxItems: 25
+          items: { $ref: "#/components/schemas/ClientError" }
+
+    ClientError:
+      type: object
+      required: [id, at, message, context]
+      properties:
+        id: { $ref: "#/components/schemas/Id", description: "Chosen by the client, once per error, and kept when it is sent again." }
+        at: { type: string, format: date-time, description: When it happened on the device. }
+        message: { type: string, minLength: 1, maxLength: 1000, description: "What went wrong, in the words of the error or the screen." }
+        context: { type: string, minLength: 1, maxLength: 100, description: "Where: the screen or operation, as home, details or playback.start." }
+        detail: { type: string, maxLength: 4000, description: "More to go on, such as a stack trace or the failing request's operationId and status." }
 
     LogEntryPage:
       type: object

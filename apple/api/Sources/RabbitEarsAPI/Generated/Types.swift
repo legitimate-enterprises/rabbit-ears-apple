@@ -1008,6 +1008,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /sessions/{sessionId}`.
     /// - Remark: Generated from `#/paths//sessions/{sessionId}/delete(deleteSession)`.
     func deleteSession(_ input: Operations.DeleteSession.Input) async throws -> Operations.DeleteSession.Output
+    /// Stores errors a client app met, for the admin Logs page.
+    ///
+    /// For an error worth an admin's attention: one that put an error screen in front of the person, stopped what they asked for, or was not caught. The device, its platform and the acting profile are the caller's, never the body's. An entry whose id is stored already, sent before or replayed, is skipped, and the answer is still 204. An `at` ahead of the server's clock is taken as now. listLogs shows each entry at level error with source `client`. More than 100 entries from one device within an hour answer 429 and store none of the batch, so a replayed batch past that is rejected with too_many_requests. The server keeps client entries 30 days, at most the newest 10,000, apart from its own entries, so clients cannot push those out. The text is shown to admins as sent, with control characters escaped and credentials the server recognizes redacted: a client sends no tokens, passwords, PINs, email addresses, stream URLs or other URLs with credentials in them.
+    ///
+    /// - Remark: HTTP `POST /client-errors`.
+    /// - Remark: Generated from `#/paths//client-errors/post(reportClientErrors)`.
+    func reportClientErrors(_ input: Operations.ReportClientErrors.Input) async throws -> Operations.ReportClientErrors.Output
     /// Server log entries, newest first.
     ///
     /// - Remark: HTTP `GET /logs`.
@@ -4536,6 +4543,21 @@ extension APIProtocol {
         try await deleteSession(Operations.DeleteSession.Input(
             path: path,
             headers: headers
+        ))
+    }
+    /// Stores errors a client app met, for the admin Logs page.
+    ///
+    /// For an error worth an admin's attention: one that put an error screen in front of the person, stopped what they asked for, or was not caught. The device, its platform and the acting profile are the caller's, never the body's. An entry whose id is stored already, sent before or replayed, is skipped, and the answer is still 204. An `at` ahead of the server's clock is taken as now. listLogs shows each entry at level error with source `client`. More than 100 entries from one device within an hour answer 429 and store none of the batch, so a replayed batch past that is rejected with too_many_requests. The server keeps client entries 30 days, at most the newest 10,000, apart from its own entries, so clients cannot push those out. The text is shown to admins as sent, with control characters escaped and credentials the server recognizes redacted: a client sends no tokens, passwords, PINs, email addresses, stream URLs or other URLs with credentials in them.
+    ///
+    /// - Remark: HTTP `POST /client-errors`.
+    /// - Remark: Generated from `#/paths//client-errors/post(reportClientErrors)`.
+    public func reportClientErrors(
+        headers: Operations.ReportClientErrors.Input.Headers = .init(),
+        body: Operations.ReportClientErrors.Input.Body
+    ) async throws -> Operations.ReportClientErrors.Output {
+        try await reportClientErrors(Operations.ReportClientErrors.Input(
+            headers: headers,
+            body: body
         ))
     }
     /// Server log entries, newest first.

@@ -5377,7 +5377,7 @@ extension Components {
             public var at: Foundation.Date
             /// - Remark: Generated from `#/components/schemas/LogEntry/level`.
             public var level: Components.Schemas.LogLevel
-            /// Subsystem: scan, tmdb, playback, transcode, task, auth, http or server.
+            /// Subsystem: scan, tmdb, playback, transcode, task, auth, http or server; client for an entry a client app reported.
             ///
             /// - Remark: Generated from `#/components/schemas/LogEntry/source`.
             public var source: Swift.String
@@ -5395,18 +5395,21 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/LogEntry/transcodeReason`.
             public var transcodeReason: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/LogEntry/client`.
+            public var client: Components.Schemas.ClientErrorOrigin?
             /// Creates a new `LogEntry`.
             ///
             /// - Parameters:
             ///   - id:
             ///   - at:
             ///   - level:
-            ///   - source: Subsystem: scan, tmdb, playback, transcode, task, auth, http or server.
+            ///   - source: Subsystem: scan, tmdb, playback, transcode, task, auth, http or server; client for an entry a client app reported.
             ///   - message:
             ///   - sessionId:
             ///   - itemId:
             ///   - ffmpegCommand: The exact command line an encoder was started with.
             ///   - transcodeReason: Why the playback decision was not direct play.
+            ///   - client:
             public init(
                 id: Components.Schemas.Id,
                 at: Foundation.Date,
@@ -5416,7 +5419,8 @@ extension Components {
                 sessionId: Components.Schemas.Id? = nil,
                 itemId: Components.Schemas.Id? = nil,
                 ffmpegCommand: Swift.String? = nil,
-                transcodeReason: Swift.String? = nil
+                transcodeReason: Swift.String? = nil,
+                client: Components.Schemas.ClientErrorOrigin? = nil
             ) {
                 self.id = id
                 self.at = at
@@ -5427,6 +5431,7 @@ extension Components {
                 self.itemId = itemId
                 self.ffmpegCommand = ffmpegCommand
                 self.transcodeReason = transcodeReason
+                self.client = client
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -5438,6 +5443,166 @@ extension Components {
                 case itemId
                 case ffmpegCommand
                 case transcodeReason
+                case client
+            }
+        }
+        /// With source client, what reported the entry.
+        ///
+        /// - Remark: Generated from `#/components/schemas/ClientErrorOrigin`.
+        public struct ClientErrorOrigin: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ClientErrorOrigin/platform`.
+            public var platform: Components.Schemas.Platform
+            /// - Remark: Generated from `#/components/schemas/ClientErrorOrigin/appVersion`.
+            public var appVersion: Swift.String
+            /// - Remark: Generated from `#/components/schemas/ClientErrorOrigin/osVersion`.
+            public var osVersion: Swift.String
+            /// - Remark: Generated from `#/components/schemas/ClientErrorOrigin/context`.
+            public var context: Swift.String
+            /// - Remark: Generated from `#/components/schemas/ClientErrorOrigin/detail`.
+            public var detail: Swift.String?
+            /// Absent once the device is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ClientErrorOrigin/deviceId`.
+            public var deviceId: Components.Schemas.Id?
+            /// Absent once the device is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ClientErrorOrigin/deviceName`.
+            public var deviceName: Swift.String?
+            /// Absent once the profile is gone, as when its account is deleted.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ClientErrorOrigin/profileId`.
+            public var profileId: Components.Schemas.Id?
+            /// Absent once the profile is gone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ClientErrorOrigin/profileName`.
+            public var profileName: Swift.String?
+            /// Creates a new `ClientErrorOrigin`.
+            ///
+            /// - Parameters:
+            ///   - platform:
+            ///   - appVersion:
+            ///   - osVersion:
+            ///   - context:
+            ///   - detail:
+            ///   - deviceId: Absent once the device is gone.
+            ///   - deviceName: Absent once the device is gone.
+            ///   - profileId: Absent once the profile is gone, as when its account is deleted.
+            ///   - profileName: Absent once the profile is gone.
+            public init(
+                platform: Components.Schemas.Platform,
+                appVersion: Swift.String,
+                osVersion: Swift.String,
+                context: Swift.String,
+                detail: Swift.String? = nil,
+                deviceId: Components.Schemas.Id? = nil,
+                deviceName: Swift.String? = nil,
+                profileId: Components.Schemas.Id? = nil,
+                profileName: Swift.String? = nil
+            ) {
+                self.platform = platform
+                self.appVersion = appVersion
+                self.osVersion = osVersion
+                self.context = context
+                self.detail = detail
+                self.deviceId = deviceId
+                self.deviceName = deviceName
+                self.profileId = profileId
+                self.profileName = profileName
+            }
+            public enum CodingKeys: String, CodingKey {
+                case platform
+                case appVersion
+                case osVersion
+                case context
+                case detail
+                case deviceId
+                case deviceName
+                case profileId
+                case profileName
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ClientErrorBatch`.
+        public struct ClientErrorBatch: Codable, Hashable, Sendable {
+            /// The reporting app's version, as M.m.N; the web viewer sends the server's.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ClientErrorBatch/appVersion`.
+            public var appVersion: Swift.String
+            /// The operating system and its version, as "iOS 27.1"; the web viewer sends the browser's user agent.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ClientErrorBatch/osVersion`.
+            public var osVersion: Swift.String
+            /// - Remark: Generated from `#/components/schemas/ClientErrorBatch/entries`.
+            public var entries: [Components.Schemas.ClientError]
+            /// Creates a new `ClientErrorBatch`.
+            ///
+            /// - Parameters:
+            ///   - appVersion: The reporting app's version, as M.m.N; the web viewer sends the server's.
+            ///   - osVersion: The operating system and its version, as "iOS 27.1"; the web viewer sends the browser's user agent.
+            ///   - entries:
+            public init(
+                appVersion: Swift.String,
+                osVersion: Swift.String,
+                entries: [Components.Schemas.ClientError]
+            ) {
+                self.appVersion = appVersion
+                self.osVersion = osVersion
+                self.entries = entries
+            }
+            public enum CodingKeys: String, CodingKey {
+                case appVersion
+                case osVersion
+                case entries
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ClientError`.
+        public struct ClientError: Codable, Hashable, Sendable {
+            /// Chosen by the client, once per error, and kept when it is sent again.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ClientError/id`.
+            public var id: Components.Schemas.Id
+            /// When it happened on the device.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ClientError/at`.
+            public var at: Foundation.Date
+            /// What went wrong, in the words of the error or the screen.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ClientError/message`.
+            public var message: Swift.String
+            /// Where: the screen or operation, as home, details or playback.start.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ClientError/context`.
+            public var context: Swift.String
+            /// More to go on, such as a stack trace or the failing request's operationId and status.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ClientError/detail`.
+            public var detail: Swift.String?
+            /// Creates a new `ClientError`.
+            ///
+            /// - Parameters:
+            ///   - id: Chosen by the client, once per error, and kept when it is sent again.
+            ///   - at: When it happened on the device.
+            ///   - message: What went wrong, in the words of the error or the screen.
+            ///   - context: Where: the screen or operation, as home, details or playback.start.
+            ///   - detail: More to go on, such as a stack trace or the failing request's operationId and status.
+            public init(
+                id: Components.Schemas.Id,
+                at: Foundation.Date,
+                message: Swift.String,
+                context: Swift.String,
+                detail: Swift.String? = nil
+            ) {
+                self.id = id
+                self.at = at
+                self.message = message
+                self.context = context
+                self.detail = detail
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case at
+                case message
+                case context
+                case detail
             }
         }
         /// - Remark: Generated from `#/components/schemas/LogEntryPage`.

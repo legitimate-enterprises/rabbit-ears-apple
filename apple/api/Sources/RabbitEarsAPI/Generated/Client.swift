@@ -23313,6 +23313,131 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// Stores errors a client app met, for the admin Logs page.
+    ///
+    /// For an error worth an admin's attention: one that put an error screen in front of the person, stopped what they asked for, or was not caught. The device, its platform and the acting profile are the caller's, never the body's. An entry whose id is stored already, sent before or replayed, is skipped, and the answer is still 204. An `at` ahead of the server's clock is taken as now. listLogs shows each entry at level error with source `client`. More than 100 entries from one device within an hour answer 429 and store none of the batch, so a replayed batch past that is rejected with too_many_requests. The server keeps client entries 30 days, at most the newest 10,000, apart from its own entries, so clients cannot push those out. The text is shown to admins as sent, with control characters escaped and credentials the server recognizes redacted: a client sends no tokens, passwords, PINs, email addresses, stream URLs or other URLs with credentials in them.
+    ///
+    /// - Remark: HTTP `POST /client-errors`.
+    /// - Remark: Generated from `#/paths//client-errors/post(reportClientErrors)`.
+    public func reportClientErrors(_ input: Operations.ReportClientErrors.Input) async throws -> Operations.ReportClientErrors.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.ReportClientErrors.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/client-errors",
+                    parameters: []
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .post
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                let body: OpenAPIRuntime.HTTPBody?
+                switch input.body {
+                case let .json(value):
+                    body = try converter.setRequiredRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
+                return (request, body)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 204:
+                    return .noContent(.init())
+                case 400:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.BadRequest.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .badRequest(.init(body: body))
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.Unauthorized.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                case 429:
+                    let headers: Components.Responses.TooManyRequests.Headers = .init(retryAfter: try converter.getRequiredHeaderFieldAsURI(
+                        in: response.headerFields,
+                        name: "Retry-After",
+                        as: Swift.Int.self
+                    ))
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
     /// Server log entries, newest first.
     ///
     /// - Remark: HTTP `GET /logs`.
@@ -23344,6 +23469,13 @@ public struct Client: APIProtocol {
                     explode: true,
                     name: "source",
                     value: input.query.source
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "platform",
+                    value: input.query.platform
                 )
                 try converter.setQueryItemAsURI(
                     in: &request,
@@ -23519,6 +23651,13 @@ public struct Client: APIProtocol {
                     explode: true,
                     name: "source",
                     value: input.query.source
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "platform",
+                    value: input.query.platform
                 )
                 try converter.setQueryItemAsURI(
                     in: &request,

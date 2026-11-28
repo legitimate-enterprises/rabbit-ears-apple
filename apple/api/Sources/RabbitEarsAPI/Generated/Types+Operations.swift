@@ -35048,6 +35048,182 @@ public enum Operations {
             }
         }
     }
+    /// Stores errors a client app met, for the admin Logs page.
+    ///
+    /// For an error worth an admin's attention: one that put an error screen in front of the person, stopped what they asked for, or was not caught. The device, its platform and the acting profile are the caller's, never the body's. An entry whose id is stored already, sent before or replayed, is skipped, and the answer is still 204. An `at` ahead of the server's clock is taken as now. listLogs shows each entry at level error with source `client`. More than 100 entries from one device within an hour answer 429 and store none of the batch, so a replayed batch past that is rejected with too_many_requests. The server keeps client entries 30 days, at most the newest 10,000, apart from its own entries, so clients cannot push those out. The text is shown to admins as sent, with control characters escaped and credentials the server recognizes redacted: a client sends no tokens, passwords, PINs, email addresses, stream URLs or other URLs with credentials in them.
+    ///
+    /// - Remark: HTTP `POST /client-errors`.
+    /// - Remark: Generated from `#/paths//client-errors/post(reportClientErrors)`.
+    public enum ReportClientErrors {
+        public static let id: Swift.String = "reportClientErrors"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/client-errors/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ReportClientErrors.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ReportClientErrors.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ReportClientErrors.Input.Headers
+            /// - Remark: Generated from `#/paths/client-errors/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/client-errors/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.ClientErrorBatch)
+            }
+            public var body: Operations.ReportClientErrors.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.ReportClientErrors.Input.Headers = .init(),
+                body: Operations.ReportClientErrors.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Stored.
+            ///
+            /// - Remark: Generated from `#/paths//client-errors/post(reportClientErrors)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.ReportClientErrors.Output.NoContent)
+            /// Stored.
+            ///
+            /// - Remark: Generated from `#/paths//client-errors/post(reportClientErrors)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.ReportClientErrors.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//client-errors/post(reportClientErrors)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//client-errors/post(reportClientErrors)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many attempts; try again after Retry-After seconds.
+            ///
+            /// - Remark: Generated from `#/paths//client-errors/post(reportClientErrors)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Server log entries, newest first.
     ///
     /// - Remark: HTTP `GET /logs`.
@@ -35063,6 +35239,10 @@ public enum Operations {
                 public var level: Components.Parameters.LogLevel?
                 /// - Remark: Generated from `#/paths/logs/GET/query/source`.
                 public var source: Components.Parameters.LogSource?
+                /// Only client entries from this platform.
+                ///
+                /// - Remark: Generated from `#/paths/logs/GET/query/platform`.
+                public var platform: Components.Parameters.LogPlatform?
                 /// - Remark: Generated from `#/paths/logs/GET/query/since`.
                 public var since: Components.Parameters.LogSince?
                 /// - Remark: Generated from `#/paths/logs/GET/query/until`.
@@ -35080,6 +35260,7 @@ public enum Operations {
                 /// - Parameters:
                 ///   - level: Minimum level; entries at or above it match.
                 ///   - source:
+                ///   - platform: Only client entries from this platform.
                 ///   - since:
                 ///   - until:
                 ///   - q: Case-insensitive substring of the message.
@@ -35088,6 +35269,7 @@ public enum Operations {
                 public init(
                     level: Components.Parameters.LogLevel? = nil,
                     source: Components.Parameters.LogSource? = nil,
+                    platform: Components.Parameters.LogPlatform? = nil,
                     since: Components.Parameters.LogSince? = nil,
                     until: Components.Parameters.LogUntil? = nil,
                     q: Components.Parameters.LogQuery? = nil,
@@ -35096,6 +35278,7 @@ public enum Operations {
                 ) {
                     self.level = level
                     self.source = source
+                    self.platform = platform
                     self.since = since
                     self.until = until
                     self.q = q
@@ -35296,6 +35479,10 @@ public enum Operations {
                 public var level: Components.Parameters.LogLevel?
                 /// - Remark: Generated from `#/paths/logs/download/GET/query/source`.
                 public var source: Components.Parameters.LogSource?
+                /// Only client entries from this platform.
+                ///
+                /// - Remark: Generated from `#/paths/logs/download/GET/query/platform`.
+                public var platform: Components.Parameters.LogPlatform?
                 /// - Remark: Generated from `#/paths/logs/download/GET/query/since`.
                 public var since: Components.Parameters.LogSince?
                 /// - Remark: Generated from `#/paths/logs/download/GET/query/until`.
@@ -35309,18 +35496,21 @@ public enum Operations {
                 /// - Parameters:
                 ///   - level: Minimum level; entries at or above it match.
                 ///   - source:
+                ///   - platform: Only client entries from this platform.
                 ///   - since:
                 ///   - until:
                 ///   - q: Case-insensitive substring of the message.
                 public init(
                     level: Components.Parameters.LogLevel? = nil,
                     source: Components.Parameters.LogSource? = nil,
+                    platform: Components.Parameters.LogPlatform? = nil,
                     since: Components.Parameters.LogSince? = nil,
                     until: Components.Parameters.LogUntil? = nil,
                     q: Components.Parameters.LogQuery? = nil
                 ) {
                     self.level = level
                     self.source = source
+                    self.platform = platform
                     self.since = since
                     self.until = until
                     self.q = q

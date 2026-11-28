@@ -16,6 +16,10 @@ extension Components {
         public typealias LogLevel = Components.Schemas.LogLevel
         /// - Remark: Generated from `#/components/parameters/LogSource`.
         public typealias LogSource = Swift.String
+        /// Only client entries from this platform.
+        ///
+        /// - Remark: Generated from `#/components/parameters/LogPlatform`.
+        public typealias LogPlatform = Components.Schemas.Platform
         /// - Remark: Generated from `#/components/parameters/LogSince`.
         public typealias LogSince = Foundation.Date
         /// - Remark: Generated from `#/components/parameters/LogUntil`.
