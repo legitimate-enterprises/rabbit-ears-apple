@@ -55,7 +55,7 @@ struct SearchView: View {
                 HStack(alignment: .top, spacing: 14) {
                     ForEach(results.people) { person in
                         PersonCircle(
-                            id: person.id, name: person.name, detail: nil, hasHeadshot: person.profilePath != nil)
+                            id: person.id, name: person.name, detail: nil, headshot: person.headshotUrl)
                     }
                 }
             }

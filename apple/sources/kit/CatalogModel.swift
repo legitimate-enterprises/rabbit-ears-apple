@@ -231,7 +231,7 @@ public final class CatalogModel {
             for row in try Row.fetchAll(
                 db,
                 sql: """
-                    SELECT c.person_id, p.name, p.profile_path, c.kind, c.character, c.job, c.department
+                    SELECT c.person_id, p.name, p.profile_path, p.headshot_url, c.kind, c.character, c.job, c.department
                     FROM credit_shown c JOIN person p ON p.id = c.person_id
                     WHERE c.item_id = ? ORDER BY c.kind, c.position
                     """, arguments: [id])
@@ -239,6 +239,7 @@ public final class CatalogModel {
                 let text = { (column: String) in (row[column] as String?).flatMap { $0.isEmpty ? nil : $0 } }
                 let credit = Components.Schemas.Credit(
                     personId: row["person_id"], name: row["name"], profilePath: text("profile_path"),
+                    headshotUrl: text("headshot_url"),
                     character: text("character"), job: text("job"), department: text("department"))
                 if row["kind"] == "cast" { credits.cast.append(credit) } else { credits.crew.append(credit) }
             }
@@ -303,7 +304,7 @@ public final class CatalogModel {
     /// As the server's person.seen: an adult meets whom TMDB names, anyone
     /// those credited on what they browse.
     private nonisolated static let peopleSQL = """
-        SELECT p.id, p.name, p.tmdb_id, p.profile_path FROM person p
+        SELECT p.id, p.name, p.tmdb_id, p.profile_path, p.headshot_url FROM person p
             CROSS JOIN metadata_setting z JOIN profile_audience a ON a.account_id = ?
         WHERE (a.browse_mode = 0 AND (p.tmdb_id IS NULL OR z.use_remote)
             OR EXISTS (SELECT 1 FROM credit_shown c JOIN profile_item v ON v.item_id = c.item_id

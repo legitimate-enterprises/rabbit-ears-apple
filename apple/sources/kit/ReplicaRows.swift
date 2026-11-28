@@ -56,7 +56,9 @@ enum ReplicaRows {
     }
 
     static func person(_ row: Row) -> Person {
-        Person(id: row["id"], name: row["name"], tmdbId: row["tmdb_id"], profilePath: text(row["profile_path"]))
+        Person(
+            id: row["id"], name: row["name"], tmdbId: row["tmdb_id"], profilePath: text(row["profile_path"]),
+            headshotUrl: text(row["headshot_url"]))
     }
 
     /// The ratings that make a movie or show kids' content without an override, as the server's item.KidsRatings.

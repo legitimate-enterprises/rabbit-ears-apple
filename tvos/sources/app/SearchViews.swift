@@ -54,7 +54,7 @@ struct SearchView: View {
                 LazyHStack(alignment: .top, spacing: 48) {
                     ForEach(results.people) { person in
                         PersonCircle(
-                            id: person.id, name: person.name, detail: nil, hasHeadshot: person.profilePath != nil)
+                            id: person.id, name: person.name, detail: nil, headshot: person.headshotUrl)
                     }
                 }
                 .padding(.vertical, 20)

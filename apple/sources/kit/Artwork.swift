@@ -53,10 +53,6 @@ public final class ArtworkStore {
         await image(ArtKey(id: id, kind: kind, collection: true), maxPixel)
     }
 
-    public func headshotImage(_ personId: UID, maxPixel: Int) async -> CGImage? {
-        await bitmap("person/\(personId)", maxPixel) { await self.headshot(personId) }
-    }
-
     /// The artwork decoded at this size if it is in memory now, so a view that has it needs no
     /// placeholder or fade.
     public func resident(_ id: UID, _ kind: Kind, maxPixel: Int) -> CGImage? {
@@ -79,8 +75,8 @@ public final class ArtworkStore {
         return await data(imageUrl: url)
     }
 
-    /// The image an address the data carries names, decoded no larger than `maxPixel`; nil when it
-    /// cannot be had.
+    /// The image an address the data carries names, as a posterUrl or headshotUrl, decoded no larger
+    /// than `maxPixel`; nil when it cannot be had.
     public func image(url: String, maxPixel: Int) async -> CGImage? {
         await bitmap(url, maxPixel) { await self.data(imageUrl: url) }
     }
@@ -112,13 +108,6 @@ public final class ArtworkStore {
             let store = Components.Schemas.ArtworkStore(rawValue: path[3])
         else { return nil }
         return .init(store: store, name: path[4])
-    }
-
-    public func headshot(_ personId: UID) async -> Data? {
-        let client = client
-        return await cached("person/\(personId)") {
-            try await client.getPersonArtwork(path: .init(personId: personId)).ok.body.image_Ast_
-        }
     }
 
     public func avatarImage(_ account: Account, maxPixel: Int) async -> CGImage? {

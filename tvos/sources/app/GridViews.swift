@@ -217,8 +217,8 @@ struct PersonView: View {
         .task(id: id) {
             found = await model.person(id)
             loaded = true
-            if found?.0.profilePath != nil {
-                image = await app.artwork?.headshotImage(id, maxPixel: 320).map(UIImage.init(cgImage:))
+            if let url = found?.0.headshotUrl {
+                image = await app.artwork?.image(url: url, maxPixel: 320).map(UIImage.init(cgImage:))
             }
         }
     }

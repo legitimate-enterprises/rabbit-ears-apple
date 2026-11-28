@@ -30,7 +30,7 @@ struct CastRow: View {
                     ForEach(Array(credits.cast.enumerated()), id: \.offset) { _, credit in
                         PersonCircle(
                             id: credit.personId, name: credit.name, detail: credit.character,
-                            hasHeadshot: credit.profilePath != nil)
+                            headshot: credit.headshotUrl)
                     }
                 }
                 .padding(.vertical, 20)
@@ -48,7 +48,7 @@ struct PersonCircle: View {
     let id: Person.ID
     let name: String
     let detail: String?
-    let hasHeadshot: Bool
+    let headshot: String?
     @State private var image: UIImage?
 
     var body: some View {
@@ -64,9 +64,9 @@ struct PersonCircle: View {
         }
         .buttonStyle(CardButtonStyle(scale: 1.06))
         .accessibilityLabel(detail.map { "\(name), \($0)" } ?? name)
-        .task(id: id) {
-            guard hasHeadshot else { return }
-            image = await app.artwork?.headshotImage(id, maxPixel: 256).map(UIImage.init(cgImage:))
+        .task(id: headshot) {
+            guard let headshot else { return }
+            image = await app.artwork?.image(url: headshot, maxPixel: 256).map(UIImage.init(cgImage:))
         }
         .onDisappear { image = nil }
     }

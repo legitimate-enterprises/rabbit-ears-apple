@@ -9,8 +9,8 @@ import XCTest
 
 @testable import RabbitEarsKit
 
-/// Answers the images `served` names, 503 for `/artwork/w500/down.jpg`, person 5's headshot and profile 1's
-/// avatar (uid.N ids), and 404 for anything else, counting requests.
+/// Answers the images `served` names, 503 for `/artwork/w500/down.jpg`, profile 1's avatar (a uid.N id),
+/// and 404 for anything else, counting requests.
 final class ArtworkTransport: ClientTransport, @unchecked Sendable {
     var paths: [String] = []
     var image = Data("jpg".utf8)
@@ -21,8 +21,7 @@ final class ArtworkTransport: ClientTransport, @unchecked Sendable {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let path = request.path ?? ""
         paths.append(path)
-        guard served.contains(path) || ["/people/\(UID.n(5))/artwork", "/profiles/\(UID.n(1))/avatar"].contains(path)
-        else {
+        guard served.contains(path) || path == "/profiles/\(UID.n(1))/avatar" else {
             var response = HTTPResponse(status: path == "/artwork/w500/down.jpg" ? .serviceUnavailable : .notFound)
             response.headerFields[.contentType] = "application/json"
             return (response, HTTPBody(#"{"code":"not_found","message":"not found"}"#))
@@ -161,16 +160,18 @@ final class ArtworkTests: XCTestCase {
         XCTAssertEqual(transport.paths, ["/artwork/w500/a.jpg", "/artwork/w500/c.jpg"])
     }
 
-    func testHeadshotsAreCachedApartFromItemArt() async throws {
+    func testAHeadshotIsFetchedOnceAtTheAddressItsPersonCarries() async throws {
         let transport = ArtworkTransport()
         let store = Self.store(transport, try replica())
-        let first = await store.headshot(5)
-        let again = await store.headshot(5)
-        let missing = await store.headshot(1)
+        let first = await store.data(imageUrl: "/api/v2/artwork/w500/c.jpg")
+        let again = await store.data(imageUrl: "/api/v2/artwork/w500/c.jpg")
+        let missing = await store.data(imageUrl: "/api/v2/artwork/w185/gone.jpg")
+        let foreign = await store.data(imageUrl: "/api/v2/people/\(UID.n(5))/artwork")
         XCTAssertEqual(first, Data("jpg".utf8))
         XCTAssertEqual(again, first)
         XCTAssertNil(missing)
-        XCTAssertEqual(transport.paths, ["/people/\(UID.n(5))/artwork", "/people/\(UID.n(1))/artwork"])
+        XCTAssertNil(foreign, "only an address getArtwork serves")
+        XCTAssertEqual(transport.paths, ["/artwork/w500/c.jpg", "/artwork/w185/gone.jpg"])
     }
 
     func testArtIsDecodedAtTheSizeItIsShownAndOnlyOnce() async throws {
@@ -182,10 +183,10 @@ final class ArtworkTests: XCTestCase {
         XCTAssertEqual([poster.width, poster.height], [220, 330])
         let again = await store.image(1, .poster, maxPixel: 330)
         XCTAssertTrue(again === poster)
-        let headshot = await store.headshotImage(5, maxPixel: 1000)
+        let headshot = await store.image(url: Self.address("c"), maxPixel: 1000)
         let face = try XCTUnwrap(headshot)
         XCTAssertEqual([face.width, face.height], [500, 750])
-        XCTAssertEqual(transport.paths, ["/artwork/w500/a.jpg", "/people/\(UID.n(5))/artwork"])
+        XCTAssertEqual(transport.paths, ["/artwork/w500/a.jpg", "/artwork/w500/c.jpg"])
     }
 
     func testAnImageInMemoryIsKnownToBeSoAtTheSizeItWasDecoded() async throws {

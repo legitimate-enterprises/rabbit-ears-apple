@@ -67,10 +67,12 @@ extension Database {
             arguments: [id, item, person, kind, character, job, position])
     }
 
-    func person(_ id: UID, _ name: String, tmdb: Int64? = nil, profilePath: String? = nil) throws {
+    func person(
+        _ id: UID, _ name: String, tmdb: Int64? = nil, profilePath: String? = nil, headshot: String? = nil
+    ) throws {
         try execute(
-            sql: "INSERT INTO person(id, tmdb_id, name, profile_path) VALUES (?, ?, ?, ?)",
-            arguments: [id, tmdb, name, profilePath])
+            sql: "INSERT INTO person(id, tmdb_id, name, profile_path, headshot_url) VALUES (?, ?, ?, ?, ?)",
+            arguments: [id, tmdb, name, profilePath, headshot])
     }
 
     /// An occasion anchored to a holiday key, or else to month and day, with titles added by hand.

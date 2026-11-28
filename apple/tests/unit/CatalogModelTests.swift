@@ -183,8 +183,10 @@ final class CatalogModelTests: XCTestCase {
             try db.execute(
                 sql: """
                     UPDATE item_metadata SET title = 'Dune Day' WHERE item_id = \(sqlID(32));
-                    INSERT INTO person(id, tmdb_id, name, profile_path) VALUES (\(sqlID(5)), 99, 'Denis Dune', NULL),
-                        (\(sqlID(6)), 98, 'Dune Extra', '/x.jpg'), (\(sqlID(7)), NULL, 'Dune Local', NULL);
+                    INSERT INTO person(id, tmdb_id, name, profile_path, headshot_url)
+                        VALUES (\(sqlID(5)), 99, 'Denis Dune', NULL, NULL),
+                        (\(sqlID(6)), 98, 'Dune Extra', '/x.jpg', '/api/v2/artwork/w185/x.jpg'),
+                        (\(sqlID(7)), NULL, 'Dune Local', NULL, NULL);
                     INSERT INTO credit(id, item_id, person_id, kind)
                         VALUES (\(sqlID(1)), \(sqlID(20)), \(sqlID(5)), 'crew'),
                             (\(sqlID(2)), \(sqlID(30)), \(sqlID(6)), 'cast');
@@ -213,7 +215,7 @@ final class CatalogModelTests: XCTestCase {
         XCTAssertEqual(found.shows.map(\.id), [33])
         XCTAssertEqual(found.episodes.map(\.id), [32])
         XCTAssertEqual(found.people.map(\.id), [6, 7, 5])
-        XCTAssertEqual(found.people.first?.profilePath, "/x.jpg")
+        XCTAssertEqual(found.people.map(\.headshotUrl), ["/api/v2/artwork/w185/x.jpg", nil, nil])
         XCTAssertEqual(found.artists.map(\.id), [40])
         XCTAssertEqual(found.albums.map(\.id), [41])
         XCTAssertEqual(found.songs.map(\.id), [42])
@@ -261,7 +263,7 @@ final class CatalogModelTests: XCTestCase {
     func testCreditsAndAPersonsTitlesAsTheProfileSeesThem() async throws {
         let replica = try household { db in
             try db.item(21, "movie", "Arrakis", rating: "PG")
-            try db.person(5, "Zendaya", tmdb: 50, profilePath: "/z.jpg")
+            try db.person(5, "Zendaya", tmdb: 50, profilePath: "/z.jpg", headshot: ArtworkTests.address("z"))
             try db.person(6, "Denis Villeneuve", tmdb: 60)
             try db.person(7, "Nobody Credited", tmdb: 70)
             try db.credit(1, item: 20, person: 6, kind: "crew", position: 0, job: "Director")
@@ -275,10 +277,12 @@ final class CatalogModelTests: XCTestCase {
         XCTAssertEqual(credits.cast.map(\.personId), [7, 5], "billing order")
         XCTAssertEqual(credits.cast.map(\.character), [nil, "Chani"])
         XCTAssertEqual(credits.cast.last?.profilePath, "/z.jpg")
+        XCTAssertEqual(credits.cast.map(\.headshotUrl), [nil, ArtworkTests.address("z")])
         XCTAssertEqual(credits.crew.map(\.job), ["Director"])
         let found = await avery.person(5)
         XCTAssertEqual(found?.0.name, "Zendaya")
         XCTAssertEqual(found?.0.tmdbId, 50)
+        XCTAssertEqual(found?.0.headshotUrl, ArtworkTests.address("z"))
         XCTAssertEqual(found?.1.map(\.id), [21, 20], "by title")
 
         let kit = model(replica, 3)

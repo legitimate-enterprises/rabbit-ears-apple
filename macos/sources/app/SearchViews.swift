@@ -50,7 +50,7 @@ struct SearchView: View {
         case .people:
             row {
                 ForEach(results.people) { person in
-                    PersonCircle(id: person.id, name: person.name, detail: nil, hasHeadshot: person.profilePath != nil)
+                    PersonCircle(id: person.id, name: person.name, detail: nil, headshot: person.headshotUrl)
                 }
             }
         case .artists: row { ForEach(results.artists, id: \.id) { ArtistTile(artist: $0).frame(width: 110) } }

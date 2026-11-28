@@ -11,7 +11,7 @@ struct PersonCircle: View {
     let id: Person.ID
     let name: String
     let detail: String?
-    let hasHeadshot: Bool
+    let headshot: String?
     var size: CGFloat = 72
     @State private var image: NSImage?
 
@@ -30,17 +30,17 @@ struct PersonCircle: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(detail.map { "\(name), \($0)" } ?? name)
-        .task(id: id) {
-            guard hasHeadshot else { return }
-            image = await headshot(app, id, size: size, scale: scale)
+        .task(id: headshot) {
+            guard let headshot else { return }
+            image = await headshotImage(app, headshot, size: size, scale: scale)
         }
         .onDisappear { image = nil }
     }
 }
 
 @MainActor
-private func headshot(_ app: AppModel, _ id: Person.ID, size: CGFloat, scale: CGFloat) async -> NSImage? {
-    await app.artwork?.headshotImage(id, maxPixel: ArtImage.pixels(size, scale)).map {
+private func headshotImage(_ app: AppModel, _ url: String, size: CGFloat, scale: CGFloat) async -> NSImage? {
+    await app.artwork?.image(url: url, maxPixel: ArtImage.pixels(size, scale)).map {
         NSImage(cgImage: $0, size: .zero)
     }
 }
@@ -80,7 +80,7 @@ struct CreditsSection: View {
                         ForEach(Array(credits.cast.enumerated()), id: \.offset) { _, credit in
                             PersonCircle(
                                 id: credit.personId, name: credit.name, detail: credit.character,
-                                hasHeadshot: credit.profilePath != nil)
+                                headshot: credit.headshotUrl)
                         }
                     }
                 }
@@ -132,7 +132,7 @@ struct PersonView: View {
         .task(id: id) {
             found = await model.person(id)
             loaded = true
-            if found?.0.profilePath != nil { image = await headshot(app, id, size: 120, scale: scale) }
+            if let url = found?.0.headshotUrl { image = await headshotImage(app, url, size: 120, scale: scale) }
         }
     }
 }
