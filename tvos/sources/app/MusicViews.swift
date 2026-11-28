@@ -124,7 +124,7 @@ struct AlbumTile: View {
             VStack(alignment: .leading, spacing: 14) {
                 ArtBlock(id: album.id, placeholder: .album)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(album.title).font(.system(size: 28, weight: .semibold)).lineLimit(2)
+                    Text(album.title).font(.system(size: 28, weight: .semibold)).lineLimit(2, reservesSpace: true)
                     Text(caption ?? album.artistName).font(.system(size: 26)).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
