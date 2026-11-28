@@ -203,7 +203,7 @@ public struct Catalog: Sendable {
             .sorted { lhs, rhs in
                 switch sort {
                 case .recentlyAdded: lhs.addedAt > rhs.addedAt
-                case .title: Self.title(lhs).localizedStandardCompare(Self.title(rhs)) == .orderedAscending
+                case .title: Self.sortTitle(lhs).localizedStandardCompare(Self.sortTitle(rhs)) == .orderedAscending
                 case .year: (Self.year(lhs) ?? 0) > (Self.year(rhs) ?? 0)
                 }
             }
@@ -237,6 +237,9 @@ public struct Catalog: Sendable {
     }
 
     public static func title(_ item: Item) -> String { item.metadata?.title ?? item.parsedTitle }
+
+    /// What a movie or show sorts by: the server's sort title, else the title shown.
+    public static func sortTitle(_ item: Item) -> String { item.sortTitle ?? title(item) }
 
     public static func year(_ item: Item) -> Int? {
         item.parsedYear ?? item.metadata?.releaseDate.flatMap { Int($0.prefix(4)) }

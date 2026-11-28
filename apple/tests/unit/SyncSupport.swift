@@ -18,7 +18,7 @@ enum SyncFixture {
         INSERT INTO server_info VALUES (1, 'Home', 'tmdb', 'remote');
         CREATE TABLE item(id BLOB PRIMARY KEY, library_id BLOB NOT NULL DEFAULT x'00000000000070008000000000000001',
             parent_id BLOB, kind TEXT NOT NULL, parsed_title TEXT NOT NULL, season_number INTEGER,
-            episode_number INTEGER, kids_content INTEGER);
+            episode_number INTEGER, sort_title TEXT, kids_content INTEGER);
         CREATE TABLE item_metadata(item_id BLOB NOT NULL, source TEXT NOT NULL, title TEXT, overview TEXT,
             PRIMARY KEY (item_id, source));
         CREATE TABLE item_genre(item_id BLOB NOT NULL, genre_id BLOB NOT NULL, source TEXT NOT NULL,

@@ -42,8 +42,8 @@ final class ReplicaSearchTests: XCTestCase {
         try item(6, "movie", "Plantation")
         try build()
 
-        XCTAssertEqual(try items("ant"), [5, 2, 4, 6, 1], "prefixes by title, then the rest by title")
-        XCTAssertEqual(try items("tenn"), [2, 1, 4])
+        XCTAssertEqual(try items("ant"), [5, 4, 2, 6, 1], "prefixes by title shown, then the rest by title shown")
+        XCTAssertEqual(try items("tenn"), [4, 2, 1])
         XCTAssertEqual(try items("unn"), [3])
     }
 
@@ -114,7 +114,7 @@ final class ReplicaSearchTests: XCTestCase {
                 ])
         }
 
-        XCTAssertEqual(try items("cab"), [2, 1])
+        XCTAssertEqual(try items("cab"), [1, 2])
         XCTAssertEqual(try items("ant"), [])
         XCTAssertEqual(try db.read { try ReplicaSearch.people(matching: "rob", in: $0) }, [7])
     }

@@ -70,7 +70,7 @@ public enum ReplicaSearch {
                     OR i.kind IN ('movie', 'show', 'episode') AND instr(lower(s.title), lower(:q)) > 0)
                 ORDER BY NOT (instr(lower(i.parsed_title), lower(:q)) = 1
                         OR instr(lower(COALESCE(s.title, '')), lower(:q)) = 1),
-                    i.parsed_title COLLATE NOCASE, i.season_number, i.episode_number, i.id
+                    \(ReplicaRows.titleOrder)
                 """, arguments: arguments(query))
     }
 

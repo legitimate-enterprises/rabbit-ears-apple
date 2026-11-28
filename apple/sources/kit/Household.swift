@@ -144,7 +144,7 @@ public final class HouseholdModel {
                 sql: """
                     SELECT i.id FROM item i WHERE i.id IN (SELECT unhex(value, '-') FROM json_each(?))
                         AND i.id IN (SELECT item_id FROM profile_item WHERE account_id = ?)
-                    ORDER BY i.parsed_title COLLATE NOCASE, i.season_number, i.episode_number, i.id LIMIT 20
+                    ORDER BY \(ReplicaRows.titleOrder) LIMIT 20
                     """, arguments: [ReplicaRows.json(try ReplicaSearch.items(matching: query, in: db)), viewer])
             return Self.ordered(
                 try ReplicaRows.items(

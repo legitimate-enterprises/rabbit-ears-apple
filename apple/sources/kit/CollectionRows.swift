@@ -7,11 +7,10 @@ import RabbitEarsAPI
 enum CollectionRows {
     /// collection.Order over collection_movie cm and item: by position while
     /// they carry one, else by release date (a bare year before full dates of
-    /// that year, undated last), then title.
+    /// that year, undated last), then sort title.
     static let order = """
         cm.position IS NULL, cm.position, \(released) IS NULL, \(released),
-        COALESCE((SELECT md.title FROM item_shown md WHERE md.item_id = item.id), item.parsed_title) COLLATE NOCASE,
-        item.id
+        \(ReplicaRows.sortTitle("item")) COLLATE NOCASE, item.id
         """
     private static let released =
         "COALESCE((SELECT md.release_date FROM item_shown md WHERE md.item_id = item.id),"

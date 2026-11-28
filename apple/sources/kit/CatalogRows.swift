@@ -12,7 +12,17 @@ extension ReplicaRows {
     static let browsedBy = "IN (SELECT item_id FROM profile_item WHERE account_id = ?)"
 
     /// listItems' order over `item i`.
-    static let titleOrder = "i.parsed_title COLLATE NOCASE, i.season_number, i.episode_number, i.id"
+    static let titleOrder = "\(sortTitle("i")) COLLATE NOCASE, i.season_number, i.episode_number, i.id"
+
+    /// What `alias` sorts by: a movie or show its sort title, else, where the
+    /// server sent none, the title shown; anything else its parsed title.
+    static func sortTitle(_ alias: String) -> String {
+        """
+        CASE WHEN \(alias).kind IN ('movie', 'show') THEN COALESCE(\(alias).sort_title,
+            (SELECT st.title FROM item_shown st WHERE st.item_id = \(alias).id), \(alias).parsed_title)
+            ELSE \(alias).parsed_title END
+        """
+    }
 
     /// Every file of the item `id` is marked missing.
     static func unavailable(_ id: String) -> String {
@@ -31,13 +41,13 @@ extension ReplicaRows {
         """
 
     /// collection.Order: by position while they carry one, else release date, a bare year
-    /// before the full dates of that year and undated last, then title.
+    /// before the full dates of that year and undated last, then sort title.
     static let collectionOrder: String = {
         let date =
             "COALESCE((SELECT md.release_date FROM item_shown md WHERE md.item_id = item.id),"
             + " CAST(item.parsed_year AS TEXT))"
-        let title = "COALESCE((SELECT md.title FROM item_shown md WHERE md.item_id = item.id), item.parsed_title)"
-        return "cm.position IS NULL, cm.position, \(date) IS NULL, \(date), \(title) COLLATE NOCASE, item.id"
+        return "cm.position IS NULL, cm.position, \(date) IS NULL, \(date), \(sortTitle("item")) COLLATE NOCASE,"
+            + " item.id"
     }()
 
     /// An episode's show's episodes, as item.episodes.

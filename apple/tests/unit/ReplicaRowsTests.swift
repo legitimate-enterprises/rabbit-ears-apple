@@ -59,18 +59,20 @@ final class ReplicaRowsTests: XCTestCase {
         XCTAssertEqual(
             found[2],
             item(
-                #""id":\#(jsonID(2)),"kind":"movie","parsedTitle":"PG Movie","kidsContent":false,"#
+                #""id":\#(jsonID(2)),"kind":"movie","parsedTitle":"PG Movie","sortTitle":"PG Movie","#
+                    + #""kidsContent":false,"#
                     + #""metadata":{"provider":"tmdb","status":"unmatched","contentRating":"PG"}"#),
             "the rating is the local row's, the provider and status the remote row's")
         XCTAssertEqual(
             found[3],
             item(
-                #""id":\#(jsonID(3)),"kind":"movie","parsedTitle":"PG-13 Movie","kidsContent":false,"#
+                #""id":\#(jsonID(3)),"kind":"movie","parsedTitle":"PG-13 Movie","sortTitle":"PG-13 Movie","#
+                    + #""kidsContent":false,"#
                     + #""metadata":{"status":"unmatched","contentRating":"PG-13"}"#))
         XCTAssertEqual(
             found[1],
             item(
-                #""id":\#(jsonID(1)),"kind":"movie","parsedTitle":"G Movie","kidsContent":true,"#
+                #""id":\#(jsonID(1)),"kind":"movie","parsedTitle":"G Movie","sortTitle":"G Movie","kidsContent":true,"#
                     + #""metadata":{"status":"unmatched","contentRating":"G"}"#,
                 genres: #"[{"id":\#(jsonID(1)),"name":"Drama"}]"#))
         XCTAssertEqual(found[9]?.kidsContent, true, "rated R, marked for kids")

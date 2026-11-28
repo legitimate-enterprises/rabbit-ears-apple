@@ -8,7 +8,7 @@ enum ReplicaRows {
     /// Movies, shows, seasons and episodes as listItems answers them, over
     /// `item i`; a read adds its own condition on `i`.
     static let itemSQL = """
-        SELECT i.id, i.library_id, i.parent_id, i.kind, i.parsed_title, i.parsed_year, i.season_number,
+        SELECT i.id, i.library_id, i.parent_id, i.kind, i.parsed_title, i.sort_title, i.parsed_year, i.season_number,
             i.episode_number, i.added_at, i.kids_content, m.item_id IS NOT NULL AS described, m.provider, m.provider_id,
             m.status, m.title, m.overview, m.release_date, m.runtime_minutes, m.content_rating, m.poster_path,
             m.backdrop_path, m.fetched_at,
@@ -43,6 +43,7 @@ enum ReplicaRows {
             let override: Bool? = row["kids_content"]
             item.kidsContent = override ?? kidsRatings[kind, default: []].contains(rating ?? "")
             item.kidsContentOverride = override
+            item.sortTitle = row["sort_title"]
         }
         return item
     }
