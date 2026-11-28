@@ -50,6 +50,9 @@ struct ItemMenuContent: View {
             Button(watched ? "Mark as unwatched" : "Mark as watched", systemImage: "checkmark") {
                 Task { await model.setWatched(!watched, for: item) }
             }
+            if model.catalog.isInProgress(item.id) {
+                Button("Dismiss", systemImage: "xmark") { Task { await model.dismiss(item) } }
+            }
             if actions.favorite { FavoriteMenuItem(id: item.id) }
             if actions.kidsRules {
                 Toggle(

@@ -279,6 +279,17 @@ struct VideoView: View {
             }
             .buttonStyle(SecondaryButtonStyle(fullWidth: true))
             .accessibilityLabel(video.watched ? "Mark unwatched" : "Mark watched")
+            if video.positionMs > 0 {
+                Button {
+                    Task {
+                        await catalog.dismiss(stand)
+                        await load()
+                    }
+                } label: {
+                    Label("Dismiss", systemImage: "xmark").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(SecondaryButtonStyle(fullWidth: true))
+            }
             if let together { TogetherButton(model: together) }
         }
     }

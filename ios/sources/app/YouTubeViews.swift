@@ -169,6 +169,14 @@ struct VideoContextMenu: View {
                 browser.revision += 1
             }
         }
+        if video.positionMs > 0 {
+            Button("Dismiss", systemImage: "xmark") {
+                Task {
+                    await catalog.dismiss(Item(video: video))
+                    browser.revision += 1
+                }
+            }
+        }
         Button("Go to channel", systemImage: "play.rectangle") { browser.open(.channel(video.channelId)) }
         FavoriteMenuItem(id: video.id)
         DownloadMenu(.video(video))
