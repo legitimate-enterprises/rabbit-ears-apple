@@ -28,10 +28,12 @@ public final class Replica: Sendable {
             "library", "item", "item_metadata", "item_genre", "genre", "person", "credit", "item_keyword", "edition",
             "edition_file", "media_file", "track", "chapter", "occasion", "occasion_keyword", "occasion_item",
             "occasion_exclusion", "occasion_phrase", "server_info", "collection", "collection_movie", "account_allow",
-            "holiday", "holiday_date", "holiday_color",
+            "holiday", "holiday_date", "holiday_color", "smart_list",
         ],
         .watched: ["watch_state"],
-        .playlists: ["playlist", "playlist_entry", "playlist_share", "playlist_household_share", "cover"],
+        .playlists: [
+            "playlist", "playlist_entry", "playlist_share", "playlist_household_share", "cover", "smart_list",
+        ],
         .stations: ["station", "station_day", "station_time", "station_program", "station_loop", "cover"],
         .household: [
             "household", "account", "account_card", "household_member", "adult_link", "profile_offer", "friendship",

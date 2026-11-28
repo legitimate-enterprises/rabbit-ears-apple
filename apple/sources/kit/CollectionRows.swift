@@ -21,6 +21,9 @@ enum CollectionRows {
         "(SELECT \(column) FROM profile_collection_art WHERE account_id = \(me) AND collection_id = c.id)"
     }
 
+    /// Whether rules choose collection `c`'s movies.
+    static let smart = "EXISTS (SELECT 1 FROM smart_list l WHERE l.collection_id = c.id)"
+
     /// The collections the profile browses, by name, as listCollections:
     /// the household's own, and TMDB's holding two or more while metadata
     /// comes from TMDB; a kid sees none holding nothing it may see, nor does
@@ -34,7 +37,7 @@ enum CollectionRows {
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT c.*, \(seen) AS movie_count, \(art("poster_url", ":profile")) AS poster_url,
+                SELECT c.*, \(seen) AS movie_count, \(smart) AS smart, \(art("poster_url", ":profile")) AS poster_url,
                     \(art("backdrop_url", ":profile")) AS backdrop_url,
                     c.source = 'custom' AND EXISTS (SELECT 1 FROM collection_movie o WHERE o.collection_id = c.id
                         AND o.position IS NOT NULL) AS custom_order
@@ -60,7 +63,7 @@ enum CollectionRows {
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT c.*, \(art("poster_url", ":profile")) AS poster_url,
+                SELECT c.*, \(smart) AS smart, \(art("poster_url", ":profile")) AS poster_url,
                     \(art("backdrop_url", ":profile")) AS backdrop_url
                 FROM collection c WHERE c.id IN (SELECT unhex(value, '-') FROM json_each(:ids))
                 """, arguments: ["profile": profile, "ids": ReplicaRows.json(ids)])
@@ -103,6 +106,7 @@ enum CollectionRows {
         return MovieCollection(
             id: row["id"], source: source, name: row["name"], overview: overview?.isEmpty == false ? overview : nil,
             householdId: row["household_id"], tmdbId: row["tmdb_id"], movieCount: count, customOrder: customOrder,
+            smart: row["smart"],
             posterUrl: row["poster_url"], backdropUrl: row["backdrop_url"],
             createdAt: ReplicaRows.instant(row["created_at"]), modifiedAt: ReplicaRows.instant(row["modified_at"]),
             createdBy: row["created_by"], modifiedBy: row["modified_by"])

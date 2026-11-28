@@ -61,7 +61,8 @@ enum PlaylistRows {
                         OR EXISTS (SELECT 1 FROM playlist_entry ce
                                 WHERE ce.playlist_id = p.id AND ce.item_id = c.item_id)
                             AND \(seen("c.item_id")))) AS cover_id,
-                    (SELECT o.name FROM account_card o WHERE o.id = p.account_id) AS owner_name
+                    (SELECT o.name FROM account_card o WHERE o.id = p.account_id) AS owner_name,
+                    EXISTS (SELECT 1 FROM smart_list l WHERE l.playlist_id = p.id) AS smart
                 FROM playlist p WHERE \(condition)) q
                 ORDER BY q.name COLLATE NOCASE, q.id
                 """, arguments: ["profile": profile, "id": id])
@@ -73,7 +74,8 @@ enum PlaylistRows {
             let id: UID = row["id"]
             return Playlist(
                 id: id, profileId: row["account_id"], name: row["name"], access: access,
-                shared: !owned || row["any_share"], ownerName: owned ? nil : row["owner_name"], kind: kind,
+                shared: !owned || row["any_share"], smart: row["smart"], ownerName: owned ? nil : row["owner_name"],
+                kind: kind,
                 itemCount: row["item_count"], durationMs: row["duration_ms"], artItemId: row["art_item_id"],
                 lastPlayedAt: (row["last_played_at"] as Int64?).map(ReplicaRows.instant), posterUrl: row["poster_url"],
                 imageUrl: (row["cover_id"] as UID?).map { "/api/v2/profiles/\(profile)/playlists/\(id)/image?v=\($0)" },

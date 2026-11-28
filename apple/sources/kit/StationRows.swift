@@ -16,7 +16,7 @@ enum StationRows {
             sql: """
                 SELECT s.id, s.account_id, s.playlist_id, s.household_id, p.kind, s.name,
                     s.shuffled, s.visibility, s.timing, s.rating, s.created_at, s.modified_at, s.created_by,
-                    s.modified_by
+                    s.modified_by, EXISTS (SELECT 1 FROM smart_list l WHERE l.playlist_id = s.playlist_id) AS smart
                 \(seen) AND (:kind IS NULL OR p.kind = :kind) ORDER BY s.name COLLATE NOCASE, s.id
                 """, arguments: ["profile": profile, "id": id, "kind": kind?.rawValue])
         return try rows.compactMap { try station($0, db, profile: profile, at: now, calendar: calendar) }
@@ -77,7 +77,8 @@ enum StationRows {
                 """, arguments: ["id": id, "playlist": row["playlist_id"], "profile": profile])
         let rating: String? = row["rating"]
         return Station(
-            id: id, name: row["name"], kind: kind, ownerId: row["account_id"], householdId: household,
+            id: id, name: row["name"], kind: kind, smart: row["smart"], ownerId: row["account_id"],
+            householdId: household,
             playlistId: row["playlist_id"], order: row["shuffled"] ? .random : .playlist, visibility: visibility,
             timing: timing, days: days.compactMap { weekdays.indices.contains($0) ? weekdays[$0] : nil },
             times: times.map { StationTimeRange(id: $0.id, from: clock($0.from), to: clock($0.to)) },

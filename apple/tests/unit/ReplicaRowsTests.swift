@@ -114,6 +114,40 @@ final class ReplicaRowsTests: XCTestCase {
         XCTAssertEqual(found.last?.posterUrl, "/api/v2/artwork/local/heat.jpg")
     }
 
+    /// A playlist or collection is smart while a smart_list row names it, and a station while its playlist is.
+    func testAListIsSmartWhileASmartListNamesIt() async throws {
+        let replica = try fixture.v1 { db in
+            try db.account(1, "Avery")
+            try db.item(10, "movie", "Dune")
+            try db.playlist(7, "Picked")
+            try db.playlist(8, "Ruled")
+            try db.collection(5, "Picked", movies: [10])
+            try db.collection(6, "Ruled", movies: [10])
+            try db.station(3, of: 1, playing: 7)
+            try db.station(4, of: 1, playing: 8)
+            try db.execute(
+                sql: """
+                    UPDATE station SET household_id = ?, visibility = 'private', timing = 'continuous', shuffled = 0,
+                        created_at = 0, modified_at = 0
+                    """, arguments: [UID.n(7)])
+            try db.execute(
+                sql: """
+                    INSERT INTO smart_list(id, playlist_id, collection_id, created_at) VALUES (?, ?, NULL, 0),
+                        (?, NULL, ?, 0)
+                    """, arguments: [UID.n(90), UID.n(8), UID.n(91), UID.n(6)])
+        }
+        let (playlists, collections, stations) = try await replica.read { db in
+            (
+                try PlaylistRows.playlists(db, profile: 1), try CollectionRows.list(db, profile: 1),
+                try StationRows.stations(db, profile: 1, at: Date(), calendar: .current)
+            )
+        }
+        XCTAssertEqual(playlists.map(\.name), ["Picked", "Ruled"])
+        XCTAssertEqual(playlists.map(\.smart), [false, true])
+        XCTAssertEqual(collections.map(\.smart), [false, true])
+        XCTAssertEqual(stations.map(\.smart), [false, true])
+    }
+
     private func items(_ replica: Replica, _ ids: [UID]) async throws -> [UID: Item] {
         let list = try await replica.read { db in
             try ReplicaRows.items(db, ids: ids, for: 103)
