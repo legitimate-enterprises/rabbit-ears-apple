@@ -136,7 +136,7 @@ private struct NeedsServer: ViewModifier {
     let id: UID?
 
     func body(content: Content) -> some View {
-        let blocked = app.downloads?.blocks(action, id, profile: app.activeProfile?.id) == true
+        let blocked = app.needsServer(action, id)
         content.disabled(blocked)
             .help(blocked ? "Needs the server" : "")
             .accessibilityHint(blocked ? "Needs the server" : "")

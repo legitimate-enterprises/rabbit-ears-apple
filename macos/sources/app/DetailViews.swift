@@ -344,7 +344,7 @@ struct SeasonTile: View {
             }
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.plain).dimmedOffline(item.id)
         .contextMenu { ItemContextMenu(item: item, play: { browser.play(item, in: model.catalog) }) }
     }
 }
@@ -392,7 +392,7 @@ struct EpisodeRow: View {
             .overlay(alignment: .top) { Divider().overlay(Theme.hairline) }
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.plain).dimmedOffline(item.id)
         .contextMenu { ItemContextMenu(item: item, play: { browser.play(item, in: catalog) }) }
         .accessibilityAddTraits(current ? .isSelected : [])
     }

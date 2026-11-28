@@ -186,8 +186,8 @@ struct AlbumTile: View {
         .dimmedOffline(album.id)
         .contextMenu {
             SelectMenuItem(id: album.id)
-            Button("Play", systemImage: "play.fill") { play(shuffled: false) }
-            Button("Shuffle", systemImage: "shuffle") { play(shuffled: true) }
+            Button("Play", systemImage: "play.fill") { play(shuffled: false) }.needsServer(.play, album.id)
+            Button("Shuffle", systemImage: "shuffle") { play(shuffled: true) }.needsServer(.play, album.id)
             FavoriteMenuItem(id: album.id)
         }
     }
@@ -308,6 +308,7 @@ struct SongsList: View {
 }
 
 struct SongRow: View {
+    @Environment(AppModel.self) private var app
     @Environment(Services.self) private var services
     let song: MusicSong
     var number: Int?
@@ -318,7 +319,9 @@ struct SongRow: View {
 
     var body: some View {
         let playing = services.player.current?.id == song.id
-        Button(action: action) {
+        Button {
+            if !app.needsServer(.play, song.id) { action() }
+        } label: {
             HStack(spacing: 12) {
                 if let number {
                     Text("\(number)").font(.system(size: 15, weight: playing ? .bold : .regular)).monospacedDigit()
@@ -346,6 +349,7 @@ struct SongRow: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .dimmedOffline(song.id)
         .contextMenu {
             SelectMenuItem(id: song.id)
             FavoriteMenuItem(id: song.id)

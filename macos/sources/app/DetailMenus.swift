@@ -80,7 +80,7 @@ struct ItemContextMenu: View {
     var remove: (() -> Void)?
 
     var body: some View {
-        if let play { Button("Play", action: play) }
+        if let play { Button("Play", action: play).needsServer(.play, item.id) }
         if let details { Button("Go to details", action: details) }
         if let goToShow { Button("Go to show", action: goToShow) }
         ItemMenuContent(item: item, onTile: true)
@@ -95,7 +95,7 @@ struct VideoContextMenu: View {
     let video: YouTubeVideo
 
     var body: some View {
-        Button("Play") { browser.play(video) }
+        Button("Play") { browser.play(video) }.needsServer(.play, video.id)
         Button(video.watched ? "Mark as unwatched" : "Mark as watched") {
             Task {
                 await catalog.setWatched(!video.watched, for: Item(video: video))

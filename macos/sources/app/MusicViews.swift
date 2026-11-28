@@ -170,8 +170,8 @@ struct AlbumTile: View {
         .buttonStyle(.plain)
         .dimmedOffline(album.id)
         .contextMenu {
-            Button("Play") { play(shuffled: false) }
-            Button("Shuffle") { play(shuffled: true) }
+            Button("Play") { play(shuffled: false) }.needsServer(.play, album.id)
+            Button("Shuffle") { play(shuffled: true) }.needsServer(.play, album.id)
             Button("Go to artist") { browser.open(.artist(album.artistId)) }
             FavoriteMenuItem(id: album.id)
         }
@@ -208,6 +208,7 @@ struct ArtistTile: View {
 }
 
 struct SongRow: View {
+    @Environment(AppModel.self) private var app
     @Environment(MusicPlayer.self) private var player
     let song: MusicSong
     let queue: [MusicSong]
@@ -223,6 +224,7 @@ struct SongRow: View {
     var body: some View {
         let current = player.current?.id == song.id
         Button {
+            guard !app.needsServer(.play, song.id) else { return }
             Task { await player.play(queue, from: index, source: source, playlistId: playlistId) }
         } label: {
             HStack(spacing: 14) {
@@ -249,6 +251,7 @@ struct SongRow: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .dimmedOffline(song.id)
         .contextMenu {
             FavoriteMenuItem(id: song.id)
             PlaylistMenu(itemId: song.id, kind: .music)

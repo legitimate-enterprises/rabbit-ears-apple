@@ -236,5 +236,6 @@ struct ChannelTile: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .dimmedOffline(channel.id)
     }
 }

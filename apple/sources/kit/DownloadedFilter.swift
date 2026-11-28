@@ -68,6 +68,11 @@ public enum ServerAction: CaseIterable, Sendable {
 }
 
 extension AppModel {
+    /// Whether `action` is certain to fail now for the active profile.
+    public func needsServer(_ action: ServerAction, _ id: UID? = nil) -> Bool {
+        downloads?.blocks(action, id, profile: activeProfile?.id) == true
+    }
+
     /// What the Downloaded filter keeps while it is on; nil while it is off, as where nothing downloads.
     public var downloadedFilter: Set<UID>? {
         guard let downloads, downloads.downloadedOnly, let profile = activeProfile?.id else { return nil }

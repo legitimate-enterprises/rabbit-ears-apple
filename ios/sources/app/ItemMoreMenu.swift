@@ -130,7 +130,7 @@ struct ItemContextMenu: View {
 
     var body: some View {
         if selectable { SelectMenuItem(id: item.id) }
-        if let play { Button("Play", systemImage: "play.fill", action: play) }
+        if let play { Button("Play", systemImage: "play.fill", action: play).needsServer(.play, item.id) }
         if let details { Button("Go to details", systemImage: "info.circle", action: details) }
         if let goToShow { Button("Go to show", systemImage: "tv", action: goToShow) }
         ItemMenuContent(

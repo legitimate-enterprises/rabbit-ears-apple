@@ -170,6 +170,7 @@ struct VideoContextMenu: View {
     var body: some View {
         if selectable { SelectMenuItem(id: video.id) }
         Button("Play", systemImage: "play.fill") { browser.play(Item(video: video), in: catalog.catalog) }
+            .needsServer(.play, video.id)
         Button(video.watched ? "Mark as unwatched" : "Mark as watched", systemImage: "checkmark") {
             Task {
                 await catalog.setWatched(!video.watched, for: Item(video: video))
@@ -214,6 +215,7 @@ struct ChannelsGrid: View {
                         .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
+                    .dimmedOffline(channel.id)
                     .contextMenu { SelectMenuItem(id: channel.id) }
                     .selectable(channel.id)
                 }

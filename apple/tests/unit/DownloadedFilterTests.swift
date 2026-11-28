@@ -50,6 +50,14 @@ final class DownloadedFilterTests: XCTestCase {
         XCTAssertFalse(store.isPlayable(20, profile: 1), "a title still downloading is not playable")
     }
 
+    func testOfflinePlayIsBlockedForEachRowAndTileWithNothingHere() async throws {
+        for target in [DownloadTarget.show(10), .title(5), .title(70)] { try await harness.download(target) }
+        harness.goOffline()
+        _ = try? await harness.client.getMe()
+        let blocked = ([101, 11, 10, 12, 5, 50, 51, 70, 60, 61] as [UID]).filter { store.blocks(.play, $0, profile: 1) }
+        XCTAssertEqual(blocked, [12, 51, 61], "a season, album and channel with nothing here")
+    }
+
     func testTheFilterIsOffByDefault() {
         XCTAssertFalse(store.downloadedOnly)
     }

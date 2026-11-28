@@ -224,6 +224,7 @@ struct Strip: View {
 }
 
 struct Tile: View {
+    @Environment(AppModel.self) private var app
     @Environment(CatalogModel.self) private var model
     @Environment(Browser.self) private var browser
     let item: Item
@@ -236,6 +237,8 @@ struct Tile: View {
     var body: some View {
         let catalog = model.catalog
         let show = item.kind == .episode ? catalog.show(of: item) : nil
+        // Offline, a title not on this device opens its details, which read from the replica.
+        let plays = self.plays && !app.needsServer(.play, item.id)
         // A show's count walks every episode under it; once per render.
         let unwatched = catalog.unwatchedCount(item.id)
         Button {
