@@ -193,7 +193,7 @@ struct WhosWatchingView: View {
     private var picker: some View {
         VStack(spacing: 40) {
             Text("Who's watching?").font(.system(size: 32, weight: .bold))
-            HStack(alignment: .top, spacing: 40) {
+            Flow(spacing: 40) {
                 ForEach(model.profiles) { profile in
                     Button {
                         if profile.hasPin { pinFor = profile } else { choose(profile) }

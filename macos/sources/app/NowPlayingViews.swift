@@ -24,7 +24,8 @@ struct MiniPlayer: View {
                             Text("\(song.artistName) · \(song.albumTitle)").font(.system(size: 12))
                                 .foregroundStyle(Theme.secondary).lineLimit(1)
                         }
-                        .frame(width: 210, alignment: .leading)
+                        // Gives up width before the clocks do.
+                        .frame(minWidth: 120, maxWidth: 210, alignment: .leading)
                     }
                     .contentShape(.rect)
                 }
@@ -35,7 +36,7 @@ struct MiniPlayer: View {
                     let duration = Double(song.durationMs ?? 0) / 1000
                     let position = scrubbing ?? Double(player.positionMs) / 1000
                     HStack(spacing: 10) {
-                        Text(Format.clock(seconds: position)).monospacedDigit()
+                        Text(Format.clock(seconds: position)).monospacedDigit().fixedSize()
                         ScrubBar(
                             position: position, duration: duration, previewURL: { _ in nil },
                             onScrub: { scrubbing = $0 },
@@ -45,7 +46,7 @@ struct MiniPlayer: View {
                             }
                         )
                         .frame(height: 16)
-                        Text(Format.clock(seconds: duration)).monospacedDigit()
+                        Text(Format.clock(seconds: duration)).monospacedDigit().fixedSize()
                     }
                     .font(.system(size: 12)).foregroundStyle(Theme.secondary)
                 }
@@ -89,7 +90,7 @@ struct StationMiniPlayer: View {
                         )
                         .font(.system(size: 12)).foregroundStyle(Theme.secondary).lineLimit(1)
                     }
-                    .frame(width: 210, alignment: .leading)
+                    .frame(minWidth: 120, maxWidth: 210, alignment: .leading)
                 }
                 .contentShape(.rect)
             }
@@ -105,9 +106,9 @@ struct StationMiniPlayer: View {
                 let duration = Double(song?.durationMs ?? 0) / 1000
                 let position = Double(player.positionMs) / 1000
                 HStack(spacing: 10) {
-                    Text(Format.clock(seconds: position)).monospacedDigit()
+                    Text(Format.clock(seconds: position)).monospacedDigit().fixedSize()
                     ProgressBar(value: duration > 0 ? min(1, position / duration) : 0)
-                    Text(Format.clock(seconds: duration)).monospacedDigit()
+                    Text(Format.clock(seconds: duration)).monospacedDigit().fixedSize()
                 }
                 .font(.system(size: 12)).foregroundStyle(Theme.secondary)
             }
@@ -199,7 +200,6 @@ struct NowPlayingScreen: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(width: 300)
     }
 
     /// Fixed height, so the controls under it hold still from one song to the next.

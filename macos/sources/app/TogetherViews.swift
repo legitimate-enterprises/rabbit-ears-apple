@@ -70,6 +70,7 @@ struct TogetherControl: View {
                     .buttonStyle(SecondaryButtonStyle())
                 }
             }
+            .fixedSize()
         }
     }
 

@@ -18,20 +18,19 @@ struct HomeView: View {
                     Text("Nothing here yet.").foregroundStyle(Theme.secondary).frame(maxWidth: .infinity).padding(60)
                 }
                 if let hero = HomeHero(catalog.continueWatching(with: started)) {
-                    HStack(alignment: .top, spacing: 18) {
-                        HeroTile(entry: hero.hero, wide: hero.alsoInProgress.isEmpty)
-                        if !hero.alsoInProgress.isEmpty {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("Also in progress").font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(Theme.secondary)
-                                ForEach(hero.alsoInProgress.prefix(3)) { entry in
-                                    switch entry {
-                                    case .item(let item): InProgressRow(item: item)
-                                    case .video(let video): InProgressVideoRow(video: video)
-                                    }
-                                }
+                    if hero.alsoInProgress.isEmpty {
+                        HeroTile(entry: hero.hero, wide: true)
+                    } else {
+                        // Beside the hero while a row there has room for its title, otherwise under it.
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .top, spacing: 18) {
+                                HeroTile(entry: hero.hero, wide: false)
+                                AlsoInProgress(entries: hero.alsoInProgress).frame(minWidth: 240, maxWidth: 320)
                             }
-                            .frame(maxWidth: 320)
+                            VStack(alignment: .leading, spacing: 18) {
+                                HeroTile(entry: hero.hero, wide: true)
+                                AlsoInProgress(entries: hero.alsoInProgress)
+                            }
                         }
                     }
                 }
@@ -57,6 +56,23 @@ struct HomeView: View {
             async let inProgress = youtube.inProgress()
             videos = (try? await new) ?? []
             started = (try? await inProgress) ?? []
+        }
+    }
+}
+
+private struct AlsoInProgress: View {
+    let entries: [Resumable]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Also in progress").font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.secondary)
+            ForEach(entries.prefix(3)) { entry in
+                switch entry {
+                case .item(let item): InProgressRow(item: item)
+                case .video(let video): InProgressVideoRow(video: video)
+                }
+            }
         }
     }
 }

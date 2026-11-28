@@ -22,6 +22,7 @@ struct Chip: View {
     var body: some View {
         Button(title, action: action)
             .font(.system(size: 12, weight: picked ? .semibold : .medium))
+            .fixedSize()
             .foregroundStyle(picked ? Theme.ground : Theme.primary)
             .padding(.horizontal, 12).frame(height: 26)
             .background(picked ? Theme.amber : .clear, in: .capsule)
@@ -38,6 +39,27 @@ struct DownloadedChip: View {
     var body: some View {
         if let downloads = app.downloads {
             Chip(title: "Downloaded", picked: downloads.downloadedOnly) { downloads.downloadedOnly.toggle() }
+        }
+    }
+}
+
+/// A screen's filters, chips leading and pickers and Select trailing: on one line where they fit,
+/// otherwise each on a line of its own, the chips wrapping.
+struct FilterBar<Leading: View, Trailing: View>: View {
+    @ViewBuilder var leading: Leading
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                leading
+                Spacer()
+                trailing
+            }
+            VStack(alignment: .trailing, spacing: 10) {
+                Flow(spacing: 8) { leading }.frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 8) { trailing }
+            }
         }
     }
 }
@@ -70,7 +92,7 @@ private struct ViewTab: View {
 
     var body: some View {
         Button(action: action) {
-            Text(title).font(.system(size: 13, weight: .medium))
+            Text(title).font(.system(size: 13, weight: .medium)).fixedSize()
                 .foregroundStyle(current || hovered ? .white : Theme.secondary)
                 .padding(.vertical, 6).padding(.horizontal, 10)
                 .background(current ? Theme.border : .clear, in: .rect(cornerRadius: 6))
@@ -113,12 +135,12 @@ struct GridView: View {
                     selection: $view)
                 switch view {
                 case .titles:
-                    HStack(spacing: 8) {
+                    FilterBar {
                         Chips(
                             options: filters, label: \.rawValue,
                             selection: Binding(get: { shown }, set: { filter = $0 }))
                         DownloadedChip()
-                        Spacer()
+                    } trailing: {
                         if !genres.isEmpty {
                             Picker("Genre", selection: $genre) {
                                 Text("All genres").tag(Genre.ID?.none)

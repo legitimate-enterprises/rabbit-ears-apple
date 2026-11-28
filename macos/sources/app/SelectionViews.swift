@@ -81,44 +81,48 @@ private struct SelectionBar: View {
     var body: some View {
         let ids = selection.ordered(order)
         HStack(spacing: 8) {
-            Text("\(ids.count) selected").font(.system(size: 13, weight: .semibold))
+            Text("\(ids.count) selected").font(.system(size: 13, weight: .semibold)).fixedSize()
             Spacer()
-            Button("Select all") { selection.selectAll(order) }.keyboardShortcut("a", modifiers: .command)
-            Group {
-                if kind.watches {
-                    Button("Mark watched") { run { await watched(true, ids) } }
-                    Button("Mark unwatched") { run { await watched(false, ids) } }
-                }
-                if app.isAdult, kind.kidsContent {
-                    Button("Kids' content") { run { await kids(true, ids) } }
-                    Button("Not kids' content") { run { await kids(false, ids) } }
-                }
-                if app.isAdult, let list = kind.playlistKind {
-                    if let playlists {
-                        Menu("Add to playlist") {
-                            ForEach(playlists.editable(list), id: \.id) { playlist in
-                                Button(playlist.name) { run { await playlists.add(ids, to: playlist.id) } }
-                            }
-                            if !playlists.editable(list).isEmpty { Divider() }
-                            Button("New playlist…") {
-                                browser.naming = PlaylistNameRequest(kind: list, itemIds: ids)
-                                selection.end()
-                            }
-                        }
-                        .menuStyle(.button).menuIndicator(.hidden).fixedSize()
+            // Ahead of the spacer, so the actions wrap only once they cannot share one line.
+            Flow(spacing: 8) {
+                Button("Select all") { selection.selectAll(order) }.keyboardShortcut("a", modifiers: .command)
+                Group {
+                    if kind.watches {
+                        Button("Mark watched") { run { await watched(true, ids) } }
+                        Button("Mark unwatched") { run { await watched(false, ids) } }
                     }
-                    if let stations, let playlists, !stations.mine(list).isEmpty {
-                        Menu("Add to station") {
-                            ForEach(stations.mine(list)) { station in
-                                Button(station.name) { run { await playlists.add(ids, to: station.playlistId) } }
+                    if app.isAdult, kind.kidsContent {
+                        Button("Kids' content") { run { await kids(true, ids) } }
+                        Button("Not kids' content") { run { await kids(false, ids) } }
+                    }
+                    if app.isAdult, let list = kind.playlistKind {
+                        if let playlists {
+                            Menu("Add to playlist") {
+                                ForEach(playlists.editable(list), id: \.id) { playlist in
+                                    Button(playlist.name) { run { await playlists.add(ids, to: playlist.id) } }
+                                }
+                                if !playlists.editable(list).isEmpty { Divider() }
+                                Button("New playlist…") {
+                                    browser.naming = PlaylistNameRequest(kind: list, itemIds: ids)
+                                    selection.end()
+                                }
                             }
+                            .menuStyle(.button).menuIndicator(.hidden).fixedSize()
                         }
-                        .menuStyle(.button).menuIndicator(.hidden).fixedSize()
+                        if let stations, let playlists, !stations.mine(list).isEmpty {
+                            Menu("Add to station") {
+                                ForEach(stations.mine(list)) { station in
+                                    Button(station.name) { run { await playlists.add(ids, to: station.playlistId) } }
+                                }
+                            }
+                            .menuStyle(.button).menuIndicator(.hidden).fixedSize()
+                        }
                     }
                 }
+                .disabled(ids.isEmpty)
+                Button("Done") { selection.end() }.keyboardShortcut(.cancelAction).buttonStyle(PrimaryButtonStyle())
             }
-            .disabled(ids.isEmpty)
-            Button("Done") { selection.end() }.keyboardShortcut(.cancelAction).buttonStyle(PrimaryButtonStyle())
+            .layoutPriority(1)
         }
         .buttonStyle(SecondaryButtonStyle())
         .padding(.horizontal, 14).padding(.vertical, 10)

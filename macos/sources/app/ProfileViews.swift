@@ -16,6 +16,7 @@ struct ProfileMenu: View {
             HStack(spacing: 8) {
                 if let profile = model.activeProfile { Avatar(account: profile, size: 22) }
                 Text(model.activeProfile?.name ?? "").font(.system(size: 12)).foregroundStyle(Theme.secondary)
+                    .lineLimit(1)
                 Spacer()
             }
         }

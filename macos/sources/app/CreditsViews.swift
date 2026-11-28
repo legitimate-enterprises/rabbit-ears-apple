@@ -50,7 +50,7 @@ struct GenreTags: View {
 
     var body: some View {
         if let genres = item.genres, !genres.isEmpty {
-            HStack(spacing: 6) { ForEach(genres) { Tag(text: $0.name) } }.foregroundStyle(Theme.secondary)
+            Flow(spacing: 6) { ForEach(genres) { Tag(text: $0.name) } }.foregroundStyle(Theme.secondary)
         }
     }
 }

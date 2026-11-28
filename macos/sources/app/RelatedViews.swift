@@ -8,12 +8,17 @@ struct NeighborButtons: View {
 
     var body: some View {
         if let neighbors = related?.neighbors, !neighbors.isEmpty {
-            HStack(spacing: 10) {
+            Flow {
                 ForEach(neighbors, id: \.isNext) { neighbor in
-                    Button(neighbor.title) { browser.replace(with: neighbor.item) }
-                        .buttonStyle(SecondaryButtonStyle()).lineLimit(1)
-                        .help(neighbor.accessibilityLabel)
-                        .accessibilityLabel(neighbor.accessibilityLabel)
+                    // Narrower than the narrowest details column, so a long title truncates.
+                    Button {
+                        browser.replace(with: neighbor.item)
+                    } label: {
+                        Text(neighbor.title).lineLimit(1).frame(maxWidth: 240)
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .help(neighbor.accessibilityLabel)
+                    .accessibilityLabel(neighbor.accessibilityLabel)
                 }
             }
         }

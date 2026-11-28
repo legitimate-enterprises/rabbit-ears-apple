@@ -61,7 +61,8 @@ struct VideoScreen: View {
     private func header(_ video: YouTubeVideo) -> some View {
         let inProgress = video.positionMs > 0
         return HStack(alignment: .top, spacing: 24) {
-            Art(id: video.id, aspect: 16 / 9, radius: 10, placeholder: .video).frame(width: 360)
+            // The still gives up width before the details column does.
+            Art(id: video.id, aspect: 16 / 9, radius: 10, placeholder: .video).frame(minWidth: 240, maxWidth: 360)
                 .overlay(alignment: .bottom) {
                     if let progress = video.progress { ProgressBar(value: progress, height: 4) }
                 }
@@ -94,7 +95,7 @@ struct VideoScreen: View {
     }
 
     private func buttons(_ video: YouTubeVideo, inProgress: Bool) -> some View {
-        HStack(spacing: 10) {
+        Flow {
             Button {
                 if let together, together.inSync {
                     Task { await together.playTogether() }

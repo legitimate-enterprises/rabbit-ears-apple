@@ -91,7 +91,7 @@ struct AlbumScreen: View {
             Art(id: album.id, radius: 10, placeholder: .album).frame(width: 190)
             VStack(alignment: .leading, spacing: 14) {
                 Text(album.title).font(.system(size: 26, weight: .bold))
-                HStack(spacing: 10) {
+                Flow {
                     Button(album.artistName) { browser.open(.artist(album.artistId)) }
                         .buttonStyle(.plain).fontWeight(.semibold).foregroundStyle(Theme.amber)
                     if let year = album.year { Text(String(year)) }
@@ -178,7 +178,7 @@ struct ArtistScreen: View {
             Art(id: artist.id, circle: true, placeholder: .artist).frame(width: 150)
             VStack(alignment: .leading, spacing: 14) {
                 Text(artist.name).font(.system(size: 26, weight: .bold))
-                HStack(spacing: 10) {
+                Flow {
                     Text("\(artist.albumCount) albums")
                     Text("\(artist.songCount) songs")
                     if let genre = artist.genres.first { Text(genre.name) }

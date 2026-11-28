@@ -269,14 +269,14 @@ struct StationScreen: View {
                     Text(station.name).font(.system(size: 26, weight: .bold))
                     if station.smart == true { SmartBadge() }
                 }
-                HStack(spacing: 10) {
+                Flow {
                     Text(StationText.kind(station.kind))
                     Tag(text: StationText.rating(station)).foregroundStyle(Theme.primary)
                     Text(StationText.visibility(station.visibility))
                     Text(station.order == .random ? "Shuffled" : "In order")
                 }
                 .font(.system(size: 13)).foregroundStyle(Theme.secondary)
-                HStack(spacing: 10) {
+                Flow {
                     Button {
                         browser.tune(station, music: music, app: app)
                     } label: {

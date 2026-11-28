@@ -269,7 +269,7 @@ struct PlaylistScreen: View {
                 if let shared = playlist.sharedBy {
                     Text(shared).font(.system(size: 13)).foregroundStyle(Theme.secondary)
                 }
-                HStack(spacing: 10) {
+                Flow {
                     Button {
                         start(playlist, from: nil, shuffled: false)
                     } label: {

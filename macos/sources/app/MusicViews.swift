@@ -26,9 +26,9 @@ struct MusicScreen: View {
                 ViewTabs(
                     options: tabs, label: \.rawValue,
                     selection: Binding(get: { tab }, set: { stored = $0 }))
-                HStack(spacing: 8) {
+                FilterBar {
                     if tab != .playlists && tab != .stations { DownloadedChip() }
-                    Spacer()
+                } trailing: {
                     if tab == .albums {
                         Picker("Sort", selection: $sort) {
                             ForEach(MusicAlbumSort.allCases, id: \.self) { Text($0.title) }

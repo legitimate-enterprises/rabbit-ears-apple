@@ -300,8 +300,10 @@ struct MainView: View {
                 }
             }
         }
-        .safeAreaInset(edge: .bottom) { ProfileMenu().environment(catalog).padding(12) }
-        .navigationSplitViewColumnWidth(210)
+        // A bar, so the rows scroll above it and fade out under its edge rather than drawing through it.
+        .safeAreaBar(edge: .bottom) { ProfileMenu().environment(catalog).padding(12) }
+        .scrollEdgeEffectStyle(.hard, for: .bottom)
+        .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 260)
     }
 
     @ViewBuilder

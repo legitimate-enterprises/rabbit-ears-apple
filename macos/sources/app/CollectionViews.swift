@@ -86,7 +86,7 @@ struct InCollections: View {
     @State private var named: [MovieCollection] = []
 
     var body: some View {
-        HStack(spacing: 10) {
+        Flow {
             ForEach(named) { collection in
                 Button(collection.name) { browser.open(.collection(collection.id)) }
                     .buttonStyle(.plain).font(.system(size: 13)).foregroundStyle(Theme.secondary)
@@ -265,7 +265,7 @@ struct CollectionScreen: View {
                     if collection.smart == true { SmartBadge() }
                 }
                 Text(collection.summary).font(.system(size: 13)).foregroundStyle(Theme.secondary)
-                HStack(spacing: 10) {
+                Flow {
                     ShuffleButton(items: movies ?? [])
                     PlaylistMenu(collectionId: collection.id, kind: .movies, asButton: true)
                     StationMenu(collectionId: collection.id, kind: .movies, asButton: true)

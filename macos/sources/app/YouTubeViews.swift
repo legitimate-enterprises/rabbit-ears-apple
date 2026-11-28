@@ -31,14 +31,14 @@ struct YouTubeScreen: View {
                 ViewTabs(
                     options: YouTubeTab.tabs, label: \.rawValue,
                     selection: Binding(get: { tab.tab }, set: { if $0 != tab.tab { tab = $0 } }))
-                HStack(spacing: 8) {
+                FilterBar {
                     if shown != .channels {
                         Chips(
                             options: [YouTubeTab.unwatched], label: \.rawValue,
                             selection: Binding(get: { tab }, set: { tab = $0 == tab ? .videos : $0 }))
                         DownloadedChip()
                     }
-                    Spacer()
+                } trailing: {
                     if shown == .channels {
                         Picker("Sort", selection: $channelSort) {
                             ForEach(YouTubeChannelSort.allCases, id: \.self) { Text($0.title) }

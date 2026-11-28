@@ -27,6 +27,8 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: .semibold))
+            // Squeezed, the label stays whole and on one line; its row makes room or wraps.
+            .fixedSize()
             .foregroundStyle(Theme.ground)
             .padding(.horizontal, 14)
             .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: height)
@@ -42,11 +44,61 @@ struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: .semibold))
+            // Squeezed, the label stays whole and on one line; its row makes room or wraps.
+            .fixedSize()
             .foregroundStyle(.white)
             .padding(.horizontal, 14)
             .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: height)
             .background(.white.opacity(configuration.isPressed ? 0.18 : 0.12), in: .rect(cornerRadius: 8))
             .contentShape(.rect)
+    }
+}
+
+/// Its views left to right, each line as full as fits and then another; a view wider than a whole
+/// line, such as long text, gets the line's width.
+struct Flow: Layout {
+    var spacing: CGFloat = 10
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let lines = lines(proposal.width, subviews)
+        return CGSize(
+            width: lines.map(\.width).max() ?? 0,
+            height: lines.map(\.height).reduce(0, +) + spacing * CGFloat(max(lines.count - 1, 0)))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var top = bounds.minY
+        for line in lines(bounds.width, subviews) {
+            var left = bounds.minX
+            for (index, size) in line.members {
+                subviews[index].place(
+                    at: CGPoint(x: left, y: top + (line.height - size.height) / 2), proposal: ProposedViewSize(size))
+                left += size.width + spacing
+            }
+            top += line.height + spacing
+        }
+    }
+
+    private struct Line {
+        var members: [(Int, CGSize)] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func lines(_ width: CGFloat?, _ subviews: Subviews) -> [Line] {
+        var lines: [Line] = []
+        for (index, subview) in subviews.enumerated() {
+            let size = subview.sizeThatFits(ProposedViewSize(width: width, height: nil))
+            if var line = lines.last, line.width + spacing + size.width <= width ?? .infinity {
+                line.members.append((index, size))
+                line.width += spacing + size.width
+                line.height = max(line.height, size.height)
+                lines[lines.count - 1] = line
+            } else {
+                lines.append(Line(members: [(index, size)], width: size.width, height: size.height))
+            }
+        }
+        return lines
     }
 }
 

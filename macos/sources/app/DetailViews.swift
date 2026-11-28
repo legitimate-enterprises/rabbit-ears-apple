@@ -39,7 +39,7 @@ struct MetaLine: View {
     var left: String?
 
     var body: some View {
-        HStack(spacing: 10) {
+        Flow {
             ForEach(parts.filter { !$0.isEmpty }, id: \.self) { Text($0) }
             ForEach(tags, id: \.self) { Tag(text: $0) }
             if let left { Text(left).foregroundStyle(Theme.amber) }
@@ -86,7 +86,8 @@ struct PlayableDetail: View {
         let sharing = together?.current != nil
         let sent = cuts.sent(together: sharing)
         HStack(alignment: .top, spacing: 24) {
-            ArtBlock(item: item, aspect: episode ? 16 / 9 : 2 / 3, radius: 10).frame(width: episode ? 360 : 170)
+            ArtBlock(item: item, aspect: episode ? 16 / 9 : 2 / 3, radius: 10)
+                .frame(minWidth: episode ? 240 : 170, maxWidth: episode ? 360 : 170)
                 .overlay(alignment: .bottom) {
                     if inProgress, let progress = catalog.progress(item.id) { ProgressBar(value: progress, height: 4) }
                 }
@@ -107,7 +108,7 @@ struct PlayableDetail: View {
                 if !episode { GenreTags(item: item) }
                 if item.kind == .movie { InCollections(movieId: item.id) }
                 if let verdict { PlayabilityLine(verdict: verdict) }
-                HStack(spacing: 10) {
+                Flow {
                     Button {
                         // Plays for both; each side's player opens as the shared state turns to playing.
                         if let together, together.inSync {
@@ -258,7 +259,7 @@ struct GroupDetail: View {
                         "\(Format.remaining(ms: $0)) in \(Format.episodeCode(target!))"
                     })
                 if show { GenreTags(item: item) }
-                HStack(spacing: 10) {
+                Flow {
                     if let target {
                         Button {
                             browser.play(target, in: catalog)
