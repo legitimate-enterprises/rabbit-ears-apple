@@ -19,7 +19,7 @@ public final class StationsModel {
     /// A refused save's messages by the field each names, as `name`.
     public private(set) var fieldErrors: [String: String] = [:]
     /// The active profile's own stations, for the sidebar and Add to station; `loadMine` reads them.
-    public private(set) var mine: [Station] = []
+    public internal(set) var mine: [Station] = []
     public let client: Client
     public let profileId: UID
     private let replica: Replica
@@ -58,8 +58,8 @@ public final class StationsModel {
         if let all = await list() { mine = all.filter(isOwner) }
     }
 
-    /// The profile's stations an item of this kind can be added to.
-    public func mine(_ kind: PlaylistKind) -> [Station] { mine.filter { $0.kind == kind } }
+    /// The profile's stations an item of this kind can be added to: none whose rules choose its titles.
+    public func mine(_ kind: PlaylistKind) -> [Station] { mine.filter { $0.kind == kind && $0.smart != true } }
 
     /// Home's On now: every station with something on, kinds mixed.
     public func onNow() async -> [Station] { Self.onNow(await list() ?? []) }

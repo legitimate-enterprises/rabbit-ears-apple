@@ -287,6 +287,36 @@ final class SyncEndToEndTests: XCTestCase {
         XCTAssertEqual(playlists.playlists.first { $0.id == made.id }, served)
     }
 
+    func testASmartPlaylistMadeHoldsWhatItsRuleMatchesOnTheServerAndInTheReplica() async throws {
+        let device = try device()
+        try await device.engine.catchUp()
+        let adult = server.adult
+        let rules = SmartRulesEditor(
+            target: .newPlaylist(.movies), client: adult.rest, queue: device.queue, profileId: adult.id)
+        rules.name = "Golden ones"
+        rules.groups[0].conditions[0].op = .startsWith
+        rules.groups[0].conditions[0].value = "golden"
+        let saved = await rules.save()
+        XCTAssertTrue(saved, rules.error ?? "")
+        let made = try XCTUnwrap(rules.created)
+        let path = Operations.GetPlaylist.Input.Path(profileId: adult.id, playlistId: made)
+        let read = try await adult.rest.getPlaylistRules(path: .init(profileId: adult.id, playlistId: made)).ok.body
+            .json
+        XCTAssertEqual(read, rules.body)
+        let playlist = try await adult.rest.getPlaylist(path: path).ok.body.json
+        XCTAssertEqual(playlist.smart, true)
+        let served = try await adult.rest.listPlaylistEntries(path: .init(profileId: adult.id, playlistId: made))
+            .ok.body.json.items
+        XCTAssertTrue(served.map(\.itemId).contains(try server.movie("Golden Hour")))
+        XCTAssertEqual(served.filter { !PlaylistText.title($0).lowercased().hasPrefix("golden") }.map(\.itemId), [])
+        try await device.engine.catchUp()
+        let playlists = PlaylistsModel(
+            client: adult.rest, replica: device.replica, queue: device.queue, profileId: adult.id)
+        let replicated = await playlists.entries(of: made)
+        XCTAssertEqual(replicated?.map(\.itemId), served.map(\.itemId))
+        _ = try await adult.rest.deletePlaylist(path: .init(profileId: adult.id, playlistId: made)).noContent
+    }
+
     // MARK: Support
 
     func until(_ what: String, _ condition: () async throws -> Bool) async throws {

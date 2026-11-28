@@ -50,6 +50,31 @@ final class CollectionsModelTests: XCTestCase {
         await model.load()
     }
 
+    func testASmartCollectionTakesNoHandEditsAndNoPickerOffersIt() async throws {
+        try await synced.replica.write {
+            try $0.execute(
+                sql: "INSERT INTO smart_list(id, collection_id, created_at) VALUES (?, ?, 0)",
+                arguments: [UID.n(70), UID.n(8)])
+        }
+        let refusal = "A smart collection's movies follow its rules."
+        let added = await model.add(movie: 10, to: 8)
+        XCTAssertFalse(added)
+        XCTAssertEqual(model.error, refusal)
+        await model.remove(movie: 13, from: 8)
+        XCTAssertEqual(model.error, refusal)
+        let moved = await model.move(13, in: 8, to: 0)
+        XCTAssertFalse(moved)
+        XCTAssertEqual(model.error, refusal)
+        XCTAssertEqual(try synced.queued(), [])
+        XCTAssertEqual(model.custom.map(\.id), [7, 8])
+        model.collections = model.collections.map { collection in
+            var collection = collection
+            collection.smart = collection.id == 8
+            return collection
+        }
+        XCTAssertEqual(model.custom.map(\.id), [7], "Add to collection leaves it out")
+    }
+
     /// The spec's maxLength counts code points, so a collection's, a
     /// playlist's and a station's name is cut to 100 of them between characters.
     func testANameIsCutToTheServersLengthInWholeCharacters() async throws {

@@ -15,7 +15,7 @@ typealias PlaylistEntryInput = Components.Schemas.PlaylistEntryInput
 @MainActor
 @Observable
 public final class PlaylistsModel {
-    public private(set) var playlists: [Playlist] = []
+    public internal(set) var playlists: [Playlist] = []
     public private(set) var error: String?
     /// Set when an add needs the adult to pick an edition; clear it to drop the add.
     public var editionQuestion: EditionQuestion?

@@ -11,8 +11,8 @@ public typealias PlaylistHouseholdShare = Components.Schemas.PlaylistHouseholdSh
 extension Playlist {
     /// Only the owner renames, deletes or shares it.
     public var isOwned: Bool { access == .owner }
-    /// Whether the profile adds, removes and reorders its entries.
-    public var isEditable: Bool { access != .read }
+    /// Whether the profile adds, removes and reorders its entries; a smart one's follow its rules.
+    public var isEditable: Bool { access != .read && smart != true }
     /// `Shared by Ann` for a playlist shared with the profile.
     public var sharedBy: String? { ownerName.map { "Shared by \($0)" } }
     /// Whether its artwork carries the Shared badge; a copy kept without the flag is not shared.

@@ -56,7 +56,7 @@ extension ActionQueue {
                 _ = try await client.addCollectionMovie(path: .init(collectionId: id, itemId: movie))
             },
             apply: { db, _ in
-                try Self.custom(db, id)
+                try Self.byHand(db, id)
                 try db.execute(
                     sql: """
                         INSERT OR IGNORE INTO collection_movie(collection_id, item_id, position)
@@ -72,7 +72,7 @@ extension ActionQueue {
                 _ = try await client.removeCollectionMovie(path: .init(collectionId: id, itemId: movie))
             },
             apply: { db, _ in
-                try Self.custom(db, id)
+                try Self.byHand(db, id)
                 try db.execute(
                     sql: "DELETE FROM collection_movie WHERE collection_id = ? AND item_id = ?", arguments: [id, movie])
             })
@@ -88,7 +88,7 @@ extension ActionQueue {
                     path: .init(collectionId: id, itemId: movie), body: .json(.init(position: position)))
             },
             apply: { db, _ in
-                try Self.custom(db, id)
+                try Self.byHand(db, id)
                 var ids = order.filter { $0 != movie }
                 ids.insert(movie, at: min(max(0, position), ids.count))
                 try db.execute(
@@ -105,10 +105,19 @@ extension ActionQueue {
             as: profile, touching: try order.map { try .row("collection_movie", id, $0) },
             call: { client, _ in _ = try await client.resetCollectionOrder(path: .init(collectionId: id)) },
             apply: { db, _ in
-                try Self.custom(db, id)
+                try Self.byHand(db, id)
                 try db.execute(
                     sql: "UPDATE collection_movie SET position = NULL WHERE collection_id = ?", arguments: [id])
             })
+    }
+
+    /// Its movies change by hand only while no rules choose them, as the server refuses.
+    private static func byHand(_ db: Database, _ id: UID) throws {
+        try custom(db, id)
+        let smart =
+            try Bool.fetchOne(
+                db, sql: "SELECT EXISTS (SELECT 1 FROM smart_list WHERE collection_id = ?)", arguments: [id]) ?? false
+        guard !smart else { throw AppError.server("A smart collection's movies follow its rules.") }
     }
 
     private static func custom(_ db: Database, _ id: UID) throws {

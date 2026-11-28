@@ -109,6 +109,16 @@ final class PlaylistsModelTests: XCTestCase {
         XCTAssertNil(model.error)
     }
 
+    func testASmartPlaylistIsNotEditableAndNoPickerOffersIt() throws {
+        XCTAssertEqual(model.editable(.movies).map(\.id), [4])
+        var smart = try XCTUnwrap(model.playlists.first { $0.id == 4 })
+        smart.smart = true
+        XCTAssertTrue(smart.isOwned, "its owner still renames, shares and deletes it")
+        XCTAssertFalse(smart.isEditable)
+        model.playlists = model.playlists.map { $0.id == 4 ? smart : $0 }
+        XCTAssertEqual(model.editable(.movies).map(\.id), [])
+    }
+
     func testAKidReadsWhatIsSharedWithItAndNeverWrites() async {
         let kid = synced.playlists(2, adult: false)
         await kid.load()

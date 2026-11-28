@@ -12,7 +12,7 @@ public typealias MovieCollection = Components.Schemas.Collection
 @MainActor
 @Observable
 public final class CollectionsModel {
-    public private(set) var collections: [MovieCollection] = []
+    public internal(set) var collections: [MovieCollection] = []
     public private(set) var error: String?
     public let replica: Replica
     public let queue: ActionQueue
@@ -25,8 +25,8 @@ public final class CollectionsModel {
         self.profileId = profileId
     }
 
-    /// The household's own, the only ones a movie can be added to.
-    public var custom: [MovieCollection] { collections.filter { $0.source == .custom } }
+    /// The household's own that are not smart, the only ones a movie can be added to.
+    public var custom: [MovieCollection] { collections.filter { $0.source == .custom && $0.smart != true } }
 
     /// Before the replica's first snapshot nothing is loaded.
     public func load() async {
