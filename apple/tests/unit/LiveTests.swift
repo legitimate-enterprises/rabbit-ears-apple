@@ -91,7 +91,7 @@ final class LiveFeedTests: XCTestCase {
         let sync = try await app.synced()
         let live = app.model.live
         await app.until { live.library > 0 && live.household > 0 }
-        let before = [live.library, live.watched, live.playlists, live.stations, live.household]
+        let before = [live.library, live.watched, live.playlists, live.stations, live.household, live.favorites]
         XCTAssertEqual(before.filter { $0 == 0 }, [], "a new replica changes every group")
         try await sync.replica.write { try $0.watch(20, for: 1, position: 5) }
         await app.until { live.watched > before[1] }
@@ -101,9 +101,13 @@ final class LiveFeedTests: XCTestCase {
         await app.until { live.playlists > before[2] }
         try await sync.replica.write { try $0.account(9, "Sam") }
         await app.until { live.household > before[4] }
+        try await sync.replica.write {
+            try $0.execute(sql: "INSERT INTO favorite VALUES (\(sqlID(1)), \(sqlID(20)), 0)")
+        }
+        await app.until { live.favorites > before[5] }
         XCTAssertEqual(
-            [live.library, live.watched, live.playlists, live.stations, live.household],
-            [before[0], before[1] + 1, before[2] + 1, before[3], before[4] + 1])
+            [live.library, live.watched, live.playlists, live.stations, live.household, live.favorites],
+            [before[0], before[1] + 1, before[2] + 1, before[3], before[4] + 1, before[5] + 1])
     }
 }
 

@@ -167,6 +167,8 @@ final class AppModelSyncTests: XCTestCase {
         XCTAssertEqual(app.model.live.notice, "Couldn't save watch progress.")
         XCTAssertEqual(SyncSession.rejected("createPlaylistShare"), "Couldn't save a playlist share.")
         XCTAssertEqual(SyncSession.rejected("disallowItem"), "Couldn't save an allow list.")
+        XCTAssertEqual(SyncSession.rejected("putFavorite"), "Couldn't save a favorite.")
+        XCTAssertEqual(SyncSession.rejected("deleteFavorite"), "Couldn't save a favorite.")
         XCTAssertEqual(SyncSession.rejected("lockDevice"), "Couldn't save a change.")
     }
 

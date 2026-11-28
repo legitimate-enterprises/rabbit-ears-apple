@@ -14,18 +14,22 @@ public struct ItemMenuActions: Equatable, Sendable {
     public let addTo: Bool
     /// Add to collection, on a movie.
     public let addToCollection: Bool
+    /// Add to or Remove from Favorites, only in a tile's or row's menu: a detail screen has its star.
+    public let favorite: Bool
 
-    public init(kind: ItemKind, adult: Bool, allowListKids: Bool) {
+    public init(kind: ItemKind, adult: Bool, allowListKids: Bool, onTile: Bool = false) {
         kidsRules = adult && (kind == .movie || kind == .show)
         allowList = kidsRules && allowListKids
         addTo = adult
         addToCollection = adult && kind == .movie
+        favorite = onTile
     }
 }
 
 extension AppModel {
-    public func itemMenuActions(_ kind: ItemKind) -> ItemMenuActions {
-        ItemMenuActions(kind: kind, adult: activeProfile?.kind == .adult, allowListKids: !allowListKids.isEmpty)
+    public func itemMenuActions(_ kind: ItemKind, onTile: Bool = false) -> ItemMenuActions {
+        ItemMenuActions(
+            kind: kind, adult: activeProfile?.kind == .adult, allowListKids: !allowListKids.isEmpty, onTile: onTile)
     }
 }
 

@@ -209,7 +209,7 @@ public final class CatalogModel {
             for id in next.watch.keys where !kept.contains(id) { next.forget(id) }
             for state in fresh { next.record(state) }
             catalog = next
-        case .playlists, .stations: break
+        case .playlists, .stations, .favorites: break
         }
     }
 

@@ -17,6 +17,8 @@ enum MusicRows {
         var sort: String?
         var limit = 100
         var offset = 0
+        /// Only the profile's favorites; the server's listings take no such filter.
+        var favorites = false
         /// A limit that reads every row.
         static let all = Int.max - 1
 
@@ -24,7 +26,7 @@ enum MusicRows {
         func arguments(_ profile: UID, for sql: String) -> StatementArguments {
             let all: [String: (any DatabaseValueConvertible)?] = [
                 "me": profile, "artist": artistId, "album": albumId, "genre": genreId, "id": id, "letter": letter,
-                "q": query, "limit": limit, "offset": offset,
+                "q": query, "limit": limit, "offset": offset, "favorites": favorites,
             ]
             return StatementArguments(all.filter { sql.contains(":\($0.key)") })
         }
@@ -204,6 +206,7 @@ enum MusicRows {
             AND (:letter IS NULL OR \(letterOf(alias)) = :letter)
             AND (:q IS NULL OR instr(lower(\(alias).parsed_title), lower(:q)) > 0)
             AND (:id IS NULL OR \(alias).id = :id)
+            AND (NOT :favorites OR \(alias).id IN (SELECT item_id FROM favorite WHERE account_id = :me))
         """
     }
 

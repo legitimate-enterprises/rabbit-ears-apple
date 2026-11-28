@@ -112,6 +112,7 @@ public final class SyncSession {
             ("Share", "a playlist share"), ("Playlist", "a playlist"), ("Collection", "a collection"),
             ("Station", "a station"), ("WatchState", "watch progress"), ("Kids", "a kids' content setting"),
             ("recordPlay", "a play"), ("Preferences", "profile settings"), ("llowItem", "an allow list"),
+            ("Favorite", "a favorite"),
         ]
         return "Couldn't save \(named.first { operation.contains($0.0) }?.1 ?? "a change")."
     }

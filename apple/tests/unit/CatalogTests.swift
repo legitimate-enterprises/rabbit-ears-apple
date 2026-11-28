@@ -191,8 +191,16 @@ final class CatalogTests: XCTestCase {
         XCTAssertEqual(several?.alsoInProgress.map(\.id), ["item/\(UID.n(21))", "item/\(UID.n(22))"])
     }
 
-    func testTheChipsAreAllUnwatchedInProgressAndKids() {
-        XCTAssertEqual(GridFilter.allCases.map(\.rawValue), ["All", "Unwatched", "In progress", "Kids"])
+    func testTheChipsAreAllUnwatchedInProgressFavoritesAndKids() {
+        XCTAssertEqual(
+            GridFilter.allCases.map(\.rawValue), ["All", "Unwatched", "In progress", "Favorites", "Kids"])
+    }
+
+    func testTheFavoritesChipKeepsTheStarredTitlesOfTheKind() {
+        let catalog = sampleCatalog()
+        let starred = catalog.grid(.movie, filter: .favorites, sort: .title, favorites: [22, 20, 10])
+        XCTAssertEqual(starred.map(\.id), [22, 20])
+        XCTAssertEqual(catalog.grid(.movie, filter: .favorites).map(\.id), [])
     }
 }
 

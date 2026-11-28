@@ -9,6 +9,7 @@ public enum GridFilter: String, CaseIterable, Sendable {
     case all = "All"
     case unwatched = "Unwatched"
     case inProgress = "In progress"
+    case favorites = "Favorites"
     case kids = "Kids"
 }
 
@@ -187,7 +188,8 @@ public struct Catalog: Sendable {
     }
 
     public func grid(
-        _ kind: ItemKind, filter: GridFilter = .all, sort: GridSort = .recentlyAdded, genre: Genre.ID? = nil
+        _ kind: ItemKind, filter: GridFilter = .all, sort: GridSort = .recentlyAdded, genre: Genre.ID? = nil,
+        favorites: Set<Item.ID> = []
     ) -> [Item] {
         items.values
             .filter { $0.kind == kind && (filter == .kids || !apart.contains($0.id)) }
@@ -197,6 +199,7 @@ public struct Catalog: Sendable {
                 case .all: true
                 case .unwatched: unwatchedCount(item.id) > 0
                 case .inProgress: isInProgress(item.id) || showStarted(item)
+                case .favorites: favorites.contains(item.id)
                 case .kids: item.kidsContent == true
                 }
             }

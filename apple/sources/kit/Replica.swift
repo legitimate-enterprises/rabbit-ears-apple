@@ -8,7 +8,7 @@ import Synchronization
 /// every connection as `queue`, so they outlive each replacement.
 public final class Replica: Sendable {
     /// What a view reads again when its tables change.
-    public enum Group: Sendable, CaseIterable { case library, watched, playlists, stations, household }
+    public enum Group: Sendable, CaseIterable { case library, watched, playlists, stations, household, favorites }
 
     public enum Failure: Error, Equatable {
         /// No replica yet; one comes with a snapshot.
@@ -37,6 +37,7 @@ public final class Replica: Sendable {
             "household", "account", "account_card", "household_member", "adult_link", "profile_offer", "friendship",
             "friend_request", "friend_request_in", "friend_request_decline",
         ],
+        .favorites: ["favorite"],
     ]
 
     /// Foreign keys are off on every connection, so an action's touched

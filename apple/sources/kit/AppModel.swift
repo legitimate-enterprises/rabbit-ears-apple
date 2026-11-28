@@ -213,6 +213,8 @@ public final class AppModel {
 
     /// What the kids on an allow list have on it, for an adult's menus; empty for a kid, who may not change them.
     public let allowLists = AllowLists()
+    /// The active profile's stars, kept by `followLive` and `setFavorite`.
+    public let favorites = Favorites()
 
     /// Puts this device in one of `households`, then shows its Who's
     /// watching. The device starts in the first, the adult's own; a failed

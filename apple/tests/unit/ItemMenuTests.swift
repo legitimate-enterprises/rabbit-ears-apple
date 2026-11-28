@@ -32,6 +32,13 @@ final class ItemMenuActionsTests: XCTestCase {
         XCTAssertTrue(ItemMenuActions(kind: .episode, adult: true, allowListKids: false).addTo)
     }
 
+    func testOnlyATileOrRowMenuOffersAFavoriteSinceADetailHasItsStar() {
+        for adult in [true, false] {
+            XCTAssertTrue(ItemMenuActions(kind: .season, adult: adult, allowListKids: false, onTile: true).favorite)
+            XCTAssertFalse(ItemMenuActions(kind: .season, adult: adult, allowListKids: false).favorite)
+        }
+    }
+
     func testAKidGetsNoRulesAndNoAdding() {
         for kind in [ItemKind.movie, .show, .season, .episode] {
             let actions = ItemMenuActions(kind: kind, adult: false, allowListKids: true)

@@ -18,6 +18,7 @@ public final class LiveFeed {
     public private(set) var household = 0
     /// Libraries and everything in them.
     public private(set) var library = 0
+    public private(set) var favorites = 0
     /// A line shown for a few seconds over whatever is up, as "Moved to Living Room".
     public private(set) var notice: String?
 
@@ -46,6 +47,7 @@ public final class LiveFeed {
         case .playlists: playlists += 1
         case .stations: stations += 1
         case .household: household += 1
+        case .favorites: favorites += 1
         }
         for watcher in watchers.values { watcher.yield(group) }
     }
@@ -111,10 +113,13 @@ extension AppModel {
         defer { sync.unfollow() }
         // The first snapshot may have landed between the catalog's first read and listening.
         if catalog?.loaded == false { await catalog?.load() }
+        await loadFavorites()
         for await group in changes {
             await catalog?.heard(group)
             // A profile changed, as its Hide setting or its name.
             if group == .household { await reload() }
+            // A ceiling or an allow list decides which stars the profile may open.
+            if group != .watched { await loadFavorites() }
         }
     }
 }
