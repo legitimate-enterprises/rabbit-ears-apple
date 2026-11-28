@@ -165,6 +165,12 @@ extension AppModel {
         }
     }
 
+    /// The address the replica names for a key's art as the active profile is shown it.
+    func artAddress(_ key: ArtKey) async -> String? {
+        guard let profile = activeProfile?.id, let replica = sync?.replica else { return nil }
+        return (try? await replica.read { try key.address(for: profile, $0) }) ?? nil
+    }
+
     static func keptMe(_ endpoint: ServerEndpoint) -> String { "me \(endpoint.baseURL.absoluteString)" }
 }
 

@@ -343,7 +343,7 @@ public final class AppModel {
         await loadLibrarySections()
         // Off the way in, as a launch offline must not wait on the server.
         Task { await learnName(endpoint) }
-        artwork = ArtworkStore(client: client, kept: .shared)
+        artwork = ArtworkStore(client: client, kept: .shared) { [weak self] in await self?.artAddress($0) }
         self.me = me
         activeProfile = nil
         pinPrompt = nil

@@ -23,7 +23,7 @@ final class OfflineBrowseTests: XCTestCase {
         ]
         for (route, json) in objects { harness.objects[route] = json }
         try await harness.replica.write { try $0.downloadedTitles() }
-        harness.transport.routes["GET /items/\(UID.n(20))/artwork/poster"] = (.ok, "jpeg")
+        harness.transport.routes["GET /artwork/w500/dune.jpg"] = (.ok, "jpeg")
         harness.transport.headers[.eTag] = "\"a\""
         harness.transport.headers[.cacheControl] = "private, no-cache"
         harness.resolves["item/\(UID.n(10))"] = [
@@ -83,7 +83,7 @@ final class OfflineBrowseTests: XCTestCase {
         let channels = try await YouTubeModel(client: harness.client, replica: replica, queue: queue, profileId: 1)
             .channels()
         XCTAssertEqual(channels.map(\.title), ["Workbench Weekly"])
-        let art = ArtworkStore(client: harness.client)
+        let art = harness.artwork()
         let poster = await art.data(20, .poster)
         XCTAssertEqual(poster, Data("jpeg".utf8))
         let missing = await art.data(21, .poster)
@@ -125,14 +125,14 @@ final class OfflineBrowseTests: XCTestCase {
             store.remove(target, profile: 1)
         }
         XCTAssertEqual(
-            try FileManager.default.contentsOfDirectory(atPath: art), ["item-\(UID.n(20))-poster"],
+            try FileManager.default.contentsOfDirectory(atPath: art), ["w500-dune.jpg"],
             "Dune still shows with it")
         store.remove(.title(20), profile: 1)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: art), [])
     }
 
     func testOfflineArtIsKeptAndACustomImageIsSimplyMissing() async throws {
-        let art = ArtworkStore(client: harness.client)
+        let art = harness.artwork()
         harness.goOffline()
         let poster = await art.data(20, .poster)
         XCTAssertEqual(poster, Data("jpeg".utf8))
@@ -332,6 +332,7 @@ extension Database {
         try item(101, "episode", "Good News", parent: 11, season: 1, episode: 1)
         try item(103, "episode", "In Perpetuity", parent: 11, season: 1, episode: 3)
         try item(20, "movie", "Dune", runtime: 166)
+        try art(20, poster: ArtworkTests.address("dune"))
         try artist(40, "Radiohead")
         try album(50, "In Rainbows", artist: 40)
         try song(5, "Reckoner", album: 50, track: 7)

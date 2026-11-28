@@ -154,20 +154,26 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(transport.json(.post, "/profiles/\(UID.n(2))/unlock")?["pin"] as? String, "1234")
     }
 
-    /// What one profile may not see the next may: art missing for a kid is asked for again as an adult.
-    func testSwitchingProfilesAsksAgainForArtThatWasMissing() async throws {
+    /// Each profile is shown the art the replica names for it: here, none for the kid and Dune's poster for Avery.
+    func testArtIsAskedForAtTheAddressTheReplicaNamesForTheActiveProfile() async throws {
         try await model.signIn(server: "rabbit.local", email: "a@example.test", password: "x")
+        let fixture = ReplicaFixture()
+        addTeardownBlock { fixture.remove() }
+        try XCTUnwrap(model.sync).replica.adopt(
+            fixture.v1File { db in try db.art(7, for: 1, poster: ArtworkTests.address("dune")) })
+        transport.routes["GET /artwork/w500/dune.jpg"] = (.ok, "jpeg")
+        transport.headers[.eTag] = #""w500/dune.jpg""#
+        transport.headers[.cacheControl] = "private, max-age=31536000, immutable"
         let avery = try XCTUnwrap(model.profiles.first)
         let kid = try XCTUnwrap(model.profiles.last)
         try await model.choose(kid, pin: "1234")
         let art = try XCTUnwrap(model.artwork)
-        let asked = { self.transport.paths(.get).filter { $0 == "/items/\(UID.n(7))/artwork/poster" }.count }
-        _ = await art.data(7, .poster)
-        _ = await art.data(7, .poster)
-        XCTAssertEqual(asked(), 1)
+        let none = await art.data(7, .poster)
+        XCTAssertNil(none)
         try await model.choose(avery)
-        _ = await art.data(7, .poster)
-        XCTAssertEqual(asked(), 2)
+        let poster = await art.data(7, .poster)
+        XCTAssertEqual(poster, Data("jpeg".utf8))
+        XCTAssertEqual(transport.paths(.get).filter { $0.hasPrefix("/artwork/") }, ["/artwork/w500/dune.jpg"])
     }
 
     func testPinErrorsMapToTheirMessages() async throws {

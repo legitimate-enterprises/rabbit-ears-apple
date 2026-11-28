@@ -110,7 +110,7 @@ extension DownloadStoreTests {
             ["/playback/sessions/\(server)/position"])
     }
 
-    func testACallReadsOnlyAUIDAsAnId() {
+    func testACallReadsOnlyAUIDAsAnIdAndAnAddressOnlyAsGetArtworkServesIt() throws {
         let id = UID.n(12)
         XCTAssertEqual(
             LocalCall(operation: "getItemArtwork", path: "/items/\(id)/artwork/poster", body: nil).id(after: "items"),
@@ -118,9 +118,10 @@ extension DownloadStoreTests {
         for path in ["/items/12/artwork/poster", "/items/\(id.description.uppercased())/artwork/poster", "/items"] {
             XCTAssertNil(LocalCall(operation: "getItemArtwork", path: path, body: nil).id(after: "items"), path)
         }
-        let key = ArtKey(id: id, kind: .backdrop, collection: true)
-        XCTAssertEqual(key.file, "collection-\(id)-backdrop")
-        XCTAssertEqual(ArtKey(file: key.file), key)
-        XCTAssertNil(ArtKey(file: "item-12-poster"))
+        let path = try XCTUnwrap(ArtworkStore.artworkPath("/api/v2/artwork/w1280/x_Y-9.webp"))
+        XCTAssertEqual(OfflineShelf.file(path), "w1280-x_Y-9.webp")
+        for other in ["/api/v2/artwork/w342/a.jpg", "/api/v2/items/\(id)/artwork/poster", "/artwork/w500/a.jpg"] {
+            XCTAssertNil(ArtworkStore.artworkPath(other), other)
+        }
     }
 }

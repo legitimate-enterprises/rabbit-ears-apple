@@ -192,6 +192,13 @@ final class DownloadHarness {
         replica.keep(try DownloadStore.encoder.encode(me), as: AppModel.keptMe(endpoint))
     }
 
+    /// A store of the art the replica names for profile 1, through the harness's client, as AppModel makes one.
+    func artwork(kept: URLCache? = nil) -> ArtworkStore {
+        ArtworkStore(client: client, kept: kept) { [replica] key in
+            (try? await replica.read { try key.address(for: 1, $0) }) ?? nil
+        }
+    }
+
     /// The server is gone: every call fails as with no network.
     func goOffline() { transport.failure = URLError(.notConnectedToInternet) }
 

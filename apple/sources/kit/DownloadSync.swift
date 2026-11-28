@@ -86,10 +86,16 @@ extension DownloadStore {
         } catch {
             return lost(error, profile: profile)
         }
+        // Art moves to a new address, so what is on the device is kept at the one named now.
+        for id in held {
+            if let title = ledger.titles[id], case .onDevice = title.state {
+                await describe(title, profile: profile, link)
+            }
+        }
         for (id, title) in ledger.titles {
             if case .failed = title.state { ledger.titles[id]?.state = .pending }
         }
-        save()
+        collect()
     }
 
     /// The server's unauthorized is a device it no longer knows, its not_found such a profile.
@@ -105,35 +111,43 @@ extension DownloadStore {
     /// Keeps the artwork a collection or playlist shows with; a playlist's
     /// is its art title's, as the replica reads it to the profile.
     func describe(_ target: DownloadTarget, profile: UID, _ link: Link) async {
-        let client = link.client
-        var keys: [ArtKey] = []
-        switch target.scope {
-        case .item: return
-        case .collection: keys = [.poster, .backdrop].map { ArtKey(id: target.id, kind: $0, collection: true) }
-        case .playlist:
-            guard
-                let art = try? await replica?.read({ db in
-                    try PlaylistRows.playlist(db, profile: profile, id: target.id)?.artItemId
-                }) ?? nil
-            else { return }
-            keys = [ArtKey(id: art, kind: .poster)]
-        }
-        for key in keys { await keepArt(key, client) }
+        guard target.scope != .item else { return }
+        let art =
+            (try? await replica?.read { db -> [String] in
+                let keys: [ArtKey]
+                switch target.scope {
+                case .item: return []
+                case .collection: keys = [.poster, .backdrop].map { ArtKey(id: target.id, kind: $0, collection: true) }
+                case .playlist:
+                    guard let art = try PlaylistRows.playlist(db, profile: profile, id: target.id)?.artItemId
+                    else { return [] }
+                    keys = [ArtKey(id: art, kind: .poster)]
+                }
+                return try Self.addresses(keys, profile, db)
+            }) ?? []
+        let files = await keepArt(art, link.client)
         if let index = ledger.requests.firstIndex(where: { $0.profileId == profile && $0.target == target }) {
-            ledger.requests[index].art = keys.map(\.file)
+            ledger.requests[index].art = files
         }
         save()
     }
 
     // MARK: Artwork
 
-    /// Keeps the artwork a title shows with, its parents' included, as the
-    /// replica holds them; whatever the server does not answer is left out.
-    func describe(_ title: StoredTitle, _ link: Link) async {
+    /// Keeps the artwork a title shows with, its parents' included, at the
+    /// addresses the replica names for `profile`; whatever the server does
+    /// not answer is left out.
+    func describe(_ title: StoredTitle, profile: UID, _ link: Link) async {
         let (id, kind) = (title.itemId, title.kind)
-        let art = (try? await replica?.read { db in try Self.art(of: id, kind, db) }) ?? []
-        for key in art { await keepArt(key, link.client) }
-        ledger.titles[title.itemId]?.art = art.map(\.file)
+        let art = (try? await replica?.read { db in try Self.addresses(Self.art(of: id, kind, db), profile, db) }) ?? []
+        let files = await keepArt(art, link.client)
+        ledger.titles[title.itemId]?.art = files
+    }
+
+    /// Each key's address for the profile once, in the keys' order; art with none is left out.
+    private nonisolated static func addresses(_ keys: [ArtKey], _ profile: UID, _ db: Database) throws -> [String] {
+        var seen = Set<String>()
+        return try keys.compactMap { try $0.address(for: profile, db) }.filter { seen.insert($0).inserted }
     }
 
     /// A movie or episode and each item above it, both images; a song's
@@ -164,22 +178,23 @@ extension DownloadStore {
         }
     }
 
-    /// One artwork file, fetched once.
-    func keepArt(_ key: ArtKey, _ client: Client) async {
-        guard !ledger.shelf.art.contains(key.file) else { return }
-        let body: HTTPBody?
-        if key.collection {
-            body = try? await client.getCollectionArtwork(
-                path: .init(collectionId: key.id, kind: key.kind == .poster ? .poster : .backdrop)
-            ).ok.body.image_Ast_
-        } else {
-            body = try? await client.getItemArtwork(
-                path: .init(itemId: key.id, kind: key.kind == .poster ? .poster : .backdrop)
-            ).ok.body.image_Ast_
+    /// The shelf's files of the images at `addresses`, each fetched once; one
+    /// the server does not answer is left out.
+    func keepArt(_ addresses: [String], _ client: Client) async -> [String] {
+        var files: [String] = []
+        for address in addresses {
+            guard let path = ArtworkStore.artworkPath(address) else { continue }
+            let file = OfflineShelf.file(path)
+            if !ledger.shelf.art.contains(file) {
+                guard let body = try? await client.getArtwork(path: path).ok.body.image_Ast_,
+                    let data = try? await Data(collecting: body, upTo: 16 << 20)
+                else { continue }
+                try? FileManager.default.createDirectory(at: art, withIntermediateDirectories: true)
+                guard (try? data.write(to: art.appending(path: file), options: .atomic)) != nil else { continue }
+                ledger.shelf.art.insert(file)
+            }
+            files.append(file)
         }
-        guard let body, let data = try? await Data(collecting: body, upTo: 16 << 20) else { return }
-        try? FileManager.default.createDirectory(at: art, withIntermediateDirectories: true)
-        guard (try? data.write(to: art.appending(path: key.file), options: .atomic)) != nil else { return }
-        ledger.shelf.art.insert(key.file)
+        return files
     }
 }

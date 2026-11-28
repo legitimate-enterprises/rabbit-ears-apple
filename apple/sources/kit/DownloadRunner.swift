@@ -212,7 +212,7 @@ extension DownloadStore {
             if landed, size.map(Int64.init) != ready.sizeBytes { try await fetch(nil) }
             ledger.titles[id]?.sizeBytes = ready.sizeBytes
             let subtitles = await keepSubtitles(of: ready, link)
-            await describe(title, link)
+            await describe(title, profile: claim.profileId, link)
             guard ledger.titles[id] != nil else {
                 try? FileManager.default.removeItem(at: destination)
                 return true

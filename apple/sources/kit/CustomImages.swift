@@ -174,27 +174,3 @@ public final class CustomImageModel {
         }
     }
 }
-
-extension ArtworkStore {
-    /// The custom image an imageUrl names, decoded no larger than `maxPixel`; nil when it
-    /// cannot be had. The address changes with the cover, so it keys the caches.
-    public func image(url: String, maxPixel: Int) async -> CGImage? {
-        await bitmap("image:\(url)", maxPixel) { await self.data(imageUrl: url) }
-    }
-
-    public func data(imageUrl url: String) async -> Data? {
-        guard let (target, version) = CustomImage.route(url) else { return nil }
-        let client = client
-        return await cached("image:\(url)") {
-            switch target {
-            case .playlist(let profileId, let playlistId):
-                try await client.getPlaylistImage(
-                    path: .init(profileId: profileId, playlistId: playlistId), query: .init(v: version)
-                ).ok.body.image_Ast_
-            case .station(let id):
-                try await client.getStationImage(path: .init(stationId: id), query: .init(v: version)).ok.body
-                    .image_Ast_
-            }
-        }
-    }
-}

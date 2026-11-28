@@ -96,16 +96,19 @@ public struct ArtImage: View {
                         ? store?.resident(collection: id, kind, maxPixel: pixels)
                         : store?.resident(id, kind, maxPixel: pixels)
                 }
-                var art = held
-                if art == nil, let url { art = await store?.image(url: url, maxPixel: pixels) }
+                // What is in memory shows at once; the address is read again, and art that has moved fades in.
+                if let held { image = PlatformImage.from(held) }
+                var art: CGImage?
+                if let url { art = await store?.image(url: url, maxPixel: pixels) }
                 if art == nil {
                     art =
                         collection
                         ? await store?.image(collection: id, kind, maxPixel: pixels)
                         : await store?.image(id, kind, maxPixel: pixels)
                 }
+                guard art !== held else { return }
                 let shown = art.map(PlatformImage.from)
-                if held != nil || reduceMotion {
+                if reduceMotion {
                     image = shown
                 } else {
                     withAnimation(.easeIn(duration: 0.2)) { image = shown }

@@ -137,13 +137,11 @@ extension DownloadStore {
     /// which then fail as the server not answering.
     private func offline(_ call: LocalCall) -> LocalAnswer? {
         switch call.operation {
-        case "getItemArtwork", "getCollectionArtwork":
-            let collection = call.operation == "getCollectionArtwork"
-            guard let id = call.id(after: collection ? "collections" : "items"),
-                let kind = call.segments.last.flatMap(ArtworkStore.Kind.init(rawValue:))
+        case "getArtwork":
+            guard call.segments.count == 3, let store = Components.Schemas.ArtworkStore(rawValue: call.segments[1])
             else { return .notFound }
-            let key = ArtKey(id: id, kind: kind, collection: collection).file
-            guard ledger.shelf.art.contains(key), let data = try? Data(contentsOf: art.appending(path: key)) else {
+            let file = OfflineShelf.file(.init(store: store, name: call.segments[2]))
+            guard ledger.shelf.art.contains(file), let data = try? Data(contentsOf: art.appending(path: file)) else {
                 return .notFound
             }
             return LocalAnswer(status: 200, body: data, contentType: "image/jpeg")
