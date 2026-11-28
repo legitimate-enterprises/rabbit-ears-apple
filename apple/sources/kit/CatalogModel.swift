@@ -151,6 +151,17 @@ public final class CatalogModel {
         await heard(.watched)
     }
 
+    /// Takes a movie or episode out of progress, keeping whether it was watched.
+    public func dismiss(_ item: Item) async {
+        do {
+            try await queue.dismissWatchState(item: item.id, as: profileId)
+            error = nil
+        } catch {
+            self.error = AppError.from(error, unauthorized: .signedOut).localizedDescription
+        }
+        await heard(.watched)
+    }
+
     /// Marks a selection; a show or season marks each episode.
     public func setWatched(_ watched: Bool, for items: [Item]) async {
         do {

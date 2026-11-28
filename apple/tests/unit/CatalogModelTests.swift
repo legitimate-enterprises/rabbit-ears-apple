@@ -114,6 +114,23 @@ final class CatalogModelTests: XCTestCase {
         XCTAssertNotNil(unread.error, "nothing to mark before the first snapshot")
     }
 
+    func testADismissedTitleLeavesInProgressAtOnceAndStaysWatched() async throws {
+        let replica = try household { try $0.watch(20, for: 1, position: 60_000, watched: true) }
+        let model = await loaded(replica, 1)
+        XCTAssertTrue(model.catalog.isInProgress(20))
+        await model.dismiss(try XCTUnwrap(model.catalog.item(20)))
+        XCTAssertNil(model.error)
+        XCTAssertFalse(model.catalog.isInProgress(20))
+        XCTAssertTrue(model.catalog.isWatched(20))
+        let queued = try await replica.read {
+            try String.fetchAll($0, sql: "SELECT operation_id || ' ' || method || ' ' || path FROM queue.action")
+        }
+        XCTAssertEqual(queued.count, 1)
+        XCTAssertTrue(
+            queued[0].hasPrefix("dismissWatchState DELETE /profiles/\(UID.n(1))/watch-state/\(UID.n(20))/position?at="),
+            queued[0])
+    }
+
     func testAfterPlayTheReplicasWatchStateStandsAndOneGoneIsForgotten() async throws {
         let replica = try household { try $0.watch(20, for: 1, position: 60_000) }
         let model = await loaded(replica, 1)

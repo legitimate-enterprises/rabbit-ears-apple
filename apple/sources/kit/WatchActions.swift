@@ -102,6 +102,24 @@ extension ActionQueue {
             })
     }
 
+    /// dismissWatchState: takes the item out of progress, keeping watched,
+    /// plays and the cut, unless its state changed later or is not in progress.
+    public func dismissWatchState(item: UID, as profileId: UID) async throws {
+        try await act(
+            as: profileId, touching: [try Self.watchKey(profileId, item)],
+            call: { client, at in
+                _ = try await client.dismissWatchState(
+                    path: .init(profileId: profileId, itemId: item), query: .init(at: at))
+            },
+            apply: { db, at in
+                try db.execute(
+                    sql: """
+                        UPDATE watch_state SET position_ms = 0, changed_at = ?3
+                        WHERE account_id = ?1 AND item_id = ?2 AND position_ms > 0 AND changed_at <= ?3
+                        """, arguments: [profileId, item, Self.ms(at)])
+            })
+    }
+
     /// recordPlay: counts one finished play of `edition`, else the default
     /// one, that ended `at`, for a play the server did not stream. The count
     /// only adds and lastPlayedAt goes to the later play; over a state that

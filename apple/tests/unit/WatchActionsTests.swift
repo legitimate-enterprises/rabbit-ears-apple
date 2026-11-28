@@ -187,6 +187,28 @@ final class WatchActionsTests: ActionQueueCase {
             "/profiles/\(UID.n(1))/watch-state/\(UID.n(20))?at=2027-01-15T08%3A00%3A00.123Z")
     }
 
+    func testADismissForgetsOnlyWhereToResumeUnlessTheStateIsLaterOrNotInProgress() async throws {
+        let earlier = now - 60_000
+        let replica = try library { db in
+            try self.store(20, [600_000, 1, 2, earlier, earlier, 7])(db)
+            try self.store(12, [500, 0, 1, earlier, self.now + 1, nil])(db)
+            try self.store(13, [0, 1, 1, earlier, earlier, nil])(db)
+        }
+        let queue = queue(replica)
+        for item: UID in [20, 12, 13] { try await queue.dismissWatchState(item: item, as: 1) }
+        let dismissed = try await state(replica, 20)
+        XCTAssertEqual(dismissed, [0, 1, 2, earlier, now, 7], "watched, plays, last play and cut stay")
+        let later = try await state(replica, 12)
+        XCTAssertEqual(later, [500, 0, 1, earlier, now + 1, nil])
+        let unstarted = try await state(replica, 13)
+        XCTAssertEqual(unstarted, [0, 1, 1, earlier, earlier, nil])
+        _ = await queue.flush()
+        XCTAssertEqual(sent().first?["method"] as? String, "DELETE")
+        XCTAssertEqual(
+            sent().first?["path"] as? String,
+            "/profiles/\(UID.n(1))/watch-state/\(UID.n(20))/position?at=2027-01-15T08%3A00%3A00.123Z")
+    }
+
     func testAPlayAddsOneKeepsTheLaterLastPlayAndWatchesOnlyOverAnOlderState() async throws {
         let earlier = now - 60_000
         let replica = try library { db in
