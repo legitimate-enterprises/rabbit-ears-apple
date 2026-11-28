@@ -58,7 +58,8 @@ extension CatalogModel {
         }
         let ids = [around.previous, around.next].compactMap { $0 } + collections.flatMap(\.1)
         let items = Dictionary(
-            try ReplicaRows.items(db, ids: ids).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            try ReplicaRows.items(db, ids: ids, for: profile).map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first })
         return ItemRelated(
             collections: collections.map { .init(collection: $0.0, items: $0.1.compactMap { items[$0] }) },
             similar: [], previous: around.previous.flatMap { items[$0] }, next: around.next.flatMap { items[$0] })

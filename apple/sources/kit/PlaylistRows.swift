@@ -38,6 +38,7 @@ enum PlaylistRows {
         let rows = try Row.fetchAll(
             db,
             sql: """
+                SELECT q.*, \(ReplicaRows.art("poster_url", "q.art_item_id", ":profile")) AS poster_url FROM (
                 SELECT p.id, p.account_id, p.name, p.kind, p.last_played_at, p.created_at, p.modified_at, p.created_by,
                     p.modified_by,
                     CASE WHEN p.account_id = :profile THEN 'owner'
@@ -61,8 +62,8 @@ enum PlaylistRows {
                                 WHERE ce.playlist_id = p.id AND ce.item_id = c.item_id)
                             AND \(seen("c.item_id")))) AS cover_id,
                     (SELECT o.name FROM account_card o WHERE o.id = p.account_id) AS owner_name
-                FROM playlist p WHERE \(condition)
-                ORDER BY p.name COLLATE NOCASE, p.id
+                FROM playlist p WHERE \(condition)) q
+                ORDER BY q.name COLLATE NOCASE, q.id
                 """, arguments: ["profile": profile, "id": id])
         return rows.compactMap { row in
             guard let kind = PlaylistKind(rawValue: row["kind"]),
@@ -74,7 +75,7 @@ enum PlaylistRows {
                 id: id, profileId: row["account_id"], name: row["name"], access: access,
                 shared: !owned || row["any_share"], ownerName: owned ? nil : row["owner_name"], kind: kind,
                 itemCount: row["item_count"], durationMs: row["duration_ms"], artItemId: row["art_item_id"],
-                lastPlayedAt: (row["last_played_at"] as Int64?).map(ReplicaRows.instant),
+                lastPlayedAt: (row["last_played_at"] as Int64?).map(ReplicaRows.instant), posterUrl: row["poster_url"],
                 imageUrl: (row["cover_id"] as UID?).map { "/api/v2/profiles/\(profile)/playlists/\(id)/image?v=\($0)" },
                 createdAt: ReplicaRows.instant(row["created_at"]), modifiedAt: ReplicaRows.instant(row["modified_at"]),
                 createdBy: row["created_by"], modifiedBy: row["modified_by"])
@@ -108,12 +109,12 @@ enum PlaylistRows {
                 """, arguments: [playlist]
         ).filter { !narrowed || totals[$0["id"]] != nil }
         let itemIds = rows.compactMap { $0["item_id"] as UID? }
-        let items = try catalogItems(db, itemIds)
-        let songs = try songs(db, itemIds)
-        let albums = try albums(db, itemIds)
-        let artists = try artists(db, itemIds)
+        let items = try catalogItems(db, profile, itemIds)
+        let songs = try songs(db, profile, itemIds)
+        let albums = try albums(db, profile, itemIds)
+        let artists = try artists(db, profile, itemIds)
         let collections = try CollectionRows.collections(
-            db, ids: rows.compactMap { $0["collection_id"] as UID? })
+            db, ids: rows.compactMap { $0["collection_id"] as UID? }, profile: profile)
         return try rows.compactMap { row -> PlaylistEntry? in
             let id: UID = row["id"]
             let total = totals[id] ?? (0, 0)
@@ -159,8 +160,8 @@ enum PlaylistRows {
                 ORDER BY r.seq
                 """, arguments: ["playlist": playlist, "profile": profile])
         let ids = rows.map { $0["item_id"] as UID }
-        let songs = try songs(db, ids)
-        let items = try catalogItems(db, ids)
+        let songs = try songs(db, profile, ids)
+        let items = try catalogItems(db, profile, ids)
         var names: [UID: String?] = [:]
         return try rows.compactMap { row -> PlayOrderRow? in
             let itemId: UID = row["item_id"]
@@ -180,7 +181,9 @@ enum PlaylistRows {
     }
 
     /// Movies, shows, seasons and episodes by id, each with the show above a season or episode.
-    private static func catalogItems(_ db: Database, _ ids: [UID]) throws -> [UID: (item: Item, show: Item?)] {
+    private static func catalogItems(_ db: Database, _ profile: UID, _ ids: [UID]) throws -> [UID: (
+        item: Item, show: Item?
+    )] {
         let shows = Dictionary(
             uniqueKeysWithValues: try Row.fetchAll(
                 db,
@@ -192,48 +195,49 @@ enum PlaylistRows {
                         AND i.id IN (SELECT unhex(value, '-') FROM json_each(?))
                     """, arguments: [ReplicaRows.json(ids)]
             ).compactMap { row in (row["show_id"] as UID?).map { (row["id"] as UID, $0) } })
-        let all = try ReplicaRows.items(
-            db, "i.id IN (SELECT unhex(value, '-') FROM json_each(?))", [ReplicaRows.json(ids + shows.values)])
+        let all = try ReplicaRows.items(db, ids: ids + shows.values, for: profile)
         let items = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return items.mapValues { item in (item, shows[item.id].flatMap { items[$0] }) }
     }
 
     /// Songs by id, as the server's music views read them with nothing left out.
-    static func songs(_ db: Database, _ ids: [UID]) throws -> [UID: MusicSong] {
+    static func songs(_ db: Database, _ profile: UID, _ ids: [UID]) throws -> [UID: MusicSong] {
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT \(MusicRows.songColumns)
+                SELECT \(MusicRows.songColumns("?"))
                 FROM music_song m JOIN item s ON s.id = m.item_id
                 WHERE m.item_id IN (SELECT unhex(value, '-') FROM json_each(?))
-                """, arguments: [ReplicaRows.json(ids)])
+                """, arguments: [profile, ReplicaRows.json(ids)])
         return Dictionary(uniqueKeysWithValues: rows.map { ($0["id"], MusicRows.song($0)) })
     }
 
     /// Albums by id, counting every song. shortcut: lastPlayedAt stays nil,
     /// as the server reads it from playback sessions the replica lacks.
-    static func albums(_ db: Database, _ ids: [UID]) throws -> [UID: MusicAlbum] {
+    static func albums(_ db: Database, _ profile: UID, _ ids: [UID]) throws -> [UID: MusicAlbum] {
         let rows = try Row.fetchAll(
             db,
             sql: """
                 SELECT al.id, al.library_id, al.parent_id, al.parsed_title, al.parsed_year, al.added_at, ma.artist_name,
-                    ma.song_count, ma.duration_ms, ma.lossless
+                    ma.song_count, ma.duration_ms, ma.lossless,
+                    \(ReplicaRows.art("poster_url", "al.id", "?")) AS poster_url
                 FROM music_album ma JOIN item al ON al.id = ma.item_id
                 WHERE ma.item_id IN (SELECT unhex(value, '-') FROM json_each(?))
-                """, arguments: [ReplicaRows.json(ids)])
+                """, arguments: [profile, ReplicaRows.json(ids)])
         let extras = try MusicRows.extras(db, rows)
         return Dictionary(uniqueKeysWithValues: rows.map { ($0["id"], MusicRows.album($0, extras[$0["id"]])) })
     }
 
     /// Artists by id, counting every album and song.
-    static func artists(_ db: Database, _ ids: [UID]) throws -> [UID: MusicArtist] {
+    static func artists(_ db: Database, _ profile: UID, _ ids: [UID]) throws -> [UID: MusicArtist] {
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT a.id, a.library_id, a.parsed_title, a.sort_title, a.added_at, mr.album_count, mr.song_count
+                SELECT a.id, a.library_id, a.parsed_title, a.sort_title, a.added_at, mr.album_count, mr.song_count,
+                    \(ReplicaRows.art("poster_url", "a.id", "?")) AS poster_url
                 FROM music_artist mr JOIN item a ON a.id = mr.item_id
                 WHERE mr.item_id IN (SELECT unhex(value, '-') FROM json_each(?))
-                """, arguments: [ReplicaRows.json(ids)])
+                """, arguments: [profile, ReplicaRows.json(ids)])
         let extras = try MusicRows.extras(db, rows)
         return Dictionary(uniqueKeysWithValues: rows.map { ($0["id"], MusicRows.artist($0, extras[$0["id"]])) })
     }

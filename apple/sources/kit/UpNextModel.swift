@@ -68,7 +68,7 @@ public final class UpNextModel {
                 }
             guard let from, let next = try ReplicaRows.next(db, from: from.0, order: from.1, after: id, seenBy: profile)
             else { return nil }
-            return try titled(next, db)
+            return try titled(next, profile, db)
         }
         guard !queue.isShuffle else { return try nextShuffled(in: queue, profile, db) }
         return try nextRow(after: id, in: queue, profile, db)
@@ -83,7 +83,7 @@ public final class UpNextModel {
                     db,
                     sql: "SELECT NOT \(ReplicaRows.unavailable("i.id")) FROM item i WHERE i.id = ? AND i.id "
                         + ReplicaRows.seenBy, arguments: [id, profile]) == true,
-                var next = try titled(id, db)
+                var next = try titled(id, profile, db)
             else { continue }
             next.index = index
             return next
@@ -114,7 +114,7 @@ public final class UpNextModel {
         guard
             let at = ids.indices.contains(queue.index) && ids[queue.index] == id ? queue.index : ids.firstIndex(of: id),
             let index = rows.indices.dropFirst(at + 1).first(where: { !rows[$0]["gone"] }),
-            var next = try titled(ids[index], db)
+            var next = try titled(ids[index], profile, db)
         else { return nil }
         if let edition = rows[index]["edition_id"] as UID? {
             next.editionId = edition
@@ -128,7 +128,7 @@ public final class UpNextModel {
     }
 
     /// The item with the card's title: a movie's or video's own, an episode's as `Show · S1 E2 · Title`.
-    private nonisolated static func titled(_ id: Item.ID, _ db: Database) throws -> Next? {
+    private nonisolated static func titled(_ id: Item.ID, _ profile: UID, _ db: Database) throws -> Next? {
         if let video = try Row.fetchOne(
             db,
             sql: """
@@ -146,10 +146,10 @@ public final class UpNextModel {
                 addedAt: ReplicaRows.instant(video["added_at"]))
             return Next(item: Item(video: video), title: video.title)
         }
-        guard let item = try ReplicaRows.items(db, ids: [id]).first else { return nil }
+        guard let item = try ReplicaRows.items(db, ids: [id], for: profile).first else { return nil }
         guard item.kind == .episode, let seasonId = item.parentId,
-            let season = try ReplicaRows.items(db, ids: [seasonId]).first, let showId = season.parentId,
-            let show = try ReplicaRows.items(db, ids: [showId]).first
+            let season = try ReplicaRows.items(db, ids: [seasonId], for: profile).first, let showId = season.parentId,
+            let show = try ReplicaRows.items(db, ids: [showId], for: profile).first
         else { return Next(item: item, title: Catalog.title(item)) }
         return Next(
             item: item,

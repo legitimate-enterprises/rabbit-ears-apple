@@ -26,6 +26,7 @@ enum YouTubeRows {
             db,
             sql: """
                 SELECT c.id, c.library_id, c.parsed_title, c.added_at, COALESCE(c.kids_content, 0) AS for_kids,
+                    \(ReplicaRows.art("poster_url", "c.id", ":me")) AS poster_url,
                     (SELECT m.overview FROM item_shown m WHERE m.item_id = c.id) AS overview,
                     (SELECT m.external_id FROM item_shown m WHERE m.item_id = c.id) AS external_id,
                     (SELECT COUNT(*) FROM item v WHERE v.parent_id = c.id) AS video_count,
@@ -46,7 +47,7 @@ enum YouTubeRows {
                 overview: text(row["overview"]), videoCount: row["video_count"],
                 unwatchedCount: row["unwatched_count"], lastVideoOn: (row["last"] as Int64?).map(day),
                 externalId: external, sourceUrl: external.map(channelURL), forKids: row["for_kids"],
-                addedAt: ReplicaRows.instant(row["added_at"]))
+                addedAt: ReplicaRows.instant(row["added_at"]), posterUrl: row["poster_url"])
         }
     }
 
@@ -79,6 +80,8 @@ enum YouTubeRows {
             db,
             sql: """
                 SELECT v.id, v.library_id, v.parent_id, c.parsed_title AS channel_title, v.parsed_title, v.added_at,
+                    \(ReplicaRows.art("poster_url", "v.id", ":me")) AS poster_url,
+                    \(ReplicaRows.art("poster_url", "c.id", ":me")) AS channel_poster_url,
                     (SELECT ms.overview FROM item_shown ms WHERE ms.item_id = v.id) AS overview,
                     (SELECT ms.external_id FROM item_shown ms WHERE ms.item_id = v.id) AS external_id, m.published_at,
                     (SELECT f.duration_ms FROM item_file x JOIN media_file f ON f.id = x.media_file_id
@@ -113,7 +116,8 @@ enum YouTubeRows {
                 watched: row["watched"], positionMs: row["position_ms"],
                 lastPlayedAt: (row["last_played_at"] as Int64?).map(ReplicaRows.instant), externalId: external,
                 sourceUrl: external.map { "https://www.youtube.com/watch?v=\(query($0))" },
-                addedAt: ReplicaRows.instant(row["added_at"]), unavailable: (row["unavailable"] as Bool) ? true : nil)
+                addedAt: ReplicaRows.instant(row["added_at"]), unavailable: (row["unavailable"] as Bool) ? true : nil,
+                posterUrl: row["poster_url"], channelPosterUrl: row["channel_poster_url"])
         }
         guard rows.count > filter.limit else { return (rows, nil) }
         return (Array(rows.prefix(filter.limit)), filter.offset + filter.limit)

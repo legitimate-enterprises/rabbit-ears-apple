@@ -139,7 +139,9 @@ extension DownloadStore {
     /// not answer is left out.
     func describe(_ title: StoredTitle, profile: UID, _ link: Link) async {
         let (id, kind) = (title.itemId, title.kind)
-        let art = (try? await replica?.read { db in try Self.addresses(Self.art(of: id, kind, db), profile, db) }) ?? []
+        let art =
+            (try? await replica?.read { db in try Self.addresses(Self.art(of: id, kind, profile, db), profile, db) })
+            ?? []
         let files = await keepArt(art, link.client)
         ledger.titles[title.itemId]?.art = files
     }
@@ -153,7 +155,7 @@ extension DownloadStore {
     /// A movie or episode and each item above it, both images; a song's
     /// album, performer and album artist; a video and its channel.
     private nonisolated static func art(
-        of id: UID, _ kind: DownloadTitle.KindPayload, _ db: Database
+        of id: UID, _ kind: DownloadTitle.KindPayload, _ profile: UID, _ db: Database
     ) throws -> [ArtKey] {
         switch kind {
         case .movie, .episode:
@@ -167,7 +169,7 @@ extension DownloadStore {
             }
             return art
         case .song:
-            guard let song = try PlaylistRows.songs(db, [id])[id] else { return [] }
+            guard let song = try PlaylistRows.songs(db, profile, [id])[id] else { return [] }
             return [song.albumId, song.artistId, song.albumArtistId].map { ArtKey(id: $0, kind: .poster) }
         case .video:
             guard

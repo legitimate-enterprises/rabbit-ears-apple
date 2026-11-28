@@ -129,7 +129,7 @@ public final class HouseholdModel {
                 db,
                 "i.id IN (SELECT unhex(value, '-') FROM json_each(?))"
                     + " AND i.id IN (SELECT item_id FROM profile_item_open WHERE account_id = ?)",
-                [ReplicaRows.json(ids), viewer])
+                [ReplicaRows.json(ids), viewer], for: viewer)
             return Self.ordered(items, ids)
         }
     }
@@ -148,7 +148,8 @@ public final class HouseholdModel {
                     """, arguments: [ReplicaRows.json(try ReplicaSearch.items(matching: query, in: db)), viewer])
             return Self.ordered(
                 try ReplicaRows.items(
-                    db, "i.id IN (SELECT unhex(value, '-') FROM json_each(?))", [ReplicaRows.json(page)]), page
+                    db, "i.id IN (SELECT unhex(value, '-') FROM json_each(?))", [ReplicaRows.json(page)], for: viewer),
+                page
             )
             .filter { $0.kind == .movie || $0.kind == .show }
         }

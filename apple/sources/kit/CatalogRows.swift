@@ -98,9 +98,10 @@ extension ReplicaRows {
     }
 
     /// Catalog items in the order of `ids`, each once.
-    static func items(_ db: Database, ids: [UID]) throws -> [Item] {
+    static func items(_ db: Database, ids: [UID], for profile: UID) throws -> [Item] {
         let found = Dictionary(
-            try items(db, "i.id IN (SELECT unhex(value, '-') FROM json_each(?))", [json(ids)]).map { ($0.id, $0) },
+            try items(db, "i.id IN (SELECT unhex(value, '-') FROM json_each(?))", [json(ids)], for: profile)
+                .map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first })
         return ids.compactMap { found[$0] }
     }
@@ -113,7 +114,9 @@ extension ReplicaRows {
             (SELECT COUNT(*) FROM collection_movie cm WHERE cm.collection_id = c.id
                 AND cm.item_id IN (SELECT item_id FROM profile_item WHERE account_id = a.account_id)) AS movie_count,
             c.source = 'custom' AND EXISTS (SELECT 1 FROM collection_movie o WHERE o.collection_id = c.id
-                AND o.position IS NOT NULL) AS custom_order
+                AND o.position IS NOT NULL) AS custom_order,
+            \(CollectionRows.art("poster_url", "a.account_id")) AS poster_url,
+            \(CollectionRows.art("backdrop_url", "a.account_id")) AS backdrop_url
         FROM collection c JOIN profile_audience a ON a.account_id = ?
         """
 
@@ -123,9 +126,11 @@ extension ReplicaRows {
         let (created, modified): (Int64, Int64) = (row["created_at"], row["modified_at"])
         let (household, tmdb): (UID?, Int64?) = (row["household_id"], row["tmdb_id"])
         let (count, custom): (Int, Bool) = (row["movie_count"], row["custom_order"])
+        let (poster, backdrop): (String?, String?) = (row["poster_url"], row["backdrop_url"])
         return .init(
             id: row["id"], source: source, name: row["name"], overview: overview?.isEmpty == false ? overview : nil,
-            householdId: household, tmdbId: tmdb, movieCount: count, customOrder: custom, createdAt: instant(created),
-            modifiedAt: instant(modified), createdBy: row["created_by"], modifiedBy: row["modified_by"])
+            householdId: household, tmdbId: tmdb, movieCount: count, customOrder: custom, posterUrl: poster,
+            backdropUrl: backdrop, createdAt: instant(created), modifiedAt: instant(modified),
+            createdBy: row["created_by"], modifiedBy: row["modified_by"])
     }
 }

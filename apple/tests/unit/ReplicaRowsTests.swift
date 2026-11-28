@@ -40,9 +40,62 @@ final class ReplicaRowsTests: XCTestCase {
         XCTAssertEqual(try db.read { try String.fetchOne($0, sql: "SELECT sqlite_version()") }, "3.54.1")
     }
 
+    /// Each row carries the art addresses profile_art names for the profile reading it: an episode its show's,
+    /// a song, an album and an artist the album's, a video its channel's, a collection and a playlist their first
+    /// movie's.
+    func testEveryRowCarriesTheArtTheReplicaNamesForItsProfile() async throws {
+        let replica = try fixture.v1 { db in
+            try db.account(1, "Avery")
+            try db.account(2, "Robin", kind: "kid")
+            try db.item(10, "movie", "Dune", rating: "G")
+            try db.item(11, "show", "Andor", rating: "TV-G")
+            try db.item(12, "season", "Season 1", parent: 11, season: 1)
+            try db.item(13, "episode", "One", parent: 12, season: 1, episode: 1)
+            try db.art(10, poster: "dune", backdrop: "dune-wide")
+            try db.art(11, poster: "andor")
+            try db.collection(9, "Dunes", movies: [10])
+            try db.playlist(8, "Mix")
+            try db.entry(80, in: 8, item: 10, rank: "a0")
+            try db.artist(40, "Radiohead")
+            try db.album(50, "In Rainbows", artist: 40)
+            try db.song(5, "Bodysnatchers", album: 50)
+            try db.art(50, poster: "rainbows")
+            try db.channel(60, "Tech")
+            try db.video(61, "Unboxing", channel: 60)
+            try db.art(60, poster: "tech")
+        }
+        let (dune, andor, rainbows, tech) = (
+            ArtworkTests.address("dune"), ArtworkTests.address("andor"), ArtworkTests.address("rainbows"),
+            ArtworkTests.address("tech")
+        )
+        let found = try await replica.read { db in
+            try ReplicaRows.items(db, ids: [10, 13], for: 1)
+        }
+        XCTAssertEqual(found.map(\.posterUrl), [dune, andor])
+        XCTAssertEqual(found.map(\.backdropUrl), [ArtworkTests.address("dune-wide", store: "w1280"), nil])
+        let (albums, artists, songs, channels, videos, collections, playlists) = try await replica.read { db in
+            (
+                try MusicRows.albums(db, 1, .init()).0, try MusicRows.artists(db, 1, .init()).0,
+                try MusicRows.songs(db, 1, .init()).0,
+                try YouTubeRows.channels(db, 1), try YouTubeRows.videos(db, 1, .init()).0,
+                try CollectionRows.list(db, profile: 1), try PlaylistRows.playlists(db, profile: 1)
+            )
+        }
+        XCTAssertEqual(albums.map(\.posterUrl), [rainbows])
+        XCTAssertEqual(artists.map(\.posterUrl), [rainbows])
+        XCTAssertEqual(songs.map(\.posterUrl), [rainbows])
+        XCTAssertEqual(channels.map(\.posterUrl), [tech])
+        XCTAssertEqual(videos.map(\.posterUrl), [tech])
+        XCTAssertEqual(videos.map(\.channelPosterUrl), [tech])
+        XCTAssertEqual(collections.map(\.posterUrl), [dune])
+        XCTAssertEqual(playlists.map(\.posterUrl), [dune])
+        let entries = try await replica.read { try PlaylistRows.entries($0, profile: 1, playlist: 8) }
+        XCTAssertEqual(entries.map(\.item?.posterUrl), [dune])
+    }
+
     private func items(_ replica: Replica, _ ids: [UID]) async throws -> [UID: Item] {
         let list = try await replica.read { db in
-            try ReplicaRows.items(db, "i.id IN (SELECT unhex(value, '-') FROM json_each(?))", [ReplicaRows.json(ids)])
+            try ReplicaRows.items(db, ids: ids, for: 103)
         }
         return Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
     }

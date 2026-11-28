@@ -36,6 +36,7 @@ enum MusicRows {
             db, profile, filter,
             """
             SELECT a.id, a.library_id, a.parsed_title, a.sort_title, a.added_at,
+                \(ReplicaRows.art("poster_url", "a.id", ":me")) AS poster_url,
                 CASE WHEN k.mode THEN m.clean_album_count ELSE m.album_count END AS album_count,
                 CASE WHEN k.mode THEN m.clean_song_count ELSE m.song_count END AS song_count
             """ + " \(artistsFrom(filter)) ORDER BY \(order(filter, "a", by))")
@@ -43,14 +44,16 @@ enum MusicRows {
         return (rows.0.map { artist($0, extras[$0["id"]]) }, rows.1)
     }
 
-    /// An artist row: id, library_id, parsed_title, sort_title, added_at, album_count, song_count.
+    /// An artist row: id, library_id, parsed_title, sort_title, added_at, album_count, song_count, poster_url.
     static func artist(_ row: Row, _ extras: Extras?) -> MusicArtist {
         let sortTitle: String? = row["sort_title"]
-        return MusicArtist(
+        var artist = MusicArtist(
             id: row["id"], libraryId: row["library_id"], name: row["parsed_title"],
             sortName: sortTitle?.isEmpty == false ? sortTitle! : row["parsed_title"],
             albumCount: row["album_count"], songCount: row["song_count"], overview: extras?.overview,
             genres: extras?.genres ?? [], musicBrainzId: extras?.mbid, addedAt: ReplicaRows.instant(row["added_at"]))
+        artist.posterUrl = row["poster_url"]
+        return artist
     }
 
     static func countArtists(_ db: Database, _ profile: UID, _ filter: Filter) throws -> Int {
@@ -69,6 +72,7 @@ enum MusicRows {
             db, profile, filter,
             """
             SELECT al.id, al.library_id, al.parent_id, al.parsed_title, al.parsed_year, al.added_at, m.artist_name,
+                \(ReplicaRows.art("poster_url", "al.id", ":me")) AS poster_url,
                 CASE WHEN k.mode THEN m.clean_song_count ELSE m.song_count END AS song_count,
                 CASE WHEN k.mode THEN m.clean_duration_ms ELSE m.duration_ms END AS duration_ms, m.lossless
             """ + " \(albumsFrom(filter)) ORDER BY \(order(filter, "al", by))")
@@ -77,13 +81,15 @@ enum MusicRows {
     }
 
     /// An album row: id, library_id, parent_id, parsed_title, parsed_year, added_at, artist_name, song_count,
-    /// duration_ms, lossless.
+    /// duration_ms, lossless, poster_url.
     static func album(_ row: Row, _ extras: Extras?) -> MusicAlbum {
-        MusicAlbum(
+        var album = MusicAlbum(
             id: row["id"], libraryId: row["library_id"], artistId: row["parent_id"], artistName: row["artist_name"],
             title: row["parsed_title"], year: row["parsed_year"], songCount: row["song_count"],
             durationMs: row["duration_ms"], lossless: row["lossless"], overview: extras?.overview,
             genres: extras?.genres ?? [], musicBrainzId: extras?.mbid, addedAt: ReplicaRows.instant(row["added_at"]))
+        album.posterUrl = row["poster_url"]
+        return album
     }
 
     static func countAlbums(_ db: Database, _ profile: UID, _ filter: Filter) throws -> Int {
@@ -104,25 +110,31 @@ enum MusicRows {
             ][filter.sort ?? ""] ?? (filter.albumId != nil ? track : "\(sortKey("s")), s.id")
         let rows = try page(
             db, profile, filter,
-            "SELECT \(songColumns) \(songsFrom(filter)) ORDER BY \(order(filter, "s", by))")
+            "SELECT \(songColumns(":me")) \(songsFrom(filter)) ORDER BY \(order(filter, "s", by))")
         return (rows.0.map(song), rows.1)
     }
 
-    /// The columns a song row maps from, `s` the song's item and `m` its music_song.
-    static let songColumns = """
-        s.id, s.library_id, s.parent_id, s.parsed_title, s.disc_number, s.track_number, m.album_title,
-            m.album_artist_id, m.performer_id, m.artist_name, m.duration_ms, m.year, m.codec, m.unavailable
+    /// The columns a song row maps from, `s` the song's item and `m` its music_song, its art as the
+    /// profile bound at `me` is shown it.
+    static func songColumns(_ me: String) -> String {
         """
+        \(ReplicaRows.art("poster_url", "s.id", me)) AS poster_url, s.id, s.library_id, s.parent_id, s.parsed_title,
+            s.disc_number, s.track_number, m.album_title, m.album_artist_id, m.performer_id, m.artist_name,
+            m.duration_ms, m.year, m.codec, m.unavailable
+        """
+    }
 
     static func song(_ row: Row) -> MusicSong {
         let codec: String? = row["codec"]
-        return MusicSong(
+        var song = MusicSong(
             id: row["id"], libraryId: row["library_id"], albumId: row["parent_id"],
             albumTitle: row["album_title"], albumArtistId: row["album_artist_id"],
             artistId: row["performer_id"], artistName: row["artist_name"], title: row["parsed_title"],
             discNumber: row["disc_number"], trackNumber: row["track_number"], durationMs: row["duration_ms"],
             year: row["year"], codec: codec?.isEmpty == false ? codec : nil, lossless: lossless(codec ?? ""),
             unavailable: (row["unavailable"] as Bool) ? true : nil)
+        song.posterUrl = row["poster_url"]
+        return song
     }
 
     static func countSongs(_ db: Database, _ profile: UID, _ filter: Filter) throws -> Int {

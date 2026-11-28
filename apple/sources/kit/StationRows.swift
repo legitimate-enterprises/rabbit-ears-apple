@@ -34,7 +34,7 @@ enum StationRows {
         let day = calendar.startOfDay(for: now)
         let next = calendar.date(byAdding: .day, value: 1, to: day) ?? day
         return try programs(
-            db, "sp.ends_at > :from AND sp.starts_at < :to ORDER BY sp.starts_at, sp.id",
+            db, profile, "sp.ends_at > :from AND sp.starts_at < :to ORDER BY sp.starts_at, sp.id",
             ["station": id, "profile": profile, "from": millis(day), "to": millis(next)])
     }
 
@@ -99,9 +99,9 @@ enum StationRows {
         let at = millis(now)
         let arguments: StatementArguments = ["station": station, "profile": profile, "at": at]
         let on = try programs(
-            db, "sp.starts_at <= :at AND sp.ends_at > :at ORDER BY sp.starts_at DESC LIMIT 1", arguments
+            db, profile, "sp.starts_at <= :at AND sp.ends_at > :at ORDER BY sp.starts_at DESC LIMIT 1", arguments
         ).first
-        let upNext = try programs(db, "sp.starts_at > :at ORDER BY sp.starts_at LIMIT 10", arguments)
+        let upNext = try programs(db, profile, "sp.starts_at > :at ORDER BY sp.starts_at LIMIT 10", arguments)
         let status: Components.Schemas.StationStatus = on != nil ? .onAir : open ? .betweenPrograms : .offSchedule
         return StationOnAir(
             status: status, now: on,
@@ -138,7 +138,7 @@ enum StationRows {
     /// The station's programs the profile may see that `condition` keeps, in
     /// its order, each filled as a play-order row is. Binds :station and :profile.
     private static func programs(
-        _ db: Database, _ condition: String, _ arguments: StatementArguments
+        _ db: Database, _ profile: UID, _ condition: String, _ arguments: StatementArguments
     ) throws -> [StationProgram] {
         let rows = try Row.fetchAll(
             db,
@@ -153,10 +153,9 @@ enum StationRows {
         let films = rows.filter { $0["kind"] != "song" }
         let ids = films.map { $0["item_id"] as UID } + films.compactMap { $0["show_id"] as UID? }
         let items = Dictionary(
-            try ReplicaRows.items(db, "i.id IN (SELECT unhex(value, '-') FROM json_each(?))", [ReplicaRows.json(ids)])
-                .map { ($0.id, $0) },
+            try ReplicaRows.items(db, ids: ids, for: profile).map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first })
-        let songs = try self.songs(db, rows.filter { $0["kind"] == "song" }.map { $0["item_id"] })
+        let songs = try self.songs(db, profile, rows.filter { $0["kind"] == "song" }.map { $0["item_id"] })
         return try rows.compactMap { row in
             guard let kind = Components.Schemas.PlaylistEntryKind(rawValue: row["kind"]) else { return nil }
             let item: UID = row["item_id"]
@@ -180,15 +179,15 @@ enum StationRows {
     }
 
     /// Songs by id as the server's music views answer them.
-    private static func songs(_ db: Database, _ ids: [UID]) throws -> [UID: MusicSong] {
+    private static func songs(_ db: Database, _ profile: UID, _ ids: [UID]) throws -> [UID: MusicSong] {
         guard !ids.isEmpty else { return [:] }
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT \(MusicRows.songColumns)
+                SELECT \(MusicRows.songColumns("?"))
                 FROM item s JOIN music_song m ON m.item_id = s.id
                 WHERE s.id IN (SELECT unhex(value, '-') FROM json_each(?))
-                """, arguments: [ReplicaRows.json(ids)])
+                """, arguments: [profile, ReplicaRows.json(ids)])
         return Dictionary(uniqueKeysWithValues: rows.map { ($0["id"], MusicRows.song($0)) })
     }
 

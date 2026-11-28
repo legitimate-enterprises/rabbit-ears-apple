@@ -69,7 +69,8 @@ public final class OccasionsModel {
         try ReplicaRows.items(
             db,
             "i.id IN (SELECT item_id FROM occasion_member WHERE occasion_id = ?) AND i.id \(ReplicaRows.browsedBy)"
-                + " ORDER BY \(ReplicaRows.titleOrder) LIMIT ? OFFSET ?", [occasion, profile, limit, offset])
+                + " ORDER BY \(ReplicaRows.titleOrder) LIMIT ? OFFSET ?", [occasion, profile, limit, offset],
+            for: profile)
     }
 
     /// listActiveOccasions: the occasions in season on `day` holding a

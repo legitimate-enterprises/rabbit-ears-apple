@@ -110,13 +110,14 @@ public final class CatalogModel {
 
     private nonisolated static func catalog(_ profile: UID, _ db: Database) throws -> Catalog {
         let browsed = "i.id IN (SELECT item_id FROM profile_item WHERE account_id = ?)"
-        var catalog = Catalog(items: try ReplicaRows.items(db, browsed, [profile]), watch: try watch(profile, db))
+        var catalog = Catalog(
+            items: try ReplicaRows.items(db, browsed, [profile], for: profile), watch: try watch(profile, db))
         catalog.hold(
             try ReplicaRows.items(
                 db,
                 "i.id IN (SELECT item_id FROM kids_item) AND NOT \(browsed)"
                     + " AND i.id IN (SELECT item_id FROM profile_item_open WHERE account_id = ?)",
-                [profile, profile]))
+                [profile, profile], for: profile))
         return catalog
     }
 
@@ -267,7 +268,7 @@ public final class CatalogModel {
                 db,
                 "i.id IN (SELECT unhex(value, '-') FROM json_each(?))"
                     + " AND i.id IN (SELECT item_id FROM profile_item WHERE account_id = ?)",
-                [ReplicaRows.json(itemOrder), profile]
+                [ReplicaRows.json(itemOrder), profile], for: profile
             ).map { ($0.id, $0) })
         let personOrder = try ReplicaSearch.people(matching: query, in: db)
         let people = Dictionary(
@@ -319,7 +320,8 @@ public final class CatalogModel {
             let items = try ReplicaRows.items(
                 db,
                 "EXISTS (SELECT 1 FROM credit_shown c WHERE c.item_id = i.id AND c.person_id = ?)"
-                    + " AND i.id \(ReplicaRows.browsedBy) ORDER BY \(ReplicaRows.titleOrder)", [id, profileId])
+                    + " AND i.id \(ReplicaRows.browsedBy) ORDER BY \(ReplicaRows.titleOrder)", [id, profileId],
+                for: profileId)
             return (ReplicaRows.person(person), items)
         }) ?? nil
     }

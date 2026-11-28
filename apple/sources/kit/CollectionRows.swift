@@ -16,6 +16,11 @@ enum CollectionRows {
         "COALESCE((SELECT md.release_date FROM item_shown md WHERE md.item_id = item.id),"
         + " CAST(item.parsed_year AS TEXT))"
 
+    /// The `column` profile_collection_art names for collection `c` as the profile `me` is shown it.
+    static func art(_ column: String, _ me: String) -> String {
+        "(SELECT \(column) FROM profile_collection_art WHERE account_id = \(me) AND collection_id = c.id)"
+    }
+
     /// The collections the profile browses, by name, as listCollections:
     /// the household's own, and TMDB's holding two or more while metadata
     /// comes from TMDB; a kid sees none holding nothing it may see, nor does
@@ -29,7 +34,8 @@ enum CollectionRows {
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT c.*, \(seen) AS movie_count,
+                SELECT c.*, \(seen) AS movie_count, \(art("poster_url", ":profile")) AS poster_url,
+                    \(art("backdrop_url", ":profile")) AS backdrop_url,
                     c.source = 'custom' AND EXISTS (SELECT 1 FROM collection_movie o WHERE o.collection_id = c.id
                         AND o.position IS NOT NULL) AS custom_order
                 FROM collection c, (SELECT browse_mode AS mode FROM profile_audience WHERE account_id = :profile) a
@@ -48,12 +54,16 @@ enum CollectionRows {
         return rows.compactMap { collection($0, count: $0["movie_count"], customOrder: $0["custom_order"]) }
     }
 
-    /// The collections by id, whoever may see them, counting nothing, for a
-    /// playlist entry to fill in.
-    static func collections(_ db: Database, ids: [UID]) throws -> [UID: MovieCollection] {
+    /// The collections by id, whoever may see them, counting nothing, with
+    /// the art `profile` is shown, for a playlist entry to fill in.
+    static func collections(_ db: Database, ids: [UID], profile: UID) throws -> [UID: MovieCollection] {
         let rows = try Row.fetchAll(
-            db, sql: "SELECT * FROM collection WHERE id IN (SELECT unhex(value, '-') FROM json_each(?))",
-            arguments: [ReplicaRows.json(ids)])
+            db,
+            sql: """
+                SELECT c.*, \(art("poster_url", ":profile")) AS poster_url,
+                    \(art("backdrop_url", ":profile")) AS backdrop_url
+                FROM collection c WHERE c.id IN (SELECT unhex(value, '-') FROM json_each(:ids))
+                """, arguments: ["profile": profile, "ids": ReplicaRows.json(ids)])
         return Dictionary(
             uniqueKeysWithValues: rows.compactMap { row in
                 collection(row, count: 0, customOrder: false).map { ($0.id, $0) }
@@ -71,7 +81,7 @@ enum CollectionRows {
                 """, arguments: [id, profile])
         let items = Dictionary(
             uniqueKeysWithValues: try ReplicaRows.items(
-                db, "i.id IN (SELECT unhex(value, '-') FROM json_each(?))", [ReplicaRows.json(ids)]
+                db, "i.id IN (SELECT unhex(value, '-') FROM json_each(?))", [ReplicaRows.json(ids)], for: profile
             ).map { ($0.id, $0) })
         return ids.compactMap { items[$0] }
     }
@@ -93,6 +103,7 @@ enum CollectionRows {
         return MovieCollection(
             id: row["id"], source: source, name: row["name"], overview: overview?.isEmpty == false ? overview : nil,
             householdId: row["household_id"], tmdbId: row["tmdb_id"], movieCount: count, customOrder: customOrder,
+            posterUrl: row["poster_url"], backdropUrl: row["backdrop_url"],
             createdAt: ReplicaRows.instant(row["created_at"]), modifiedAt: ReplicaRows.instant(row["modified_at"]),
             createdBy: row["created_by"], modifiedBy: row["modified_by"])
     }

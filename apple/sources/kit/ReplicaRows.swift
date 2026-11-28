@@ -5,10 +5,17 @@ import RabbitEarsAPI
 /// Replica rows as the generated types the views read, field for field as
 /// the server's responses carry them for the same rows.
 enum ReplicaRows {
+    /// The `column` profile_art names for item `key` as the profile bound at `me` is shown it.
+    static func art(_ column: String, _ key: String, _ me: String) -> String {
+        "(SELECT \(column) FROM profile_art WHERE account_id = \(me) AND item_id = \(key))"
+    }
+
     /// Movies, shows, seasons and episodes as listItems answers them, over
-    /// `item i`; a read adds its own condition on `i`.
+    /// `item i`, its art bound to the profile at the first two parameters;
+    /// a read adds its own condition on `i`.
     static let itemSQL = """
-        SELECT i.id, i.library_id, i.parent_id, i.kind, i.parsed_title, i.sort_title, i.parsed_year, i.season_number,
+        SELECT \(art("poster_url", "i.id", "?")) AS poster_url, \(art("backdrop_url", "i.id", "?")) AS backdrop_url,
+            i.id, i.library_id, i.parent_id, i.kind, i.parsed_title, i.sort_title, i.parsed_year, i.season_number,
             i.episode_number, i.added_at, i.kids_content, m.item_id IS NOT NULL AS described, m.provider, m.provider_id,
             m.status, m.title, m.overview, m.release_date, m.runtime_minutes, m.content_rating, m.poster_path,
             m.backdrop_path, m.fetched_at,
@@ -18,11 +25,12 @@ enum ReplicaRows {
         WHERE i.kind IN ('movie', 'show', 'season', 'episode')
         """
 
-    /// The catalog items `condition` keeps, each with its genres.
+    /// The catalog items `condition` keeps, each with its genres and the art `profile` is shown.
     static func items(
-        _ db: Database, _ condition: String, _ arguments: StatementArguments = []
+        _ db: Database, _ condition: String, _ arguments: StatementArguments = [], for profile: UID
     ) throws -> [Item] {
-        let rows = try Row.fetchAll(db, sql: "\(itemSQL) AND \(condition)", arguments: arguments)
+        let rows = try Row.fetchAll(
+            db, sql: "\(itemSQL) AND \(condition)", arguments: [profile, profile] + arguments)
         let genres = try genres(db, of: rows.map { $0["id"] })
         return rows.compactMap { item($0, genres: genres[$0["id"]] ?? []) }
     }
@@ -39,6 +47,7 @@ enum ReplicaRows {
             addedAt: instant(row["added_at"]), createdAt: instant(row["added_at"]),
             modifiedAt: instant(row["added_at"]),
             unavailable: row["unavailable"] ? true : nil)
+        (item.posterUrl, item.backdropUrl) = (row["poster_url"], row["backdrop_url"])
         if kind == .movie || kind == .show {
             let override: Bool? = row["kids_content"]
             item.kidsContent = override ?? kidsRatings[kind, default: []].contains(rating ?? "")
