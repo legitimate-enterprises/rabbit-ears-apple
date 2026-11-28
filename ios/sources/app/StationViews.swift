@@ -166,7 +166,7 @@ struct OnNowStrip: View {
                     Text(StationText.onNowName(station)).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                     if let now = station.onAir.now {
                         Text(StationText.title(now)).font(.system(size: 12)).foregroundStyle(Theme.secondary)
-                            .lineLimit(2)
+                            .lineLimit(2, reservesSpace: true)
                     }
                 }
             }

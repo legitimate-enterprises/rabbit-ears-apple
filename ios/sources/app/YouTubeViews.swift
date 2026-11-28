@@ -132,7 +132,7 @@ struct VideoTile: View {
                         if let progress = video.progress { ProgressBar(value: progress, height: 4) }
                     }
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(video.title).font(.system(size: 13, weight: .semibold)).lineLimit(2)
+                    Text(video.title).font(.system(size: 13, weight: .semibold)).lineLimit(2, reservesSpace: true)
                         .multilineTextAlignment(.leading)
                     Text(line).font(.system(size: 12)).foregroundStyle(Theme.secondary).lineLimit(1)
                 }
