@@ -94,7 +94,7 @@ struct NowPlayingView: View {
                     scrubber(song)
                     transport
                     Spacer(minLength: 0)
-                    bottom
+                    bottom(song)
                 }
                 .padding(.horizontal, 32)
                 .padding(.vertical, 12)
@@ -299,9 +299,10 @@ struct NowPlayingView: View {
         }
     }
 
-    private var bottom: some View {
+    private func bottom(_ song: MusicSong) -> some View {
         HStack {
             AirPlayButton().frame(width: 44, height: 44).accessibilityLabel("AirPlay")
+            FavoriteButton(id: song.id, side: 44).font(.system(size: 20)).buttonStyle(.plain)
             Spacer()
             Button {
                 Task { await player.stop() }

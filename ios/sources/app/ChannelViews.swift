@@ -153,6 +153,7 @@ struct VideoView: View {
         .background(Theme.ground)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { FavoriteButton(id: id) }
             MoreToolbar {
                 if let video = detail?.video {
                     Button("Go to channel", systemImage: "play.rectangle") { browser.open(.channel(video.channelId)) }

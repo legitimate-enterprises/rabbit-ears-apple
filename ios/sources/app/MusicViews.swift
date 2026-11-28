@@ -181,6 +181,7 @@ struct AlbumTile: View {
             SelectMenuItem(id: album.id)
             Button("Play", systemImage: "play.fill") { play(shuffled: false) }
             Button("Shuffle", systemImage: "shuffle") { play(shuffled: true) }
+            FavoriteMenuItem(id: album.id)
         }
     }
 
@@ -222,7 +223,10 @@ struct ArtistsList: View {
                         .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
-                    .contextMenu { SelectMenuItem(id: artist.id) }
+                    .contextMenu {
+                        SelectMenuItem(id: artist.id)
+                        FavoriteMenuItem(id: artist.id)
+                    }
                     .selectable(artist.id)
                     .onAppear { if artist.id == list.items.last?.id { Task { await list.loadMore() } } }
                 }
@@ -330,6 +334,7 @@ struct SongRow: View {
         .buttonStyle(.plain)
         .contextMenu {
             SelectMenuItem(id: song.id)
+            FavoriteMenuItem(id: song.id)
             AddToButtons(target: $target, itemIds: [song.id], kind: .music)
             DownloadMenu(.song(song))
         }

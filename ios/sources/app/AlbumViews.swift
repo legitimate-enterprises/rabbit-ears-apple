@@ -63,6 +63,7 @@ struct AlbumView: View {
         .navigationBarTitleDisplayMode(.inline)
         .addToPlaylist($target)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { FavoriteButton(id: id) }
             MoreToolbar {
                 if let album = detail?.album {
                     Button("Go to artist", systemImage: "music.mic") { browser.open(.artist(album.artistId)) }
@@ -174,6 +175,7 @@ struct ArtistView: View {
         .navigationBarTitleDisplayMode(.inline)
         .addToPlaylist($target)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { FavoriteButton(id: id) }
             MoreToolbar {
                 AddToButtons(target: $target, itemIds: [id], kind: .music)
                 if let artist = detail?.artist { DownloadMenu(.artist(artist)) }

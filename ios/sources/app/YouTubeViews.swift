@@ -170,6 +170,7 @@ struct VideoContextMenu: View {
             }
         }
         Button("Go to channel", systemImage: "play.rectangle") { browser.open(.channel(video.channelId)) }
+        FavoriteMenuItem(id: video.id)
         DownloadMenu(.video(video))
     }
 }

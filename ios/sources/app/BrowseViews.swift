@@ -42,6 +42,7 @@ enum Route: Hashable {
     case item(Item.ID)
     case person(Person.ID)
     case search
+    case favorites
     case youtubeSearch
     case album(UID)
     case artist(UID)
@@ -300,20 +301,23 @@ struct MainView: View {
         case .channel(let id): ChannelView(id: id)
         case .video(let id): VideoView(id: id)
         case .station(let id): StationView(id: id)
+        case .favorites: FavoritesView()
         default: EmptyView()
         }
     }
 }
 
-/// Search and profile, last in a view's toolbar so they keep their places
+/// Favorites, search and profile, last in a view's toolbar so they keep their places
 /// whatever trailing items the view declares before it.
 struct BrowseToolbar: ToolbarContent {
     var search = true
+    var favorites = true
 
     var body: some ToolbarContent {
         // Keeps search out of the glass a preceding icon would otherwise share with it.
         ToolbarSpacer(.fixed, placement: .topBarTrailing)
         ToolbarItemGroup(placement: .topBarTrailing) {
+            if favorites { FavoritesButton() }
             if search { SearchButton() }
             ProfileMenu()
         }

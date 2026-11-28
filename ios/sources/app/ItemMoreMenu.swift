@@ -2,8 +2,8 @@ import RabbitEarsAPI
 import RabbitEarsKit
 import SwiftUI
 
-/// More on a movie, show, season or episode: watched and Watch together,
-/// and for an adult the kids' rules and Add to.
+/// The star, then More, on a movie, show, season or episode: watched and
+/// Watch together, and for an adult the kids' rules and Add to.
 struct ItemMoreMenu: View {
     @Environment(AppModel.self) private var app
     let item: Item
@@ -13,6 +13,7 @@ struct ItemMoreMenu: View {
     var addToCollection: (() -> Void)?
 
     var body: some View {
+        FavoriteButton(id: item.id).buttonStyle(SecondaryButtonStyle())
         Menu {
             ItemMenuContent(
                 item: item, together: together, editionId: editionId, target: $target,
@@ -38,9 +39,10 @@ struct ItemMenuContent: View {
     var editionId: UID?
     @Binding var target: PlaylistTarget?
     var addToCollection: (() -> Void)?
+    var onTile = false
 
     var body: some View {
-        let actions = app.itemMenuActions(item.kind)
+        let actions = app.itemMenuActions(item.kind, onTile: onTile)
         // A tile holds the item as it was listed; the catalog holds it as changed since.
         let current = model.catalog.item(item.id) ?? item
         Section {
@@ -48,6 +50,7 @@ struct ItemMenuContent: View {
             Button(watched ? "Mark as unwatched" : "Mark as watched", systemImage: "checkmark") {
                 Task { await model.setWatched(!watched, for: item) }
             }
+            if actions.favorite { FavoriteMenuItem(id: item.id) }
             if actions.kidsRules {
                 Toggle(
                     "Kids\u{2019} content",
@@ -130,7 +133,7 @@ struct ItemContextMenu: View {
         ItemMenuContent(
             item: item,
             target: Binding(get: { state?.target }, set: { state?.target = $0 }),
-            addToCollection: { state?.collecting = item.id })
+            addToCollection: { state?.collecting = item.id }, onTile: true)
         if let remove {
             Button("Remove from collection", systemImage: "minus.circle", role: .destructive, action: remove)
         }

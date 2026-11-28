@@ -24,7 +24,7 @@ struct GridView: View {
     static let columns = Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 3)
 
     var body: some View {
-        let items = model.catalog.grid(kind, filter: shown, sort: sort, genre: genre)
+        let items = model.catalog.grid(kind, filter: shown, sort: sort, genre: genre, favorites: app.favorites.ids)
         let total = model.catalog.total(kind, filter: shown)
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -56,7 +56,10 @@ struct GridView: View {
         .selecting(selection, view == .titles ? (kind == .movie ? .movie : .show) : nil)
         .onAppear {
             // Every title matching the filter and genre, not only those scrolled in.
-            selection.source = .init { model.catalog.grid(kind, filter: shown, sort: sort, genre: genre).map(\.id) }
+            selection.source = .init {
+                model.catalog.grid(kind, filter: shown, sort: sort, genre: genre, favorites: app.favorites.ids)
+                    .map(\.id)
+            }
         }
         .countedTitle(
             (kind == .movie ? LibraryTab.movies : .tv).rawValue, count: view == .titles ? total.formatted() : listCount
