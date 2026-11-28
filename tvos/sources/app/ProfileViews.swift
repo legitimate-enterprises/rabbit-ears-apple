@@ -56,7 +56,7 @@ struct WhoView: View {
     }
 }
 
-struct SettingsView: View {
+struct PreferencesView: View {
     @Environment(AppModel.self) private var model
     @State private var error: String?
 
@@ -64,7 +64,7 @@ struct SettingsView: View {
         @Bindable var model = model
         AccountPage(name: model.serverName) {
             VStack(alignment: .leading, spacing: 40) {
-                Text("Settings").font(.system(size: 72, weight: .bold)).padding(.top, 100)
+                Text("Preferences").font(.system(size: 72, weight: .bold)).padding(.top, 100)
                 // The profile's own, on every device it signs in on.
                 if let profile = model.activeProfile, profile.kind == .adult {
                     setting(

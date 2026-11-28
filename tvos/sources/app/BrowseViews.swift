@@ -196,7 +196,7 @@ struct ShellView: View {
     @Environment(Browser.self) private var browser
     @FocusState private var focus: ShellTab?
     @State private var profileMenu = false
-    @State private var settings = false
+    @State private var preferences = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -243,10 +243,10 @@ struct ShellView: View {
         .onChange(of: model.librarySections) { if !shows(browser.tab) { browser.tab = .home } }
         .confirmationDialog(model.activeProfile?.name ?? "", isPresented: $profileMenu) {
             Button("Switch profile") { Task { await model.switchProfile() } }
-            if model.activeProfile?.kind == .adult { Button("Settings") { settings = true } }
+            if model.activeProfile?.kind == .adult { Button("Preferences") { preferences = true } }
             Button("Sign out", role: .destructive) { Task { await model.signOut() } }
         }
-        .fullScreenCover(isPresented: $settings) { SettingsView() }
+        .fullScreenCover(isPresented: $preferences) { PreferencesView() }
         .toolbar(.hidden, for: .navigationBar)
     }
 
