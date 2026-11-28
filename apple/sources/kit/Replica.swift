@@ -33,7 +33,10 @@ public final class Replica: Sendable {
         .watched: ["watch_state"],
         .playlists: ["playlist", "playlist_entry", "playlist_share", "playlist_household_share", "cover"],
         .stations: ["station", "station_day", "station_time", "station_program", "station_loop", "cover"],
-        .household: ["household", "account", "account_card", "household_member", "adult_link", "profile_offer"],
+        .household: [
+            "household", "account", "account_card", "household_member", "adult_link", "profile_offer", "friendship",
+            "friend_request", "friend_request_in", "friend_request_decline",
+        ],
     ]
 
     /// Foreign keys are off on every connection, so an action's touched

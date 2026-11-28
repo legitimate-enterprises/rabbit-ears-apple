@@ -101,7 +101,7 @@ final class SyncServer {
     /// What the demo leaves out that a replica must carry: kids' titles, a
     /// kid on an allow list and a kids' channel, a shared playlist with
     /// entries, a collection, household stations over the playlist, one on
-    /// air whenever it is read, and a kid's watch state.
+    /// air whenever it is read, a kid's watch state, and a friend request.
     private func seed(_ rest: Client, _ adult: UID) async throws {
         let sam = try profile("Sam")
         for title in ["Aurora", "Wildflower"] {
@@ -144,6 +144,7 @@ final class SyncServer {
         _ = try await rest.createStation(
             body: .json(.init(name: "Always on", playlistId: playlist.id, visibility: .household, timing: .continuous))
         ).created
+        _ = try await rest.sendFriendRequest(body: .json(.init(email: "nobody@example.com"))).accepted
         _ = try await sam.rest.putWatchState(
             path: .init(profileId: sam.id, itemId: try movie("Golden Hour")),
             body: .json(.init(watched: false, positionMs: 20_000, at: Date()))

@@ -14,7 +14,7 @@ public final class LiveFeed {
     public private(set) var watched = 0
     public private(set) var stations = 0
     public private(set) var playlists = 0
-    /// Profiles, offers or memberships of the device's household.
+    /// Profiles, offers or memberships of the device's household, and its adults' friends.
     public private(set) var household = 0
     /// Libraries and everything in them.
     public private(set) var library = 0

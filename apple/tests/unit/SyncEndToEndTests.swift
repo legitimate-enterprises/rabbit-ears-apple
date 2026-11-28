@@ -105,6 +105,7 @@ final class SyncEndToEndTests: XCTestCase {
         try await assertLists(device, profile)
         try await assertStations(device, profile)
         try await assertMusicAndYouTube(device, profile)
+        if profile.adult { try await assertFriends(device, profile) }
     }
 
     private func assertCatalog(_ device: SyncDevice, _ profile: SyncServer.Profile) async throws {
@@ -202,6 +203,17 @@ final class SyncEndToEndTests: XCTestCase {
         Parity.list(try await youTube.channels(), channels, "\(who): channels")
         let videos = try await rest.listYouTubeVideos(query: .init(limit: 100)).ok.body.json.items
         Parity.list(try await youTube.videos().items, videos, "\(who): videos")
+    }
+
+    private func assertFriends(_ device: SyncDevice, _ profile: SyncServer.Profile) async throws {
+        let (rest, who) = (profile.rest, profile.name)
+        let lists = try await device.replica.read { try FriendLists.read($0, for: profile.id, at: Date()) }
+        let requests = try await rest.listFriendRequests().ok.body.json
+        Parity.list(lists.received.map(\.id), requests.incoming.map(\.id), "\(who): friend requests received")
+        Parity.list(lists.sent.map(\.id), requests.outgoing.map(\.id), "\(who): friend requests sent")
+        Parity.list(lists.sent.map(\.email), requests.outgoing.map(\.email), "\(who): emails of requests sent")
+        let friends = try await rest.listFriends(query: .init(limit: 200)).ok.body.json.items
+        Parity.list(lists.friends.map(\.id), friends.map(\.id), "\(who): friends")
     }
 
     // MARK: 3. Doorbell and diffs
