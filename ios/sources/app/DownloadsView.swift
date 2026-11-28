@@ -4,26 +4,18 @@ import SwiftUI
 
 /// Preferences' Downloads: the profile's downloads. Wi-Fi only and the
 /// storage allowance are the iPhone's, for every profile.
-struct DownloadsView: View {
-    @Environment(AppModel.self) private var model
+struct DownloadsSection: View {
     let store: DownloadStore
     let profile: UID
 
     static let allowances: [Int64] = [5, 10, 20, 50, 100, 200, 500].map { $0 << 30 }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                settings
-                storage
-                list
-            }
-            .padding(EdgeInsets(top: 8, leading: 16, bottom: 32, trailing: 16))
+        VStack(alignment: .leading, spacing: 18) {
+            settings
+            storage
+            list
         }
-        .pulling { await store.sync(profile: profile) }
-        .background(Theme.ground)
-        .navigationTitle("Downloads")
-        .navigationBarTitleDisplayMode(.inline)
         .tint(Theme.amber)
     }
 

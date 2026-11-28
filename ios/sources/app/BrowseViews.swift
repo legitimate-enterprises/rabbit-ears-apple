@@ -342,11 +342,7 @@ extension View {
 
 struct ProfileMenu: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.openURL) private var openURL
-    @State private var changingPassword = false
-    @State private var managing = false
     @State private var preferring = false
-    @State private var deleting = false
     @Environment(\.displayScale) private var scale
     @State private var picture: UIImage?
 
@@ -356,14 +352,6 @@ struct ProfileMenu: View {
             Button("Switch profile", systemImage: "person.2") { Task { await model.switchProfile() } }
             if profile?.kind == .adult {
                 Button("Preferences", systemImage: "paintpalette") { preferring = true }
-                Button("Manage household", systemImage: "house") { managing = true }
-                if profile?.isAdmin == true, let admin = model.endpoint?.resolve("/admin/") {
-                    Button("Admin", systemImage: "gearshape") { openURL(admin) }
-                }
-                Button("Password", systemImage: "key") { changingPassword = true }
-                Button("Delete account", systemImage: "person.crop.circle.badge.xmark", role: .destructive) {
-                    deleting = true
-                }
             }
             Button("Sign out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
                 Task { await model.signOut() }
@@ -387,9 +375,6 @@ struct ProfileMenu: View {
             picture = bitmap.map { UIImage.barPicture($0, size: 32) }
         }
         .accessibilityLabel("Profile: \(profile?.name ?? "")")
-        .sheet(isPresented: $changingPassword) { ChangePasswordView() }
-        .sheet(isPresented: $managing) { ManageHouseholdView() }
         .sheet(isPresented: $preferring) { PreferencesView() }
-        .sheet(isPresented: $deleting) { DeleteAccountView() }
     }
 }

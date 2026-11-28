@@ -103,7 +103,7 @@ final class DeviceLockTests: XCTestCase {
         XCTAssertEqual(transport.json(.post, "/profiles/\(UID.n(2))/unlock")?["pin"] as? String, "1234")
     }
 
-    func testAddKidAtALockedPickerUnlocksTheAdultFirstAndLocksAgainOnClose() async throws {
+    func testUnlockingTheServersAdultStaysAtWhoIsWatchingUntilLockedAgain() async throws {
         let pinned = Fixtures.account(1, "Avery", hasPin: true)
         await restore(locked(Fixtures.me.replacingOccurrences(of: Fixtures.adult, with: pinned)))
         XCTAssertTrue(model.canManageHousehold)

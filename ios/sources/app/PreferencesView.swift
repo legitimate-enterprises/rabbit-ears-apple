@@ -2,12 +2,19 @@ import RabbitEarsAPI
 import RabbitEarsKit
 import SwiftUI
 
-/// The active adult's own preferences, saved as each is changed; Remember
-/// profile and Skip PIN are this iPhone's alone.
+/// The active adult's own preferences, saved as each is changed, with what
+/// they manage of their household and account; Remember profile and Skip
+/// PIN are this iPhone's alone.
 struct PreferencesView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @State private var error: String?
+    @State private var addingKid = false
+    @State private var addingAdult = false
+    @State private var managing = false
+    @State private var changingPassword = false
+    @State private var deleting = false
 
     var body: some View {
         NavigationStack {
@@ -65,27 +72,41 @@ struct PreferencesView: View {
                         }
                         .tint(Theme.amber)
                         .padding(12).background(Theme.raised, in: .rect(cornerRadius: 8))
-                        if let store = model.downloads {
-                            NavigationLink {
-                                DownloadsView(store: store, profile: profile.id)
-                            } label: {
-                                HStack {
-                                    Text("Downloads").font(.system(size: 15, weight: .semibold))
-                                    Spacer()
-                                    Text(Format.bytes(store.usedBytes)).font(.system(size: 13))
-                                        .foregroundStyle(Theme.secondary)
-                                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
-                                        .foregroundStyle(Theme.secondary)
-                                }
-                                .contentShape(.rect)
-                            }
-                            .buttonStyle(.plain)
-                            .padding(12).background(Theme.raised, in: .rect(cornerRadius: 8))
-                        }
                         if let error { Text(error).font(.system(size: 13)).foregroundStyle(Theme.error) }
+                        if let store = model.downloads {
+                            heading("Downloads")
+                            DownloadsSection(store: store, profile: profile.id)
+                        }
+                        heading("Household")
+                        VStack(spacing: 0) {
+                            if model.canManageHousehold {
+                                row("Add a kid", icon: "plus") { addingKid = true }
+                                Divider()
+                            }
+                            if model.isOwner {
+                                row("Add an adult", icon: "plus") { addingAdult = true }
+                                Divider()
+                            }
+                            row("Manage household", icon: "chevron.right") { managing = true }
+                        }
+                        .padding(.horizontal, 12).background(Theme.raised, in: .rect(cornerRadius: 8))
+                        heading("Account")
+                        VStack(spacing: 0) {
+                            row("Password", icon: "chevron.right") { changingPassword = true }
+                            if profile.isAdmin, let admin = model.endpoint?.resolve("/admin/") {
+                                Divider()
+                                row("Admin", icon: "arrow.up.forward.square") { openURL(admin) }
+                            }
+                        }
+                        .padding(.horizontal, 12).background(Theme.raised, in: .rect(cornerRadius: 8))
+                        row("Delete account", role: .destructive) { deleting = true }
+                            .padding(.horizontal, 12).background(Theme.raised, in: .rect(cornerRadius: 8))
                     }
                     .padding(EdgeInsets(top: 8, leading: 16, bottom: 32, trailing: 16))
                 }
+            }
+            .pulling {
+                if let profile = model.activeProfile { await model.downloads?.sync(profile: profile.id) }
             }
             .background(Theme.ground)
             .navigationTitle("Preferences")
@@ -93,6 +114,32 @@ struct PreferencesView: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
         .foregroundStyle(Theme.primary)
+        .sheet(isPresented: $addingKid) { AddKidView(done: { addingKid = false }) }
+        .sheet(isPresented: $addingAdult) { AddAdultView() }
+        .sheet(isPresented: $managing) { ManageHouseholdView() }
+        .sheet(isPresented: $changingPassword) { ChangePasswordView() }
+        .sheet(isPresented: $deleting) { DeleteAccountView() }
+    }
+
+    private func heading(_ title: String) -> some View {
+        Text(title).font(.system(size: 13)).foregroundStyle(Theme.secondary).padding(.top, 10)
+    }
+
+    private func row(
+        _ title: String, icon: String? = nil, role: ButtonRole? = nil, action: @escaping () -> Void
+    ) -> some View {
+        Button(role: role, action: action) {
+            HStack {
+                Text(title).font(.system(size: 15, weight: .semibold))
+                Spacer()
+                if let icon {
+                    Image(systemName: icon).font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.secondary)
+                }
+            }
+            .frame(minHeight: 48).contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(role == .destructive ? Theme.error : Theme.primary)
     }
 
     private func save(

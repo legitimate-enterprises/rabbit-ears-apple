@@ -5,8 +5,6 @@ import SwiftUI
 struct PinDialog: View {
     @Environment(AppModel.self) private var model
     let profile: Account
-    /// Unlocks the profile and stays on Who's watching instead of picking it.
-    var unlockOnly = false
     let close: () -> Void
     @State private var entry = PinEntry()
     @State private var error: AppError?
@@ -78,11 +76,7 @@ struct PinDialog: View {
         let pin = entry.digits
         Task {
             do {
-                if unlockOnly {
-                    try await model.unlock(profile, pin: pin)
-                } else {
-                    try await model.choose(profile, pin: pin)
-                }
+                try await model.choose(profile, pin: pin)
                 close()
             } catch {
                 self.error = error as? AppError ?? .server(error.localizedDescription)
