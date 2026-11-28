@@ -43,7 +43,7 @@ public final class DownloadPrompt {
                 asking = try await store.request(target, quality: quality, profile: profile)
                 error = nil
             } catch {
-                self.error = error.localizedDescription
+                self.error = AppError.from(error).localizedDescription
             }
         }
     }
