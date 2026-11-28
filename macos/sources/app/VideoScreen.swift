@@ -114,6 +114,17 @@ struct VideoScreen: View {
                 Label(video.watched ? "Mark unwatched" : "Mark watched", systemImage: "checkmark")
             }
             .buttonStyle(SecondaryButtonStyle())
+            if video.positionMs > 0 {
+                Button {
+                    Task {
+                        await catalog.dismiss(Item(video: video))
+                        browser.revision += 1
+                    }
+                } label: {
+                    Label("Dismiss", systemImage: "xmark")
+                }
+                .buttonStyle(SecondaryButtonStyle())
+            }
             FavoriteButton(id: video.id)
             TogetherControl(together: together)
             DownloadButton(target: .video(video))

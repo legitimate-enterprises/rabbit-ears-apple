@@ -43,6 +43,9 @@ struct ItemMenuContent: View {
         Button(watched ? "Mark as unwatched" : "Mark as watched") {
             Task { await model.setWatched(!watched, for: item) }
         }
+        if model.catalog.isInProgress(item.id) {
+            Button("Dismiss") { Task { await model.dismiss(item) } }
+        }
         if actions.favorite { FavoriteMenuItem(id: item.id) }
         if actions.kidsRules {
             Toggle(
@@ -97,6 +100,14 @@ struct VideoContextMenu: View {
             Task {
                 await catalog.setWatched(!video.watched, for: Item(video: video))
                 browser.revision += 1
+            }
+        }
+        if video.positionMs > 0 {
+            Button("Dismiss") {
+                Task {
+                    await catalog.dismiss(Item(video: video))
+                    browser.revision += 1
+                }
             }
         }
         FavoriteMenuItem(id: video.id)
