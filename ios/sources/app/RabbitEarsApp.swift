@@ -33,8 +33,13 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
+        // The splash fades into whatever the launch opens on.
+        ZStack { screen }.animation(.easeInOut(duration: 0.4), value: model.phase == .starting)
+    }
+
+    @ViewBuilder private var screen: some View {
         switch model.phase {
-        case .starting: ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .starting: Splash()
         case .unreachable:
             ContentUnavailableView {
                 Label("Can't reach the server", systemImage: "wifi.exclamationmark")
@@ -51,5 +56,32 @@ struct RootView: View {
         case .choosingProfile: WhosWatchingView()
         case .browsing: MainView()
         }
+    }
+}
+
+/// From launch until the replica holds what this build reads.
+struct Splash: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        VStack(spacing: 24) {
+            StationGlyph(size: 64)
+            if model.libraryUpdate == .unreachable {
+                Text("Your library needs an update, and the server can't be reached.")
+                    .font(.subheadline).foregroundStyle(Theme.secondary).multilineTextAlignment(.center)
+                Button("Try again") { Task { await model.retryLibraryUpdate() } }.buttonStyle(SecondaryButtonStyle())
+                Button("Sign out") { Task { await model.signOut() } }.buttonStyle(.plain)
+                    .foregroundStyle(Theme.secondary)
+            } else {
+                ProgressView()
+                // Said only once an update takes more than a moment.
+                Text("Updating your library…").font(.subheadline).foregroundStyle(Theme.secondary)
+                    .opacity(model.libraryUpdate == .updating ? 1 : 0)
+                    .animation(.easeIn.delay(1), value: model.libraryUpdate)
+            }
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.ground)
     }
 }
