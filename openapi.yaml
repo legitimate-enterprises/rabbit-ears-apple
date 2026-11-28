@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rabbit Ears API
-  version: 0.25.0
+  version: 0.26.0
   description: |
     REST API of the Rabbit Ears media server. This document's version is the
     server's. A breaking change takes a new path; additive changes bump the
@@ -1859,6 +1859,7 @@ paths:
           schema: { $ref: "#/components/schemas/Resolution" }
         - name: sort
           in: query
+          description: daily without occasionId is a 400.
           schema: { $ref: "#/components/schemas/ItemSort" }
         - name: kidsContent
           in: query
@@ -7762,8 +7763,11 @@ components:
       description: |
         title (the default) is by title, movies and shows by
         Item.sortTitle, episodes and seasons by number; added is newest
-        first, as Recently added.
-      enum: [title, added]
+        first, as Recently added; daily, for an occasion's Home row and
+        only with occasionId, is a shuffle seeded by the server's UTC day
+        and the occasion, the same all that day and applied before paging,
+        so a first page's members change from day to day.
+      enum: [title, added, daily]
 
     Resolution:
       type: string
@@ -8001,7 +8005,7 @@ components:
         A seasonal label, anchored to a holiday or to a month and day, in
         season from daysBefore days before its anchor through daysAfter days
         after it.
-      required: [id, name, daysBefore, daysAfter, keywordIds, phrases, createdAt, modifiedAt]
+      required: [id, name, daysBefore, daysAfter, keywordIds, phrases, wash, createdAt, modifiedAt]
       properties:
         id: { $ref: "#/components/schemas/Id" }
         name: { type: string }
@@ -8019,6 +8023,7 @@ components:
           description: Phrases to title the occasion's Home row in place of its name, in the order given; ActiveOccasion.headline is one of them.
           items: { type: string }
         colors: { type: array, maxItems: 3, items: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }, description: "Three colors, as #RRGGBB, for the wash behind the occasion's screen; absent or empty keeps the plain background." }
+        wash: { $ref: "#/components/schemas/OccasionWash" }
         createdAt: { type: string, format: date-time }
         modifiedAt: { type: string, format: date-time }
         createdBy: { $ref: "#/components/schemas/Id", description: "The profile that created it; absent when none did, as for what the server made, or when that profile is gone." }
@@ -8034,7 +8039,8 @@ components:
         absent give an occasion anchored to a holiday that holiday's built-in
         phrases or colors, and any other occasion none; an empty array gives
         none. On replaceOccasion, phrases or colors absent are left as stored,
-        and an empty array clears them.
+        and an empty array clears them. wash absent gives the server's
+        defaults on createOccasion and is left as stored on replaceOccasion.
       required: [name, daysBefore, daysAfter, keywordIds]
       properties:
         id:
@@ -8058,6 +8064,29 @@ components:
           maxItems: 200
           items: { type: string, minLength: 1, maxLength: 60 }
         colors: { type: array, maxItems: 3, items: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }, description: "Three colors, as #RRGGBB, for the wash behind the occasion's screen; absent or empty keeps the plain background." }
+        wash: { $ref: "#/components/schemas/OccasionWash" }
+
+    OccasionWash:
+      type: object
+      description: |
+        How every client draws an occasion's three colors behind its screen,
+        each value in percent. Nothing is drawn unless colors holds exactly
+        three. The wash covers the whole viewport behind the content and
+        does not scroll with it. With b = brightness / 100, each sRGB
+        channel c of a color is first brightened to c × (1 − b) + 255 × b.
+        Each color is then a radial glow, a circle of radius
+        R = max(0.8 × viewport width, 0.5 × viewport height) × reach / 100:
+        color 1 centered on the top-left corner, color 2 on the bottom
+        center, color 3 on the top-right corner. A glow's peak opacity is
+        a = min(1, base × strength / 100), base 0.24 for colors 1 and 3 and
+        0.30 for color 2. With s = sharpness / 100, its opacity along the
+        radius is a from 0 to s, 0.4 × a at s + (1 − s) / 2, and 0 at 1.
+      required: [strength, brightness, sharpness, reach]
+      properties:
+        strength: { type: integer, minimum: 100, maximum: 400 }
+        brightness: { type: integer, minimum: 0, maximum: 60 }
+        sharpness: { type: integer, minimum: 0, maximum: 70 }
+        reach: { type: integer, minimum: 60, maximum: 160 }
 
     OccasionPage:
       type: object
@@ -8092,7 +8121,7 @@ components:
     ActiveOccasion:
       type: object
       description: An occasion in season, with this year's window around the day asked about.
-      required: [id, name, anchorDate, firstDate, lastDate]
+      required: [id, name, wash, anchorDate, firstDate, lastDate]
       properties:
         id: { $ref: "#/components/schemas/Id" }
         name: { type: string }
@@ -8100,6 +8129,7 @@ components:
           type: string
           description: A phrase to title the occasion's Home row; when it is absent, clients use name.
         colors: { type: array, maxItems: 3, items: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }, description: "Three colors, as #RRGGBB, for the wash behind the occasion's screen; absent or empty keeps the plain background." }
+        wash: { $ref: "#/components/schemas/OccasionWash" }
         anchorDate: { type: string, format: date }
         firstDate: { type: string, format: date }
         lastDate: { type: string, format: date }

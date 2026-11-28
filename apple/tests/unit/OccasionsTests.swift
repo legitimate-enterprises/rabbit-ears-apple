@@ -75,6 +75,22 @@ final class OccasionsModelTests: OccasionCase {
         XCTAssertEqual([newYear.anchorDate, newYear.firstDate], ["2027-01-01", "2026-12-22"])
     }
 
+    /// The sample's Snow is washed 300/30/20/140; its Sun keeps the server's defaults.
+    func testEachOccasionCarriesItsWashFromTheReplica() async throws {
+        let replica = try fixture.v1(sample: true)
+        let model = OccasionsModel()
+        func wash(_ instant: String) async throws -> Components.Schemas.OccasionWash {
+            await model.load(replica: replica, profileId: .n(101), now: at(instant), timeZone: utc)
+            return try XCTUnwrap(model.shelves.first).occasion.wash
+        }
+        let snow = try await wash("2026-01-02T12:00:00Z")
+        XCTAssertEqual(model.shelves.map(\.name), ["Snow"])
+        XCTAssertEqual(snow, .init(strength: 300, brightness: 30, sharpness: 20, reach: 140))
+        let sun = try await wash("2026-07-01T12:00:00Z")
+        XCTAssertEqual(model.shelves.map(\.name), ["Sun"])
+        XCTAssertEqual(sun, .init(strength: 200, brightness: 15, sharpness: 0, reach: 100))
+    }
+
     func testARowHoldsItsOrderThroughADayAndTurnsOverWithTheNext() async throws {
         let replica = try seasons()
         let model = OccasionsModel()
@@ -157,7 +173,8 @@ final class OccasionsModelTests: OccasionCase {
 final class OccasionRowTitleTests: XCTestCase {
     func testABlankHeadlineIsNoHeadline() {
         let blank = ActiveOccasion(
-            id: OccasionCase.christmas, name: "Christmas", headline: " ", anchorDate: "2026-12-25",
+            id: OccasionCase.christmas, name: "Christmas", headline: " ",
+            wash: .init(strength: 200, brightness: 15, sharpness: 0, reach: 100), anchorDate: "2026-12-25",
             firstDate: "2026-12-01",
             lastDate: "2026-12-31")
         XCTAssertEqual(blank.rowTitle, "Christmas")

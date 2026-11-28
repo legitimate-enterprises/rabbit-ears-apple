@@ -75,7 +75,8 @@ extension Database {
             arguments: [id, tmdb, name, profilePath, headshot])
     }
 
-    /// An occasion anchored to a holiday key, or else to month and day, with titles added by hand.
+    /// An occasion anchored to a holiday key, or else to month and day, with titles added by hand and the
+    /// server's default wash.
     func occasion(
         _ id: UID, _ name: String, holiday: String? = nil, month: Int? = nil, day: Int? = nil, before: Int,
         after: Int, members: [UID] = [], phrases: [String] = [], colors: [String]? = nil
@@ -83,8 +84,8 @@ extension Database {
         try execute(
             sql: """
                 INSERT INTO occasion(id, name, holiday, month, day, days_before, days_after, color1, color2, color3,
-                    created_at, modified_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
+                    created_at, modified_at, wash_strength, wash_brightness, wash_sharpness, wash_reach)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 200, 15, 0, 100)
                 """,
             arguments: [id, name, holiday, month, day, before, after, colors?[0], colors?[1], colors?[2]])
         for member in members {

@@ -18,7 +18,7 @@ enum ReplicaSchema {
         CREATE TABLE media_file (id BLOB, size_bytes INTEGER, container TEXT, duration_ms INTEGER, bitrate INTEGER, missing_at INTEGER, PRIMARY KEY (id));
         CREATE TABLE track (id BLOB, media_file_id BLOB, stream_index INTEGER, kind TEXT, codec TEXT, profile TEXT, level INTEGER, language TEXT, title TEXT, is_default INTEGER, is_forced INTEGER, bitrate INTEGER, width INTEGER, height INTEGER, frame_rate REAL, bit_depth INTEGER, pixel_format TEXT, color_primaries TEXT, color_transfer TEXT, hdr_format TEXT, channels INTEGER, channel_layout TEXT, sample_rate INTEGER, subtitle_is_text INTEGER, PRIMARY KEY (id));
         CREATE TABLE chapter (id BLOB, media_file_id BLOB, position INTEGER, start_ms INTEGER, end_ms INTEGER, title TEXT, PRIMARY KEY (id));
-        CREATE TABLE occasion (id BLOB, name TEXT COLLATE NOCASE, holiday TEXT, month INTEGER, day INTEGER, days_before INTEGER, days_after INTEGER, color1 TEXT, color2 TEXT, color3 TEXT, created_at INTEGER, modified_at INTEGER, created_by BLOB, modified_by BLOB, PRIMARY KEY (id));
+        CREATE TABLE occasion (id BLOB, name TEXT COLLATE NOCASE, holiday TEXT, month INTEGER, day INTEGER, days_before INTEGER, days_after INTEGER, color1 TEXT, color2 TEXT, color3 TEXT, created_at INTEGER, modified_at INTEGER, created_by BLOB, modified_by BLOB, wash_strength INTEGER, wash_brightness INTEGER, wash_sharpness INTEGER, wash_reach INTEGER, PRIMARY KEY (id));
         CREATE TABLE occasion_keyword (occasion_id BLOB, keyword_id INTEGER, PRIMARY KEY (occasion_id, keyword_id));
         CREATE TABLE occasion_item (occasion_id BLOB, item_id BLOB, PRIMARY KEY (occasion_id, item_id));
         CREATE TABLE occasion_exclusion (occasion_id BLOB, item_id BLOB, PRIMARY KEY (occasion_id, item_id));
@@ -628,10 +628,10 @@ enum ReplicaSchema {
         INSERT INTO track VALUES(x'00000000000070008000000000000006',x'00000000000070008000000000000006',1,'audio','pcm_s16le',NULL,NULL,NULL,NULL,0,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
         INSERT INTO track VALUES(x'00000000000070008000000000000007',x'00000000000070008000000000000006',0,'video','mjpeg',NULL,NULL,NULL,NULL,0,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
         INSERT INTO track VALUES(x'00000000000070008000000000000008',x'00000000000070008000000000000007',0,'audio','flac',NULL,NULL,NULL,NULL,0,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
-        INSERT INTO occasion VALUES(x'00000000000070009000000000000001','Christmas','christmas',NULL,NULL,30,5,NULL,NULL,NULL,0,0,NULL,NULL);
-        INSERT INTO occasion VALUES(x'00000000000070009000000000000002','Halloween','halloween',NULL,NULL,30,1,NULL,NULL,NULL,0,0,NULL,NULL);
-        INSERT INTO occasion VALUES(x'0000000000007000800000000000012d','Snow',NULL,1,2,3,4,NULL,NULL,NULL,0,0,NULL,NULL);
-        INSERT INTO occasion VALUES(x'0000000000007000800000000000012e','Sun',NULL,7,1,0,0,NULL,NULL,NULL,0,0,NULL,NULL);
+        INSERT INTO occasion VALUES(x'00000000000070009000000000000001','Christmas','christmas',NULL,NULL,30,5,NULL,NULL,NULL,0,0,NULL,NULL,200,15,0,100);
+        INSERT INTO occasion VALUES(x'00000000000070009000000000000002','Halloween','halloween',NULL,NULL,30,1,NULL,NULL,NULL,0,0,NULL,NULL,200,15,0,100);
+        INSERT INTO occasion VALUES(x'0000000000007000800000000000012d','Snow',NULL,1,2,3,4,NULL,NULL,NULL,0,0,NULL,NULL,300,30,20,140);
+        INSERT INTO occasion VALUES(x'0000000000007000800000000000012e','Sun',NULL,7,1,0,0,NULL,NULL,NULL,0,0,NULL,NULL,200,15,0,100);
         INSERT INTO occasion_keyword VALUES(x'0000000000007000800000000000012d',900);
         INSERT INTO occasion_keyword VALUES(x'0000000000007000800000000000012e',901);
         INSERT INTO occasion_keyword VALUES(x'00000000000070009000000000000001',207317);
@@ -915,7 +915,7 @@ enum ReplicaSchema {
         INSERT INTO holiday_color VALUES('new-years-eve',0,'#141B3C');
         INSERT INTO holiday_color VALUES('new-years-eve',1,'#E6CF96');
         INSERT INTO holiday_color VALUES('new-years-eve',2,'#C0C6CF');
-        INSERT INTO replica_meta VALUES(1,206,x'000000000000700080000000000000c9');
+        INSERT INTO replica_meta VALUES(1,207,x'000000000000700080000000000000c9');
         """#
 }
 // swiftlint:enable file_length line_length type_body_length

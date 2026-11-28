@@ -27,7 +27,7 @@ public actor ActionQueue {
     }
 
     /// The spec's info.version this build was generated from; ActionQueueTests holds it to openapi.yaml.
-    static let apiVersion = "0.25.0"
+    static let apiVersion = "0.26.0"
     /// SyncActionBatch's maxItems.
     static let batchLimit = 100
     /// SyncAction's touched maxItems; ActionRecorderTests holds it to openapi.yaml.

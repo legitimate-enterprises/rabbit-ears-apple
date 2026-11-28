@@ -120,6 +120,9 @@ public final class OccasionsModel {
                 (
                     ActiveOccasion(
                         id: id, name: row["name"], headline: phrases[id]?.randomElement(), colors: colors,
+                        wash: .init(
+                            strength: row["wash_strength"], brightness: row["wash_brightness"],
+                            sharpness: row["wash_sharpness"], reach: row["wash_reach"]),
                         anchorDate: text(window.anchor), firstDate: text(window.first), lastDate: text(window.last)),
                     window.distance
                 ))

@@ -16222,6 +16222,8 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/items/GET/query/resolution`.
                 public var resolution: Components.Schemas.Resolution?
+                /// daily without occasionId is a 400.
+                ///
                 /// - Remark: Generated from `#/paths/items/GET/query/sort`.
                 public var sort: Components.Schemas.ItemSort?
                 /// true lists only kids' content (Item.kidsContent), and does so for an adult with hideKidsContent too. A kid's own ceilings and allow list still apply. Omit it otherwise; false is the same.
@@ -16243,7 +16245,7 @@ public enum Operations {
                 ///   - personId: Items crediting this person in cast or crew.
                 ///   - occasionId: Members of this occasion (listOccasionMembers).
                 ///   - resolution: uhd, the 4K chip: only movies and episodes with a file whose video is at least 3200 wide or 2000 tall, and shows and seasons with such an episode.
-                ///   - sort:
+                ///   - sort: daily without occasionId is a 400.
                 ///   - kidsContent: true lists only kids' content (Item.kidsContent), and does so for an adult with hideKidsContent too. A kid's own ceilings and allow list still apply. Omit it otherwise; false is the same.
                 ///   - limit:
                 ///   - offset:

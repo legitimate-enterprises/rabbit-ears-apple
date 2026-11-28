@@ -2790,13 +2790,17 @@ extension Components {
         }
         /// title (the default) is by title, movies and shows by
         /// Item.sortTitle, episodes and seasons by number; added is newest
-        /// first, as Recently added.
+        /// first, as Recently added; daily, for an occasion's Home row and
+        /// only with occasionId, is a shuffle seeded by the server's UTC day
+        /// and the occasion, the same all that day and applied before paging,
+        /// so a first page's members change from day to day.
         ///
         ///
         /// - Remark: Generated from `#/components/schemas/ItemSort`.
         @frozen public enum ItemSort: String, Codable, Hashable, Sendable, CaseIterable {
             case title = "title"
             case added = "added"
+            case daily = "daily"
         }
         /// uhd is 4K: video at least 3200 wide or 2000 tall.
         ///
@@ -3442,6 +3446,8 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Occasion/colors`.
             public var colors: [Swift.String]?
+            /// - Remark: Generated from `#/components/schemas/Occasion/wash`.
+            public var wash: Components.Schemas.OccasionWash
             /// - Remark: Generated from `#/components/schemas/Occasion/createdAt`.
             public var createdAt: Foundation.Date
             /// - Remark: Generated from `#/components/schemas/Occasion/modifiedAt`.
@@ -3467,6 +3473,7 @@ extension Components {
             ///   - keywordIds: TMDB keyword ids; movies and shows carrying any are members.
             ///   - phrases: Phrases to title the occasion's Home row in place of its name, in the order given; ActiveOccasion.headline is one of them.
             ///   - colors: Three colors, as #RRGGBB, for the wash behind the occasion's screen; absent or empty keeps the plain background.
+            ///   - wash:
             ///   - createdAt:
             ///   - modifiedAt:
             ///   - createdBy: The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
@@ -3482,6 +3489,7 @@ extension Components {
                 keywordIds: [Swift.Int64],
                 phrases: [Swift.String],
                 colors: [Swift.String]? = nil,
+                wash: Components.Schemas.OccasionWash,
                 createdAt: Foundation.Date,
                 modifiedAt: Foundation.Date,
                 createdBy: Components.Schemas.Id? = nil,
@@ -3497,6 +3505,7 @@ extension Components {
                 self.keywordIds = keywordIds
                 self.phrases = phrases
                 self.colors = colors
+                self.wash = wash
                 self.createdAt = createdAt
                 self.modifiedAt = modifiedAt
                 self.createdBy = createdBy
@@ -3513,13 +3522,14 @@ extension Components {
                 case keywordIds
                 case phrases
                 case colors
+                case wash
                 case createdAt
                 case modifiedAt
                 case createdBy
                 case modifiedBy
             }
         }
-        /// Exactly one of holiday, or month with day. February 29 anchors only leap years. phrases are trimmed, and a phrase equal to an earlier one ignoring case is dropped; a phrase blank once trimmed is refused. colors are none or exactly three. On createOccasion, phrases or colors absent give an occasion anchored to a holiday that holiday's built-in phrases or colors, and any other occasion none; an empty array gives none. On replaceOccasion, phrases or colors absent are left as stored, and an empty array clears them.
+        /// Exactly one of holiday, or month with day. February 29 anchors only leap years. phrases are trimmed, and a phrase equal to an earlier one ignoring case is dropped; a phrase blank once trimmed is refused. colors are none or exactly three. On createOccasion, phrases or colors absent give an occasion anchored to a holiday that holiday's built-in phrases or colors, and any other occasion none; an empty array gives none. On replaceOccasion, phrases or colors absent are left as stored, and an empty array clears them. wash absent gives the server's defaults on createOccasion and is left as stored on replaceOccasion.
         ///
         /// - Remark: Generated from `#/components/schemas/OccasionInput`.
         public struct OccasionInput: Codable, Hashable, Sendable {
@@ -3549,6 +3559,8 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/OccasionInput/colors`.
             public var colors: [Swift.String]?
+            /// - Remark: Generated from `#/components/schemas/OccasionInput/wash`.
+            public var wash: Components.Schemas.OccasionWash?
             /// Creates a new `OccasionInput`.
             ///
             /// - Parameters:
@@ -3562,6 +3574,7 @@ extension Components {
             ///   - keywordIds:
             ///   - phrases:
             ///   - colors: Three colors, as #RRGGBB, for the wash behind the occasion's screen; absent or empty keeps the plain background.
+            ///   - wash:
             public init(
                 id: Components.Schemas.Id? = nil,
                 name: Swift.String,
@@ -3572,7 +3585,8 @@ extension Components {
                 daysAfter: Swift.Int,
                 keywordIds: [Swift.Int64],
                 phrases: [Swift.String]? = nil,
-                colors: [Swift.String]? = nil
+                colors: [Swift.String]? = nil,
+                wash: Components.Schemas.OccasionWash? = nil
             ) {
                 self.id = id
                 self.name = name
@@ -3584,6 +3598,7 @@ extension Components {
                 self.keywordIds = keywordIds
                 self.phrases = phrases
                 self.colors = colors
+                self.wash = wash
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -3596,6 +3611,56 @@ extension Components {
                 case keywordIds
                 case phrases
                 case colors
+                case wash
+            }
+        }
+        /// How every client draws an occasion's three colors behind its screen,
+        /// each value in percent. Nothing is drawn unless colors holds exactly
+        /// three. The wash covers the whole viewport behind the content and
+        /// does not scroll with it. With b = brightness / 100, each sRGB
+        /// channel c of a color is first brightened to c × (1 − b) + 255 × b.
+        /// Each color is then a radial glow, a circle of radius
+        /// R = max(0.8 × viewport width, 0.5 × viewport height) × reach / 100:
+        /// color 1 centered on the top-left corner, color 2 on the bottom
+        /// center, color 3 on the top-right corner. A glow's peak opacity is
+        /// a = min(1, base × strength / 100), base 0.24 for colors 1 and 3 and
+        /// 0.30 for color 2. With s = sharpness / 100, its opacity along the
+        /// radius is a from 0 to s, 0.4 × a at s + (1 − s) / 2, and 0 at 1.
+        ///
+        ///
+        /// - Remark: Generated from `#/components/schemas/OccasionWash`.
+        public struct OccasionWash: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/OccasionWash/strength`.
+            public var strength: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/OccasionWash/brightness`.
+            public var brightness: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/OccasionWash/sharpness`.
+            public var sharpness: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/OccasionWash/reach`.
+            public var reach: Swift.Int
+            /// Creates a new `OccasionWash`.
+            ///
+            /// - Parameters:
+            ///   - strength:
+            ///   - brightness:
+            ///   - sharpness:
+            ///   - reach:
+            public init(
+                strength: Swift.Int,
+                brightness: Swift.Int,
+                sharpness: Swift.Int,
+                reach: Swift.Int
+            ) {
+                self.strength = strength
+                self.brightness = brightness
+                self.sharpness = sharpness
+                self.reach = reach
+            }
+            public enum CodingKeys: String, CodingKey {
+                case strength
+                case brightness
+                case sharpness
+                case reach
             }
         }
         /// - Remark: Generated from `#/components/schemas/OccasionPage`.
@@ -3690,6 +3755,8 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/ActiveOccasion/colors`.
             public var colors: [Swift.String]?
+            /// - Remark: Generated from `#/components/schemas/ActiveOccasion/wash`.
+            public var wash: Components.Schemas.OccasionWash
             /// - Remark: Generated from `#/components/schemas/ActiveOccasion/anchorDate`.
             public var anchorDate: Swift.String
             /// - Remark: Generated from `#/components/schemas/ActiveOccasion/firstDate`.
@@ -3703,6 +3770,7 @@ extension Components {
             ///   - name:
             ///   - headline: A phrase to title the occasion's Home row; when it is absent, clients use name.
             ///   - colors: Three colors, as #RRGGBB, for the wash behind the occasion's screen; absent or empty keeps the plain background.
+            ///   - wash:
             ///   - anchorDate:
             ///   - firstDate:
             ///   - lastDate:
@@ -3711,6 +3779,7 @@ extension Components {
                 name: Swift.String,
                 headline: Swift.String? = nil,
                 colors: [Swift.String]? = nil,
+                wash: Components.Schemas.OccasionWash,
                 anchorDate: Swift.String,
                 firstDate: Swift.String,
                 lastDate: Swift.String
@@ -3719,6 +3788,7 @@ extension Components {
                 self.name = name
                 self.headline = headline
                 self.colors = colors
+                self.wash = wash
                 self.anchorDate = anchorDate
                 self.firstDate = firstDate
                 self.lastDate = lastDate
@@ -3728,6 +3798,7 @@ extension Components {
                 case name
                 case headline
                 case colors
+                case wash
                 case anchorDate
                 case firstDate
                 case lastDate

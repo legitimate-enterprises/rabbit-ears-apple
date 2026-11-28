@@ -45,7 +45,7 @@ extension Replica {
         music_album item_id artist_name clean song_count duration_ms clean_song_count clean_duration_ms lossless
         music_artist item_id clean album_count song_count clean_album_count clean_song_count
         music_song item_id album_title album_artist_id performer_id artist_name duration_ms year codec unavailable clean
-        occasion id name holiday month day days_before days_after color1 color2 color3 created_at modified_at created_by modified_by
+        occasion id name holiday month day days_before days_after color1 color2 color3 created_at modified_at created_by modified_by wash_strength wash_brightness wash_sharpness wash_reach
         occasion_exclusion occasion_id item_id
         occasion_item occasion_id item_id
         occasion_keyword occasion_id keyword_id

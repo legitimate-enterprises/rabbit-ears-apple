@@ -46,6 +46,7 @@ final class HomeSlotsTests: XCTestCase {
     private func shelf(_ id: UID, _ name: String, tiles: Int) -> OccasionShelf {
         let occasion: ActiveOccasion = Fixtures.decode(
             #"{"id":"\#(id)","name":"\#(name)","anchorDate":"2026-12-25","#
+                + #""wash":{"strength":200,"brightness":15,"sharpness":0,"reach":100},"#
                 + #""firstDate":"2026-12-01","lastDate":"2026-12-31"}"#)
         return OccasionShelf(
             occasion: occasion, items: (0..<tiles).map { Fixtures.decode(Fixtures.item(UID.n(100 + $0), "movie", "M")) }
