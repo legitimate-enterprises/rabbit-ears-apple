@@ -32,8 +32,9 @@ extension View {
     }
 }
 
-/// Name and kind, the match line, a card per group of condition rows, then
-/// Cancel and Save. Disabled until an existing list's rules are read, as offline.
+/// An existing list's name, the match line, a card per group of condition
+/// rows, then Cancel and Save. Disabled until an existing list's rules are
+/// read, as offline.
 struct SmartRulesSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var editor: SmartRulesEditor
@@ -55,14 +56,6 @@ struct SmartRulesSheet: View {
                         LabeledField(label: "Name", error: editor.nameError) {
                             TextField("Name", text: $editor.name)
                         }
-                    }
-                    if editor.choosesKind {
-                        Picker("Kind", selection: $editor.kind) {
-                            Text("Movies").tag(PlaylistKind.movies)
-                            Text("TV").tag(PlaylistKind.tv)
-                            Text("Music").tag(PlaylistKind.music)
-                        }
-                        .pickerStyle(.segmented).labelsHidden()
                     }
                     HStack(spacing: 8) {
                         Text("Match")
@@ -177,6 +170,42 @@ struct SmartRulesSheet: View {
             guard await editor.save() else { return }
             await saved(editor)
             dismiss()
+        }
+    }
+}
+
+extension PlaylistNameRequest {
+    /// Something to add, or a rename, is never smart, as rules alone fill a smart list.
+    var offersSmart: Bool { renaming == nil && itemId == nil && collectionId == nil && itemIds.isEmpty }
+
+    /// With Smart on, Create hands the name and kind to the rule editor, which
+    /// makes the list with its rules and asks neither again; nil makes a plain
+    /// one at once, or nothing for a blank name.
+    func smartRules(named name: String, smart: Bool) -> SmartRulesRequest? {
+        guard smart, offersSmart, !name.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        return SmartRulesRequest(target: .newPlaylist(name: name, kind: kind))
+    }
+}
+
+extension CollectionNameRequest {
+    /// A movie to add, or a rename, is never smart, as rules alone fill a smart collection.
+    var offersSmart: Bool { renaming == nil && movieId == nil }
+
+    /// As a new playlist's, without a kind.
+    func smartRules(named name: String, smart: Bool) -> SmartRulesRequest? {
+        guard smart, offersSmart, !name.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        return SmartRulesRequest(target: .newCollection(name: name))
+    }
+}
+
+/// A new list's Smart toggle and what it means; offline it waits for the server.
+struct SmartToggle: View {
+    @Binding var isOn: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle("Smart", isOn: $isOn).toggleStyle(.switch).needsServer(.smartRules)
+            Text(SmartRulesEditor.smartNote).font(.system(size: 12)).foregroundStyle(Theme.secondary)
         }
     }
 }

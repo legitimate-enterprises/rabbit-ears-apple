@@ -62,7 +62,7 @@ public enum ServerAction: CaseIterable, Sendable {
     /// Play, Resume and Start over.
     case play
     case download
-    /// The smart-list rule editor: New smart playlist or collection, Edit rules and Use rules.
+    /// The smart-list rule editor: a new list's Smart toggle, Edit rules and Use rules.
     case smartRules
     case friends
 }

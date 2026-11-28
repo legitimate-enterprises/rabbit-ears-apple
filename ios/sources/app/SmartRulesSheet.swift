@@ -30,8 +30,8 @@ extension View {
     }
 }
 
-/// A Form: name and kind, the match line, a section per group of condition
-/// rows. Disabled until an existing list's rules are read, as offline.
+/// A Form: an existing list's name, the match line, a section per group of
+/// condition rows. Disabled until an existing list's rules are read, as offline.
 struct SmartRulesSheet: View {
     @Environment(Services.self) private var services
     @Environment(\.dismiss) private var dismiss
@@ -49,17 +49,9 @@ struct SmartRulesSheet: View {
         @Bindable var editor = editor
         NavigationStack {
             Form {
-                if editor.namesList || editor.choosesKind {
+                if editor.namesList {
                     Section {
-                        if editor.namesList { TextField("Name", text: $editor.name) }
-                        if editor.choosesKind {
-                            Picker("Kind", selection: $editor.kind) {
-                                Text("Movies").tag(PlaylistKind.movies)
-                                Text("TV").tag(PlaylistKind.tv)
-                                Text("Music").tag(PlaylistKind.music)
-                            }
-                            .pickerStyle(.segmented)
-                        }
+                        TextField("Name", text: $editor.name)
                     } footer: {
                         if let error = editor.nameError { Text(error).foregroundStyle(Theme.error) }
                     }
@@ -179,6 +171,51 @@ struct SmartRulesSheet: View {
             await saved(editor)
             if case .station(let station) = editor.target { rescheduling = station } else { dismiss() }
         }
+    }
+}
+
+/// A new playlist's or collection's name, and Smart, off at first, to go on
+/// to the rule editor, which makes the list with its rules. Offline, Smart
+/// waits for the server and a plain list can still be made.
+struct NewListSheet: View {
+    @Environment(Browser.self) private var browser
+    @Environment(\.dismiss) private var dismiss
+    let title: String
+    /// The rule editor's list for the name given.
+    let smartTarget: (String) -> SmartTarget
+    /// Makes a plain list at once.
+    let create: (String) async -> Void
+    @State private var name = ""
+    @State private var smart = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Name", text: $name)
+                Section {
+                    Toggle("Smart", isOn: $smart).needsServer(.smartRules)
+                } footer: {
+                    Text(SmartRulesEditor.smartNote)
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        if smart {
+                            browser.smartNext = SmartRulesRequest(target: smartTarget(name))
+                        } else {
+                            Task { await create(name) }
+                        }
+                        dismiss()
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 

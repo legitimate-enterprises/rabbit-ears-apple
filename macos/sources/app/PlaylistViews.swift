@@ -17,9 +17,11 @@ struct PlaylistNameRequest: Identifiable {
 
 struct PlaylistNameSheet: View {
     @Environment(PlaylistsModel.self) private var playlists
+    @Environment(Browser.self) private var browser
     @Environment(\.dismiss) private var dismiss
     let request: PlaylistNameRequest
     @State private var name = ""
+    @State private var smart = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -27,6 +29,7 @@ struct PlaylistNameSheet: View {
             LabeledField(label: "Name", error: playlists.error) {
                 TextField("Name", text: $name).onSubmit(save)
             }
+            if request.offersSmart { SmartToggle(isOn: $smart) }
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }.buttonStyle(SecondaryButtonStyle())
@@ -40,6 +43,11 @@ struct PlaylistNameSheet: View {
     }
 
     private func save() {
+        if let rules = request.smartRules(named: name, smart: smart) {
+            browser.smartNext = rules
+            dismiss()
+            return
+        }
         Task {
             if let renaming = request.renaming {
                 await playlists.rename(renaming, to: name)
@@ -169,18 +177,10 @@ struct PlaylistGrid: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             if playlists.adult {
-                HStack(spacing: 10) {
-                    Button {
-                        browser.naming = PlaylistNameRequest(kind: kind)
-                    } label: {
-                        Label("New playlist", systemImage: "plus")
-                    }
-                    Button {
-                        browser.smartRules = SmartRulesRequest(target: .newPlaylist(kind))
-                    } label: {
-                        Label("New smart playlist…", systemImage: "sparkles")
-                    }
-                    .needsServer(.smartRules)
+                Button {
+                    browser.naming = PlaylistNameRequest(kind: kind)
+                } label: {
+                    Label("New playlist", systemImage: "plus")
                 }
                 .buttonStyle(SecondaryButtonStyle())
             }

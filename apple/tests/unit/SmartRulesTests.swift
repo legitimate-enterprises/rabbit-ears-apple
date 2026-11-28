@@ -85,7 +85,7 @@ final class SmartRulesTests: XCTestCase {
     }
 
     func testTheLastMinusOfAGroupRemovesItAndTheLimitsHold() {
-        let rules = editor(.newPlaylist(.movies))
+        let rules = editor(.newPlaylist(name: "Late ones", kind: .movies))
         XCTAssertEqual(rules.groups.count, 1)
         XCTAssertFalse(rules.canRemove, "the only row stays")
         rules.addGroup()
@@ -107,16 +107,8 @@ final class SmartRulesTests: XCTestCase {
         XCTAssertFalse(rules.canAddCondition)
     }
 
-    func testAKindWithoutARowsFieldPutsTheRowOnItsFirstField() {
-        let rules = editor(.newPlaylist(.movies))
-        rules.groups[0].conditions[0].field = .director
-        rules.kind = .music
-        XCTAssertEqual(rules.groups[0].conditions[0].field, .title)
-        XCTAssertEqual(rules.fields, SmartField.fields(.playlist(.music)))
-    }
-
     func testThePersonalNoteShowsOnlyWhenAPersonalFieldIsUsed() {
-        let rules = editor(.newPlaylist(.movies))
+        let rules = editor(.newPlaylist(name: "Late ones", kind: .movies))
         XCTAssertFalse(rules.usesPersonal)
         rules.groups[0].conditions[0].field = .watched
         XCTAssertTrue(rules.usesPersonal)
@@ -124,7 +116,7 @@ final class SmartRulesTests: XCTestCase {
     }
 
     func testRefusesABlankNameABlankTextAndANumberThatIsNotWhole() async {
-        let rules = editor(.newPlaylist(.movies))
+        let rules = editor(.playlist(Fixtures.decode(Fixtures.playlist(4, "Movie night", kind: "movies"))))
         rules.name = "  "
         rules.addCondition(to: rules.groups[0].id)
         rules.addCondition(to: rules.groups[0].id)
@@ -143,7 +135,7 @@ final class SmartRulesTests: XCTestCase {
     }
 
     func testTheBodyCarriesTrimmedTextWholeNumbersAndNoValueForABoolean() {
-        let rules = editor(.newPlaylist(.movies))
+        let rules = editor(.newPlaylist(name: "Late ones", kind: .movies))
         rules.groups[0].match = .any
         rules.groups[0].conditions[0].op = .contains
         rules.groups[0].conditions[0].value = " Heat "
@@ -170,7 +162,7 @@ final class SmartRulesTests: XCTestCase {
     }
 
     func testOneGroupReadsAsMatchOfItsConditions() {
-        let rules = editor(.newPlaylist(.movies))
+        let rules = editor(.newPlaylist(name: "Late ones", kind: .movies))
         rules.topMatch = .any
         XCTAssertEqual(rules.groups[0].match, .any, "with one group the top line is the group's")
         rules.addGroup()
@@ -192,7 +184,7 @@ final class SmartRulesTests: XCTestCase {
         await rules.load()
         XCTAssertTrue(rules.ready)
         XCTAssertEqual(rules.name, "Movie night")
-        XCTAssertFalse(rules.choosesKind)
+        XCTAssertTrue(rules.namesList)
         XCTAssertEqual(rules.groups[0].conditions.map(\.field), [.genre, .year])
         XCTAssertEqual(rules.groups[0].conditions.map(\.value), ["Drama", "2000"])
         rules.name = "Old dramas"
@@ -221,16 +213,18 @@ final class SmartRulesTests: XCTestCase {
             default: nil
             }
         }
-        let rules = editor(.newPlaylist(.movies))
-        rules.name = " Heat nights "
+        let rules = editor(.newPlaylist(name: " Heat nights ", kind: .tv))
+        XCTAssertFalse(rules.namesList, "the name sheet asked it")
+        XCTAssertEqual(rules.fields, SmartField.fields(.playlist(.tv)))
         rules.groups[0].conditions[0].value = "Heat"
         let saved = await rules.save()
         XCTAssertTrue(saved, "\(rules.error ?? "")")
         let made = try XCTUnwrap(rules.created)
         let actions = transport.sent.map { "\($0.method) \($0.path)" }
         XCTAssertEqual(actions, ["POST /sync/actions", "PUT /profiles/\(UID.n(1))/playlists/\(made)/rules"])
-        let names: [String] = try await synced.read("SELECT name FROM playlist ORDER BY name")
-        XCTAssertEqual(names, ["Heat nights", "Movie night"])
+        let lists: [String] = try await synced.read("SELECT name || ' ' || kind FROM playlist ORDER BY name")
+        XCTAssertEqual(lists, ["Heat nights tv", "Movie night movies"])
+        XCTAssertEqual(SmartRulesEditor.smartNote, "Fills itself from rules you set.")
     }
 
     func testARefusedPutPlacesEachMessageOnItsRowAndDeletesTheNewList() async throws {
@@ -246,10 +240,9 @@ final class SmartRulesTests: XCTestCase {
             default: nil
             }
         }
-        let rules = editor(.newCollection)
-        XCTAssertFalse(rules.choosesKind)
+        let rules = editor(.newCollection(name: "Short ones"))
+        XCTAssertFalse(rules.namesList)
         XCTAssertEqual(rules.fields, SmartField.fields(.collection))
-        rules.name = "Short ones"
         rules.groups[0].conditions[0].value = "Heat"
         rules.addGroup()
         rules.groups[1].conditions[0].field = .runtime
@@ -272,8 +265,7 @@ final class SmartRulesTests: XCTestCase {
     func testOfflineANewListIsNotLeftBehind() async throws {
         transport.respond = nil
         transport.failure = URLError(.notConnectedToInternet)
-        let rules = editor(.newPlaylist(.music))
-        rules.name = "Loud"
+        let rules = editor(.newPlaylist(name: "Loud", kind: .music))
         rules.groups[0].conditions[0].value = "Loud"
         let saved = await rules.save()
         XCTAssertFalse(saved)

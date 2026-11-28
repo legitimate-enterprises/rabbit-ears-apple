@@ -85,6 +85,8 @@ final class Browser: VideoBrowser {
     var imaging: ImageRequest?
     var namingCollection: CollectionNameRequest?
     var smartRules: SmartRulesRequest?
+    /// The rule editor a name sheet's Create with Smart on leads to, shown once that sheet is gone.
+    var smartNext: SmartRulesRequest?
     var deletingCollection: MovieCollection?
     /// The movies or tv station playing in the player, in place of `playing`.
     var tuning: Station?
@@ -96,6 +98,11 @@ final class Browser: VideoBrowser {
     var showingShortcuts = false
 
     func open(_ item: Item) { path.append(.item(item.id)) }
+    func showSmartNext() {
+        guard let next = smartNext else { return }
+        smartNext = nil
+        smartRules = next
+    }
     func replace(with item: Item) { path.replaceTop(with: .item(item.id)) }
     func open(person id: Person.ID) { path.append(.person(id)) }
     func open(_ route: Route) { path.append(route) }

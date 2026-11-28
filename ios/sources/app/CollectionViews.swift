@@ -10,7 +10,6 @@ struct CollectionsGrid: View {
     @Environment(Browser.self) private var browser
     @Binding var count: String
     @State private var naming = false
-    @State private var name = ""
 
     var body: some View {
         let model = services.collections
@@ -23,14 +22,6 @@ struct CollectionsGrid: View {
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
                 }
                 .buttonStyle(.plain).foregroundStyle(Theme.amber)
-                Button {
-                    browser.smartRules = SmartRulesRequest(target: .newCollection)
-                } label: {
-                    Label("New smart collection", systemImage: "sparkles").font(.system(size: 15, weight: .semibold))
-                        .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
-                }
-                .buttonStyle(.plain).foregroundStyle(Theme.amber)
-                .needsServer(.smartRules)
             }
             if model.collections.isEmpty { EmptyNote(text: "No collections yet.") }
             LazyVGrid(columns: GridView.columns, spacing: 14) {
@@ -59,14 +50,10 @@ struct CollectionsGrid: View {
         .task { await model.load() }
         .onAppear { count = model.collections.count.formatted() }
         .onChange(of: model.collections.count) { count = model.collections.count.formatted() }
-        .alert("New collection", isPresented: $naming) {
-            TextField("Name", text: $name)
-            Button("Cancel", role: .cancel) { name = "" }
-            Button("Create") {
-                let chosen = name
-                name = ""
-                Task { _ = await model.create(name: chosen) }
-            }
+        .sheet(isPresented: $naming, onDismiss: browser.showSmartNext) {
+            NewListSheet(
+                title: "New collection", smartTarget: { .newCollection(name: $0) },
+                create: { _ = await model.create(name: $0) })
         }
     }
 }

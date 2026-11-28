@@ -12,9 +12,11 @@ struct CollectionNameRequest: Identifiable {
 
 struct CollectionNameSheet: View {
     @Environment(CollectionsModel.self) private var collections
+    @Environment(Browser.self) private var browser
     @Environment(\.dismiss) private var dismiss
     let request: CollectionNameRequest
     @State private var name = ""
+    @State private var smart = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -23,6 +25,7 @@ struct CollectionNameSheet: View {
             LabeledField(label: "Name", error: collections.error) {
                 TextField("Name", text: $name).onSubmit(save)
             }
+            if request.offersSmart { SmartToggle(isOn: $smart) }
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }.buttonStyle(SecondaryButtonStyle())
@@ -36,6 +39,11 @@ struct CollectionNameSheet: View {
     }
 
     private func save() {
+        if let rules = request.smartRules(named: name, smart: smart) {
+            browser.smartNext = rules
+            dismiss()
+            return
+        }
         Task {
             if let renaming = request.renaming {
                 await collections.rename(renaming, to: name)
@@ -99,18 +107,10 @@ struct CollectionGrid: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             if app.isAdult {
-                HStack(spacing: 10) {
-                    Button {
-                        browser.namingCollection = CollectionNameRequest()
-                    } label: {
-                        Label("New collection", systemImage: "plus")
-                    }
-                    Button {
-                        browser.smartRules = SmartRulesRequest(target: .newCollection)
-                    } label: {
-                        Label("New smart collection…", systemImage: "sparkles")
-                    }
-                    .needsServer(.smartRules)
+                Button {
+                    browser.namingCollection = CollectionNameRequest()
+                } label: {
+                    Label("New collection", systemImage: "plus")
                 }
                 .buttonStyle(SecondaryButtonStyle())
             }

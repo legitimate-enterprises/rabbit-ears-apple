@@ -2,13 +2,13 @@ import Foundation
 import Observation
 import RabbitEarsAPI
 
-/// The list whose rules are edited; a new one is made when saved.
+/// The list whose rules are edited; a new one, named and of a kind already, is made when saved.
 public enum SmartTarget: Sendable {
-    case newPlaylist(PlaylistKind)
+    case newPlaylist(name: String, kind: PlaylistKind)
     case playlist(Playlist)
     /// The station's own playlist, through its owner.
     case station(Station)
-    case newCollection
+    case newCollection(name: String)
     case collection(MovieCollection)
 }
 
@@ -21,21 +21,12 @@ public final class SmartRulesEditor {
     public static let groupLimit = 20
     public static let conditionLimit = 50
     public static let personalNote = "Watched, plays and favorites are yours, the owner's."
+    /// Under a new list's Smart toggle.
+    public static let smartNote = "Fills itself from rules you set."
 
     public let target: SmartTarget
     public var name = ""
-    /// Only a new playlist's; a row whose field the kind lacks moves to its first field.
-    public var kind: PlaylistKind {
-        didSet {
-            let offered = fields
-            for group in groups.indices {
-                let lacking = groups[group].conditions.indices.filter {
-                    !offered.contains(groups[group].conditions[$0].field)
-                }
-                for row in lacking { groups[group].conditions[row].field = offered[0] }
-            }
-        }
-    }
+    public let kind: PlaylistKind
     public var match = SmartMatch.all
     public var groups: [SmartGroupDraft] = []
     public private(set) var nameError: String?
@@ -58,15 +49,16 @@ public final class SmartRulesEditor {
         self.queue = queue
         self.profileId = profileId
         switch target {
-        case .newPlaylist(let kind): self.kind = kind
+        case .newPlaylist(_, let kind): self.kind = kind
         case .playlist(let playlist): kind = playlist.kind
         case .station(let station): kind = station.kind
         case .newCollection, .collection: kind = .movies
         }
         switch target {
+        case .newPlaylist(let name, _), .newCollection(let name): self.name = name
         case .playlist(let playlist): name = playlist.name
         case .collection(let collection): name = collection.name
-        default: break
+        case .station: break
         }
         ready = !isSmart
         groups = [newGroup()]
@@ -80,10 +72,14 @@ public final class SmartRulesEditor {
     }
 
     public var fields: [SmartField] { SmartField.fields(scope) }
-    /// A new playlist's kind is chosen; an existing list's is fixed.
-    public var choosesKind: Bool { if case .newPlaylist = target { true } else { false } }
-    /// A station's own playlist has no name of its own to show.
-    public var namesList: Bool { if case .station = target { false } else { true } }
+    /// Only an existing list's name is edited here: a new one's was asked
+    /// before, and a station's own playlist has no name of its own to show.
+    public var namesList: Bool {
+        switch target {
+        case .playlist, .collection: true
+        case .newPlaylist, .newCollection, .station: false
+        }
+    }
     public var usesPersonal: Bool { groups.contains { $0.conditions.contains { $0.field.isPersonal } } }
 
     private var conditionCount: Int { groups.reduce(0) { $0 + $1.conditions.count } }
@@ -189,7 +185,7 @@ public final class SmartRulesEditor {
         let name = self.name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(scalars: 100)
         do {
             switch target {
-            case .newPlaylist(let kind):
+            case .newPlaylist(_, let kind):
                 let id = UID.new()
                 try await queue.createPlaylist(as: profileId, id, name: name, kind: kind)
                 try await made(

@@ -292,8 +292,8 @@ final class SyncEndToEndTests: XCTestCase {
         try await device.engine.catchUp()
         let adult = server.adult
         let rules = SmartRulesEditor(
-            target: .newPlaylist(.movies), client: adult.rest, queue: device.queue, profileId: adult.id)
-        rules.name = "Golden ones"
+            target: .newPlaylist(name: "Golden ones", kind: .movies), client: adult.rest, queue: device.queue,
+            profileId: adult.id)
         rules.groups[0].conditions[0].op = .startsWith
         rules.groups[0].conditions[0].value = "golden"
         let saved = await rules.save()

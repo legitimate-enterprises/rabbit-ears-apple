@@ -66,6 +66,8 @@ final class Browser: VideoBrowser {
     var tuning: Station?
     var editingStation: StationEditRequest?
     var smartRules: SmartRulesRequest?
+    /// The rule editor a new list's Create with Smart on leads to, shown once its sheet is gone.
+    var smartNext: SmartRulesRequest?
     /// A refusal to show in an alert, as deleting a playlist a station plays.
     var alert: String?
     /// Rises after a station edit, so the views showing stations read them again.
@@ -76,6 +78,11 @@ final class Browser: VideoBrowser {
     }
 
     func open(_ item: Item) { paths[section, default: []].append(.item(item.id)) }
+    func showSmartNext() {
+        guard let next = smartNext else { return }
+        smartNext = nil
+        smartRules = next
+    }
     func replace(with item: Item) { paths[section, default: []].replaceTop(with: .item(item.id)) }
     func open(person id: Person.ID) { paths[section, default: []].append(.person(id)) }
     func open(_ route: Route) { paths[section, default: []].append(route) }

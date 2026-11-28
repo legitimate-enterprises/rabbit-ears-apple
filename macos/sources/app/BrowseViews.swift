@@ -116,8 +116,8 @@ struct MainView: View {
             if scenePhase == .active { await model.loadAllowLists() }
         }
         .background(Theme.ground)
-        .sheet(item: $browser.naming) { request in
-            if let playlists { PlaylistNameSheet(request: request).environment(playlists) }
+        .sheet(item: $browser.naming, onDismiss: browser.showSmartNext) { request in
+            if let playlists { PlaylistNameSheet(request: request).environment(playlists).environment(browser) }
         }
         .sheet(
             item: $browser.sharing, onDismiss: { Task { await playlists?.load() } },
@@ -155,8 +155,8 @@ struct MainView: View {
         ) {
             Button("OK") { browser.alert = nil }
         }
-        .sheet(item: $browser.namingCollection) { request in
-            if let collections { CollectionNameSheet(request: request).environment(collections) }
+        .sheet(item: $browser.namingCollection, onDismiss: browser.showSmartNext) { request in
+            if let collections { CollectionNameSheet(request: request).environment(collections).environment(browser) }
         }
         .smartRulesSheet(browser: browser, playlists: playlists, collections: collections)
         .confirmationDialog(

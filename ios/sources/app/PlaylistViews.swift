@@ -26,14 +26,6 @@ struct PlaylistsList: View {
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
                 }
                 .buttonStyle(.plain).foregroundStyle(Theme.amber)
-                Button {
-                    browser.smartRules = SmartRulesRequest(target: .newPlaylist(kind))
-                } label: {
-                    Label("New smart playlist", systemImage: "sparkles").font(.system(size: 15, weight: .semibold))
-                        .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
-                }
-                .buttonStyle(.plain).foregroundStyle(Theme.amber)
-                .needsServer(.smartRules)
             }
             ForEach(playlists, id: \.id) { playlist in
                 Button {
@@ -102,14 +94,10 @@ struct PlaylistsList: View {
         .imageSheet($imaging, playlists: services.playlists) { await services.playlists.load() }
         .onAppear { count = playlists.count.formatted() }
         .onChange(of: playlists.count) { count = playlists.count.formatted() }
-        .alert("New playlist", isPresented: $naming) {
-            TextField("Name", text: $name)
-            Button("Cancel", role: .cancel) { name = "" }
-            Button("Create") {
-                let chosen = name
-                name = ""
-                Task { _ = await services.playlists.create(name: chosen, kind: kind) }
-            }
+        .sheet(isPresented: $naming, onDismiss: browser.showSmartNext) {
+            NewListSheet(
+                title: "New playlist", smartTarget: { .newPlaylist(name: $0, kind: kind) },
+                create: { _ = await services.playlists.create(name: $0, kind: kind) })
         }
         .alert("Rename playlist", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $name)
