@@ -187,12 +187,14 @@ public struct Catalog: Sendable {
         return episodes.first { !isWatched($0.id) } ?? episodes.first
     }
 
+    /// `onDevice`, while the Downloaded filter is on, is what `DownloadStore.playable` names.
     public func grid(
         _ kind: ItemKind, filter: GridFilter = .all, sort: GridSort = .recentlyAdded, genre: Genre.ID? = nil,
-        favorites: Set<Item.ID> = []
+        favorites: Set<Item.ID> = [], onDevice: Set<Item.ID>? = nil
     ) -> [Item] {
         items.values
             .filter { $0.kind == kind && (filter == .kids || !apart.contains($0.id)) }
+            .filter { onDevice?.contains($0.id) ?? true }
             .filter { item in genre.map { id in item.genres?.contains { $0.id == id } ?? false } ?? true }
             .filter { item in
                 switch filter {

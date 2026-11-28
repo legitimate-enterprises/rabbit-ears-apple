@@ -27,6 +27,7 @@ struct MusicScreen: View {
                     options: tabs, label: \.rawValue,
                     selection: Binding(get: { tab }, set: { stored = $0 }))
                 HStack(spacing: 8) {
+                    if tab != .playlists && tab != .stations { DownloadedChip() }
                     Spacer()
                     if tab == .albums {
                         Picker("Sort", selection: $sort) {
@@ -43,6 +44,9 @@ struct MusicScreen: View {
                     }
                     if let selectKind { SelectButton(selection: selection, kind: selectKind) }
                 }
+                if downloadedOnly && order.isEmpty && done {
+                    Text("Nothing downloaded here yet.").foregroundStyle(Theme.secondary)
+                }
                 switch tab {
                 case .albums: albumGrid
                 case .artists: artistGrid
@@ -56,14 +60,14 @@ struct MusicScreen: View {
         .selectionBar(selection, selectKind ?? .album, order: order)
         .onChange(of: tab) { selection.end() }
         .navigationSubtitle(subtitle)
-        .task(id: "\(tab.rawValue)/\(sort.rawValue)/\(genre?.description ?? "")") {
+        .task(id: "\(tab.rawValue)/\(sort.rawValue)/\(genre?.description ?? "")/\(downloadedOnly)") {
             guard let music = app.musicModel else { return }
             let board = board ?? MusicBoard(music: music)
             if self.board == nil {
                 self.board = board
                 Task { await board.loadGenres() }
             }
-            await board.load(tab, sort: sort, genre: genre)
+            await board.load(tab, sort: sort, genre: genre, onDevice: app.downloadedFilter)
         }
         // A change the server tells of refreshes the rows in place; the scroll position stays.
         .task(id: browser.revision) { await board?.refresh(tab) }
@@ -98,6 +102,18 @@ struct MusicScreen: View {
         case .artists: (artists?.items ?? []).map(\.id)
         case .songs: (songs?.items ?? []).map(\.id)
         case .playlists, .stations: []
+        }
+    }
+
+    private var downloadedOnly: Bool { app.downloads?.downloadedOnly == true }
+
+    /// The tab's listing has been read to its end.
+    private var done: Bool {
+        switch tab {
+        case .albums: albums?.done == true
+        case .artists: artists?.done == true
+        case .songs: songs?.done == true
+        case .playlists, .stations: false
         }
     }
 

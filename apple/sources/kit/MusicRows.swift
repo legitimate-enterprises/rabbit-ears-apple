@@ -19,6 +19,8 @@ enum MusicRows {
         var offset = 0
         /// Only the profile's favorites; the server's listings take no such filter.
         var favorites = false
+        /// Only these, as the Downloaded filter keeps; nil is no constraint.
+        var onDevice: Set<UID>?
         /// A limit that reads every row.
         static let all = Int.max - 1
 
@@ -27,6 +29,7 @@ enum MusicRows {
             let all: [String: (any DatabaseValueConvertible)?] = [
                 "me": profile, "artist": artistId, "album": albumId, "genre": genreId, "id": id, "letter": letter,
                 "q": query, "limit": limit, "offset": offset, "favorites": favorites,
+                "onDevice": onDevice.map { ReplicaRows.json($0) },
             ]
             return StatementArguments(all.filter { sql.contains(":\($0.key)") })
         }
@@ -207,6 +210,7 @@ enum MusicRows {
             AND (:q IS NULL OR instr(lower(\(alias).parsed_title), lower(:q)) > 0)
             AND (:id IS NULL OR \(alias).id = :id)
             AND (NOT :favorites OR \(alias).id IN (SELECT item_id FROM favorite WHERE account_id = :me))
+            AND (:onDevice IS NULL OR \(alias).id IN (SELECT unhex(value, '-') FROM json_each(:onDevice)))
         """
     }
 

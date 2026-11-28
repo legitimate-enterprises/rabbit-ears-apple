@@ -125,6 +125,19 @@ final class YouTubeModelTests: XCTestCase {
         XCTAssertNil(last.nextOffset)
     }
 
+    func testTheDownloadedFilterKeepsWhatIsPlayableHereAlongsideUnwatched() async throws {
+        let youTube = model(try library())
+        let kept: Set<UID> = [70, 71, 60]
+        let here = try await youTube.videos(onDevice: kept)
+        XCTAssertEqual(here.items.map(\.id), [70, 71])
+        let unwatched = try await youTube.videos(unwatched: true, onDevice: kept)
+        XCTAssertEqual(unwatched.items.map(\.id), [70])
+        let none = try await youTube.videos(onDevice: [])
+        XCTAssertEqual(none.items.map(\.id), [])
+        let off = try await youTube.videos()
+        XCTAssertEqual(off.items.count, 5, "off, every video")
+    }
+
     func testChannelsWithVideosCountTheProfilesUnwatched() async throws {
         let youTube = model(try library())
         let channels = try await youTube.channels()

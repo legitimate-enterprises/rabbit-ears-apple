@@ -37,6 +37,7 @@ struct ViewTabs<Option: Hashable>: View {
 }
 
 struct MusicView: View {
+    @Environment(AppModel.self) private var app
     @Environment(Services.self) private var services
     @State private var tab = MusicTab.albums
     @State private var count = ""
@@ -53,11 +54,13 @@ struct MusicView: View {
                 ViewTabs(
                     options: MusicTab.allCases.filter { $0 != .playlists || services.playlists.offersView(.music) },
                     title: \.rawValue, selection: $tab)
+                if tab != .playlists && tab != .stations { DownloadedChip() }
+                let onDevice = app.downloadedFilter
                 switch tab {
-                case .albums: AlbumsGrid(sort: albumSort, genre: genre, count: $count)
-                case .artists: ArtistsList(genre: genre, count: $count)
+                case .albums: AlbumsGrid(sort: albumSort, genre: genre, onDevice: onDevice, count: $count)
+                case .artists: ArtistsList(genre: genre, onDevice: onDevice, count: $count)
                 case .playlists: PlaylistsList(kind: .music, count: $count)
-                case .songs: SongsList(sort: songSort, genre: genre, count: $count)
+                case .songs: SongsList(sort: songSort, genre: genre, onDevice: onDevice, count: $count)
                 case .stations: StationsList(kind: .music, count: $count)
                 }
             }
@@ -120,13 +123,16 @@ struct AlbumsGrid: View {
     @Environment(Browser.self) private var browser
     let sort: MusicAlbumSort
     let genre: Genre.ID?
+    var onDevice: Set<UID>?
     @Binding var count: String
     @State private var list: Pager<MusicAlbum>?
 
     var body: some View {
         VStack(spacing: 16) {
             if let list {
-                if list.items.isEmpty && list.done { EmptyNote(text: "No music yet.") }
+                if list.items.isEmpty && list.done {
+                    EmptyNote(text: onDevice != nil ? "Nothing downloaded here yet." : "No music yet.")
+                }
                 LazyVGrid(columns: GridView.columns, spacing: 14) {
                     ForEach(list.items, id: \.id) { album in
                         AlbumTile(album: album)
@@ -139,10 +145,10 @@ struct AlbumsGrid: View {
                 ProgressView().padding(40)
             }
         }
-        .task(id: "\(sort.rawValue)/\(genre?.description ?? "")") {
-            let (music, genre) = (services.music, genre)
+        .task(id: "\(sort.rawValue)/\(genre?.description ?? "")/\(onDevice?.count ?? -1)") {
+            let (music, genre, onDevice) = (services.music, genre, onDevice)
             let next = Pager<MusicAlbum>(counted: { offset in
-                try await music.albums(sort: sort, genreId: genre, offset: offset)
+                try await music.albums(sort: sort, genreId: genre, onDevice: onDevice, offset: offset)
             })
             list = next
             await next.loadMore()
@@ -197,13 +203,16 @@ struct ArtistsList: View {
     @Environment(Services.self) private var services
     @Environment(Browser.self) private var browser
     let genre: Genre.ID?
+    var onDevice: Set<UID>?
     @Binding var count: String
     @State private var list: Pager<MusicArtist>?
 
     var body: some View {
         LazyVStack(spacing: 4) {
             if let list {
-                if list.items.isEmpty && list.done { EmptyNote(text: "No artists yet.") }
+                if list.items.isEmpty && list.done {
+                    EmptyNote(text: onDevice != nil ? "Nothing downloaded here yet." : "No artists yet.")
+                }
                 ForEach(list.items, id: \.id) { artist in
                     Button {
                         browser.open(.artist(artist.id))
@@ -235,10 +244,10 @@ struct ArtistsList: View {
                 ProgressView().padding(40)
             }
         }
-        .task(id: genre) {
-            let (music, genre) = (services.music, genre)
+        .task(id: "\(genre?.description ?? "")/\(onDevice?.count ?? -1)") {
+            let (music, genre, onDevice) = (services.music, genre, onDevice)
             let next = Pager<MusicArtist>(counted: { offset in
-                try await music.artists(genreId: genre, offset: offset)
+                try await music.artists(genreId: genre, onDevice: onDevice, offset: offset)
             })
             list = next
             await next.loadMore()
@@ -256,6 +265,7 @@ struct SongsList: View {
     @Environment(Browser.self) private var browser
     let sort: MusicSongSort
     let genre: Genre.ID?
+    var onDevice: Set<UID>?
     @Binding var count: String
     @State private var list: Pager<MusicSong>?
     @State private var target: PlaylistTarget?
@@ -263,7 +273,9 @@ struct SongsList: View {
     var body: some View {
         LazyVStack(spacing: 2) {
             if let list {
-                if list.items.isEmpty && list.done { EmptyNote(text: "No songs yet.") }
+                if list.items.isEmpty && list.done {
+                    EmptyNote(text: onDevice != nil ? "Nothing downloaded here yet." : "No songs yet.")
+                }
                 ForEach(Array(list.items.enumerated()), id: \.element.id) { index, song in
                     SongRow(song: song, art: true, target: $target) {
                         Task { await services.player.play(list.items, from: index, source: "Songs") }
@@ -277,10 +289,10 @@ struct SongsList: View {
             }
         }
         .addToPlaylist($target)
-        .task(id: "\(sort.rawValue)/\(genre?.description ?? "")") {
-            let (music, genre) = (services.music, genre)
+        .task(id: "\(sort.rawValue)/\(genre?.description ?? "")/\(onDevice?.count ?? -1)") {
+            let (music, genre, onDevice) = (services.music, genre, onDevice)
             let next = Pager<MusicSong>(counted: { offset in
-                try await music.songs(sort: sort, genreId: genre, offset: offset)
+                try await music.songs(sort: sort, genreId: genre, onDevice: onDevice, offset: offset)
             })
             list = next
             await next.loadMore()

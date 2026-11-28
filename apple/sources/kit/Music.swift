@@ -101,11 +101,12 @@ public final class MusicModel {
     }
 
     public func albums(
-        sort: MusicAlbumSort = .title, genreId: UID? = nil, letter: String? = nil, offset: Int? = nil,
-        limit: Int = 100
+        sort: MusicAlbumSort = .title, genreId: UID? = nil, letter: String? = nil, onDevice: Set<UID>? = nil,
+        offset: Int? = nil, limit: Int = 100
     ) async throws -> Components.Schemas.MusicAlbumPage {
         let filter = MusicRows.Filter(
-            genreId: genreId, letter: letter, sort: sort.rawValue, limit: limit, offset: offset ?? 0)
+            genreId: genreId, letter: letter, sort: sort.rawValue, limit: limit, offset: offset ?? 0,
+            onDevice: onDevice)
         return try await read { db, me in
             let (items, next) = try MusicRows.albums(db, me, filter)
             return .init(items: items, nextOffset: next, total: try MusicRows.countAlbums(db, me, filter))
@@ -113,9 +114,10 @@ public final class MusicModel {
     }
 
     public func artists(
-        genreId: UID? = nil, letter: String? = nil, offset: Int? = nil, limit: Int = 100
+        genreId: UID? = nil, letter: String? = nil, onDevice: Set<UID>? = nil, offset: Int? = nil, limit: Int = 100
     ) async throws -> Components.Schemas.MusicArtistPage {
-        let filter = MusicRows.Filter(genreId: genreId, letter: letter, limit: limit, offset: offset ?? 0)
+        let filter = MusicRows.Filter(
+            genreId: genreId, letter: letter, limit: limit, offset: offset ?? 0, onDevice: onDevice)
         return try await read { db, me in
             let (items, next) = try MusicRows.artists(db, me, filter)
             return .init(items: items, nextOffset: next, total: try MusicRows.countArtists(db, me, filter))
@@ -123,9 +125,11 @@ public final class MusicModel {
     }
 
     public func songs(
-        sort: MusicSongSort = .title, genreId: UID? = nil, offset: Int? = nil, limit: Int = 100
+        sort: MusicSongSort = .title, genreId: UID? = nil, onDevice: Set<UID>? = nil, offset: Int? = nil,
+        limit: Int = 100
     ) async throws -> Components.Schemas.MusicSongPage {
-        let filter = MusicRows.Filter(genreId: genreId, sort: sort.rawValue, limit: limit, offset: offset ?? 0)
+        let filter = MusicRows.Filter(
+            genreId: genreId, sort: sort.rawValue, limit: limit, offset: offset ?? 0, onDevice: onDevice)
         return try await read { db, me in
             let (items, next) = try MusicRows.songs(db, me, filter)
             return .init(items: items, nextOffset: next, total: try MusicRows.countSongs(db, me, filter))

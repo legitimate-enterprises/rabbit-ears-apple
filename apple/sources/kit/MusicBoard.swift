@@ -20,26 +20,26 @@ public final class MusicBoard {
     /// Albums and Artists read on to the end so their count is whole; Songs
     /// can run to thousands and read on as the list scrolls (`loadMore`).
     /// Playlists belong to PlaylistsModel, and Stations to StationsModel.
-    public func load(_ tab: MusicTab, sort: MusicAlbumSort, genre: Genre.ID?) async {
+    public func load(_ tab: MusicTab, sort: MusicAlbumSort, genre: Genre.ID?, onDevice: Set<UID>? = nil) async {
         let music = music
         switch tab {
         case .albums:
             let pager = Pager(counted: { offset in
-                try await music.albums(sort: sort, genreId: genre, offset: offset, limit: 200)
+                try await music.albums(sort: sort, genreId: genre, onDevice: onDevice, offset: offset, limit: 200)
             })
             await pager.loadMore()
             albums = pager
             await pager.loadAll()
         case .artists:
             let pager = Pager(counted: { offset in
-                try await music.artists(genreId: genre, offset: offset, limit: 200)
+                try await music.artists(genreId: genre, onDevice: onDevice, offset: offset, limit: 200)
             })
             await pager.loadMore()
             artists = pager
             await pager.loadAll()
         case .songs:
             let pager = Pager(counted: { offset in
-                try await music.songs(genreId: genre, offset: offset, limit: 200)
+                try await music.songs(genreId: genre, onDevice: onDevice, offset: offset, limit: 200)
             })
             await pager.loadMore()
             songs = pager

@@ -3,6 +3,7 @@ import RabbitEarsKit
 import SwiftUI
 
 struct YouTubeView: View {
+    @Environment(AppModel.self) private var app
     @Environment(Services.self) private var services
     @State private var tab = YouTubeTab.videos
     @State private var channels: [YouTubeChannel]?
@@ -20,11 +21,12 @@ struct YouTubeView: View {
                 if tab != .channels {
                     ChipBar(
                         options: [YouTubeTab.unwatched], title: \.rawValue,
-                        selection: Binding(get: { tab }, set: { tab = $0 == tab ? .videos : $0 }))
+                        selection: Binding(get: { tab }, set: { tab = $0 == tab ? .videos : $0 }),
+                        offersDownloaded: true)
                 }
                 switch tab {
-                case .videos: VideosGrid(sort: sort, unwatched: false)
-                case .unwatched: VideosGrid(sort: sort, unwatched: true)
+                case .videos: VideosGrid(sort: sort, unwatched: false, onDevice: app.downloadedFilter)
+                case .unwatched: VideosGrid(sort: sort, unwatched: true, onDevice: app.downloadedFilter)
                 case .channels: ChannelsGrid(channels: channels)
                 }
             }
@@ -67,6 +69,7 @@ struct VideosGrid: View {
     @Environment(Browser.self) private var browser
     let sort: YouTubeVideoSort
     let unwatched: Bool
+    var onDevice: Set<UID>?
     var query: String?
     @State private var list: Pager<YouTubeVideo>?
 
@@ -75,7 +78,9 @@ struct VideosGrid: View {
     var body: some View {
         VStack(spacing: 16) {
             if let list {
-                if list.items.isEmpty && list.done { EmptyNote(text: "No videos yet.") }
+                if list.items.isEmpty && list.done {
+                    EmptyNote(text: onDevice != nil ? "Nothing downloaded here yet." : "No videos yet.")
+                }
                 LazyVGrid(columns: Self.columns, spacing: 14) {
                     ForEach(list.items, id: \.id) { video in
                         VideoTile(video: video)
@@ -88,14 +93,15 @@ struct VideosGrid: View {
                 ProgressView().padding(40)
             }
         }
-        .task(id: "\(sort.rawValue)/\(unwatched)/\(query ?? "")") {
+        .task(id: "\(sort.rawValue)/\(unwatched)/\(query ?? "")/\(onDevice?.count ?? -1)") {
             let youtube = services.youtube
-            let (sort, unwatched, query) = (sort, unwatched, query)
+            let (sort, unwatched, onDevice, query) = (sort, unwatched, onDevice, query)
             // Typing in a search waits for a pause.
             if query != nil { try? await Task.sleep(for: .milliseconds(250)) }
             guard !Task.isCancelled else { return }
             let next = Pager<YouTubeVideo> { offset in
-                let page = try await youtube.videos(sort: sort, unwatched: unwatched, query: query, offset: offset)
+                let page = try await youtube.videos(
+                    sort: sort, unwatched: unwatched, onDevice: onDevice, query: query, offset: offset)
                 return (page.items, page.nextOffset)
             }
             list = next

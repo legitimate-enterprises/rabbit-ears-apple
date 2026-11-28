@@ -36,6 +36,7 @@ struct YouTubeScreen: View {
                         Chips(
                             options: [YouTubeTab.unwatched], label: \.rawValue,
                             selection: Binding(get: { tab }, set: { tab = $0 == tab ? .videos : $0 }))
+                        DownloadedChip()
                     }
                     Spacer()
                     if shown == .channels {
@@ -72,15 +73,22 @@ struct YouTubeScreen: View {
         .task(id: "\(channelSort.rawValue)/\(browser.revision)") {
             channels = (try? await app.youtubeModel?.channels(sort: channelSort)) ?? []
         }
-        .task(id: "\(shown.rawValue)/\(sort.rawValue)/\(channel?.description ?? "")/\(search)") { await load() }
+        .task(id: "\(shown.rawValue)/\(sort.rawValue)/\(channel?.description ?? "")/\(search)/\(downloadedOnly)") {
+            await load()
+        }
         // A watch-state change refreshes the rows in place; the scroll position stays.
         .task(id: browser.revision) { await videos?.refresh() }
     }
 
+    private var downloadedOnly: Bool { app.downloads?.downloadedOnly == true }
+
     private var videoGrid: some View {
         let loaded = videos?.items ?? []
         return VStack(alignment: .leading, spacing: 16) {
-            if videos?.done == true && loaded.isEmpty { Text("No videos match.").foregroundStyle(Theme.secondary) }
+            if videos?.done == true && loaded.isEmpty {
+                Text(downloadedOnly ? "Nothing downloaded here yet." : "No videos match.")
+                    .foregroundStyle(Theme.secondary)
+            }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 16, alignment: .top)], spacing: 18) {
                 ForEach(loaded, id: \.id) { video in
                     VideoTile(video: video)
@@ -104,13 +112,15 @@ struct YouTubeScreen: View {
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
         }
-        let (sort, channel, search, unwatched) = (sort, channel, search, shown == .unwatched)
+        let (sort, channel, search, unwatched, onDevice) = (
+            sort, channel, search, shown == .unwatched, app.downloadedFilter
+        )
         switch shown {
         case .videos, .unwatched:
             let pager = Pager { offset in
                 let page = try await youtube.videos(
-                    sort: sort, channelId: channel, unwatched: unwatched, query: search.isEmpty ? nil : search,
-                    offset: offset, limit: 100)
+                    sort: sort, channelId: channel, unwatched: unwatched, onDevice: onDevice,
+                    query: search.isEmpty ? nil : search, offset: offset, limit: 100)
                 return (page.items, page.nextOffset)
             }
             await pager.loadMore()

@@ -24,7 +24,8 @@ struct GridView: View {
     static let columns = Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 3)
 
     var body: some View {
-        let items = model.catalog.grid(kind, filter: shown, sort: sort, genre: genre, favorites: app.favorites.ids)
+        let items = model.catalog.grid(
+            kind, filter: shown, sort: sort, genre: genre, favorites: app.favorites.ids, onDevice: app.downloadedFilter)
         let total = model.catalog.total(kind, filter: shown)
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -39,10 +40,9 @@ struct GridView: View {
                 case .titles:
                     ChipBar(
                         options: filters, title: \.rawValue,
-                        selection: Binding(get: { shown }, set: { filter = $0 }))
+                        selection: Binding(get: { shown }, set: { filter = $0 }), offersDownloaded: true)
                     if items.isEmpty {
-                        Text(kind == .movie ? "No movies match." : "No shows match.").foregroundStyle(Theme.secondary)
-                            .frame(maxWidth: .infinity).padding(40)
+                        Text(emptyText).foregroundStyle(Theme.secondary).frame(maxWidth: .infinity).padding(40)
                     }
                     LazyVGrid(columns: Self.columns, spacing: 14) {
                         ForEach(items) { Tile(item: $0).selectable($0.id) }
@@ -57,8 +57,11 @@ struct GridView: View {
         .onAppear {
             // Every title matching the filter and genre, not only those scrolled in.
             selection.source = .init {
-                model.catalog.grid(kind, filter: shown, sort: sort, genre: genre, favorites: app.favorites.ids)
-                    .map(\.id)
+                model.catalog.grid(
+                    kind, filter: shown, sort: sort, genre: genre, favorites: app.favorites.ids,
+                    onDevice: app.downloadedFilter
+                )
+                .map(\.id)
             }
         }
         .countedTitle(
@@ -97,6 +100,11 @@ struct GridView: View {
         }
     }
 
+    private var emptyText: String {
+        if app.downloads?.downloadedOnly == true { return "Nothing downloaded here yet." }
+        return kind == .movie ? "No movies match." : "No shows match."
+    }
+
     /// The stored pick is per device, so a chip this profile lacks, such as an adult's Kids, reads as All.
     private var shown: GridFilter { filters.contains(filter) ? filter : .all }
 
@@ -109,24 +117,47 @@ struct ChipBar<Option: Hashable>: View {
     let options: [Option]
     let title: (Option) -> String
     @Binding var selection: Option
+    /// Ends the row with the Downloaded filter.
+    var offersDownloaded = false
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(options, id: \.self) { option in
-                    let selected = option == selection
-                    Button(title(option)) { selection = option }
-                        .font(.system(size: 14, weight: selected ? .semibold : .medium))
-                        .foregroundStyle(selected ? Theme.ground : Theme.primary)
-                        .padding(.horizontal, 14).frame(height: 34)
-                        .background(selected ? Theme.amber : .clear, in: .capsule)
-                        .overlay(Capsule().stroke(selected ? .clear : .white.opacity(0.16)))
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(selected ? .isSelected : [])
+                    Chip(title: title(option), selected: option == selection) { selection = option }
                 }
+                if offersDownloaded { DownloadedChip() }
             }
         }
         .contentMargins(.horizontal, 20, for: .scrollContent)
         .padding(.horizontal, -20)
+    }
+}
+
+struct Chip: View {
+    let title: String
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(title, action: action)
+            .font(.system(size: 14, weight: selected ? .semibold : .medium))
+            .foregroundStyle(selected ? Theme.ground : Theme.primary)
+            .padding(.horizontal, 14).frame(height: 34)
+            .background(selected ? Theme.amber : .clear, in: .capsule)
+            .overlay(Capsule().stroke(selected ? .clear : .white.opacity(0.16)))
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// The Downloaded filter, which every library grid shares.
+struct DownloadedChip: View {
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        if let downloads = app.downloads {
+            Chip(title: "Downloaded", selected: downloads.downloadedOnly) { downloads.downloadedOnly.toggle() }
+        }
     }
 }

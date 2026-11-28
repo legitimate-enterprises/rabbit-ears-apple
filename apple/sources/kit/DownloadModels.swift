@@ -151,6 +151,8 @@ public struct StoredTitle: Codable, Equatable, Sendable, Identifiable {
     var claim: DownloadClaim?
     /// The artwork files it shows with, its parents' included.
     var art: [String]?
+    /// What holds it in the replica: season and show, album and artists, or channel.
+    var above: [UID]?
     public var id: UID { itemId }
 
     init(_ title: DownloadTitle, quality: DownloadQuality) {

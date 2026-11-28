@@ -171,6 +171,19 @@ final class CatalogTests: XCTestCase {
         XCTAssertEqual(catalog.grid(.show, filter: .inProgress).map(\.id), [])
     }
 
+    func testTheDownloadedFilterKeepsWhatIsPlayableHereAlongsideTheOtherFilters() {
+        let catalog = sampleCatalog(watch: [Fixtures.watch(20, watched: true)])
+        let here: Set<UID> = [20, 22, 101, 11, 10]
+        XCTAssertEqual(catalog.grid(.movie, sort: .title).map(\.id), [21, 22, 20], "off, every movie")
+        XCTAssertEqual(catalog.grid(.movie, sort: .title, onDevice: here).map(\.id), [22, 20])
+        XCTAssertEqual(catalog.grid(.show, onDevice: here).map(\.id), [10])
+        XCTAssertEqual(catalog.grid(.show, onDevice: [20]).map(\.id), [])
+        XCTAssertEqual(catalog.grid(.movie, filter: .unwatched, onDevice: here).map(\.id), [22])
+        XCTAssertEqual(catalog.grid(.movie, genre: 878, onDevice: here).map(\.id), [20])
+        XCTAssertEqual(catalog.grid(.movie, filter: .kids, onDevice: [20]).map(\.id), [])
+        XCTAssertEqual(catalog.grid(.movie, onDevice: []).map(\.id), [], "nothing here, nothing shown")
+    }
+
     func testTheKidsChipIsTheServersFlagNotARating() {
         let items = [
             Fixtures.item(40, "show", "Marked", rating: "TV-MA", kids: true),

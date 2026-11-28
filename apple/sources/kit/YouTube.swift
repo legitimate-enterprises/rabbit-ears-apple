@@ -76,10 +76,10 @@ public final class YouTubeModel {
     /// One page of the Videos view; `query` is the toolbar search.
     public func videos(
         sort: YouTubeVideoSort = .newest, channelId: UID? = nil,
-        unwatched: Bool = false, query: String? = nil, offset: Int? = nil, limit: Int = 100
+        unwatched: Bool = false, onDevice: Set<UID>? = nil, query: String? = nil, offset: Int? = nil, limit: Int = 100
     ) async throws -> Components.Schemas.YouTubeVideoPage {
         let filter = YouTubeRows.VideoFilter(
-            channelId: channelId, unwatched: unwatched, query: query.map { String($0.prefix(200)) },
+            channelId: channelId, unwatched: unwatched, onDevice: onDevice, query: query.map { String($0.prefix(200)) },
             sort: sort.rawValue, limit: limit, offset: offset ?? 0)
         return try await read { db, me in
             let (items, next) = try YouTubeRows.videos(db, me, filter)

@@ -170,6 +170,27 @@ final class MusicModelTests: XCTestCase {
         XCTAssertEqual(guest.map(\.id), [2])
     }
 
+    func testTheDownloadedFilterKeepsWhatIsPlayableHereAlongsideGenre() async throws {
+        let music = model(try library())
+        // Weird Fishes (2) is on the device, so In Rainbows, Radiohead and Guest are playable here.
+        let here: Set<UID> = [2, 50, 40, 42]
+        let albums = try await music.albums(onDevice: here)
+        XCTAssertEqual(albums.items.map(\.id), [50])
+        XCTAssertEqual(albums.total, 1)
+        let artists = try await music.artists(onDevice: here)
+        XCTAssertEqual(artists.items.map(\.id), [42, 40])
+        let songs = try await music.songs(onDevice: here)
+        XCTAssertEqual(songs.items.map(\.id), [2])
+        let rock = try await music.albums(genreId: 6, onDevice: here)
+        XCTAssertEqual(rock.items.map(\.id), [50])
+        let alternative = try await music.albums(genreId: 5, onDevice: [52])
+        XCTAssertEqual(alternative.items.map(\.id), [])
+        let none = try await music.albums(onDevice: [])
+        XCTAssertEqual(none.items.map(\.id), [])
+        let off = try await music.albums()
+        XCTAssertEqual(off.items.count, 5, "off, every album")
+    }
+
     func testHomeIsRecentlyPlayedFromTheServerAndRecentlyAddedAlbums() async throws {
         let recent =
             #"{"kind":"album","playedAt":"2026-05-01T00:00:00Z","album":\#(Fixtures.album(50, "In Rainbows"))}"#

@@ -9,15 +9,35 @@ struct Chips<Option: Hashable>: View {
 
     var body: some View {
         ForEach(options, id: \.self) { option in
-            let picked = selection == option
-            Button(label(option)) { selection = option }
-                .font(.system(size: 12, weight: picked ? .semibold : .medium))
-                .foregroundStyle(picked ? Theme.ground : Theme.primary)
-                .padding(.horizontal, 12).frame(height: 26)
-                .background(picked ? Theme.amber : .clear, in: .capsule)
-                .overlay(Capsule().stroke(picked ? .clear : Theme.border))
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(picked ? .isSelected : [])
+            Chip(title: label(option), picked: selection == option) { selection = option }
+        }
+    }
+}
+
+struct Chip: View {
+    let title: String
+    let picked: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(title, action: action)
+            .font(.system(size: 12, weight: picked ? .semibold : .medium))
+            .foregroundStyle(picked ? Theme.ground : Theme.primary)
+            .padding(.horizontal, 12).frame(height: 26)
+            .background(picked ? Theme.amber : .clear, in: .capsule)
+            .overlay(Capsule().stroke(picked ? .clear : Theme.border))
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(picked ? .isSelected : [])
+    }
+}
+
+/// The Downloaded filter, which every library grid shares.
+struct DownloadedChip: View {
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        if let downloads = app.downloads {
+            Chip(title: "Downloaded", picked: downloads.downloadedOnly) { downloads.downloadedOnly.toggle() }
         }
     }
 }
@@ -80,7 +100,8 @@ struct GridView: View {
     }
 
     var body: some View {
-        let items = model.catalog.grid(kind, filter: shown, sort: sort, genre: genre, favorites: app.favorites.ids)
+        let items = model.catalog.grid(
+            kind, filter: shown, sort: sort, genre: genre, favorites: app.favorites.ids, onDevice: app.downloadedFilter)
         let genres = model.catalog.genres(kind)
         let total = model.catalog.total(kind, filter: shown)
         ScrollView {
@@ -96,6 +117,7 @@ struct GridView: View {
                         Chips(
                             options: filters, label: \.rawValue,
                             selection: Binding(get: { shown }, set: { filter = $0 }))
+                        DownloadedChip()
                         Spacer()
                         if !genres.isEmpty {
                             Picker("Genre", selection: $genre) {
@@ -128,13 +150,17 @@ struct GridView: View {
     @ViewBuilder
     private func grid(_ items: [Item]) -> some View {
         if items.isEmpty {
-            Text(kind == .movie ? "No movies match." : "No shows match.").foregroundStyle(Theme.secondary)
-                .frame(maxWidth: .infinity).padding(40)
+            Text(emptyText).foregroundStyle(Theme.secondary).frame(maxWidth: .infinity).padding(40)
         }
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 14, alignment: .top)], spacing: 16) {
             let order = items.map(\.id)
             ForEach(items) { Tile(item: $0).selectable(selection, $0.id, in: order) }
         }
+    }
+
+    private var emptyText: String {
+        if app.downloads?.downloadedOnly == true { return "Nothing downloaded here yet." }
+        return kind == .movie ? "No movies match." : "No shows match."
     }
 
     /// The stored pick is per device, so a chip this profile lacks, such as an adult's Kids, reads as All.

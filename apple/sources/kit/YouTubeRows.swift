@@ -59,6 +59,8 @@ enum YouTubeRows {
         var inProgress = false
         /// Only the profile's favorites; the server's listing takes no such filter.
         var favorites = false
+        /// Only these, as the Downloaded filter keeps; nil is no constraint.
+        var onDevice: Set<UID>?
         var query: String?
         var sort: String?
         var limit = 100
@@ -104,12 +106,13 @@ enum YouTubeRows {
                     AND (:q IS NULL OR instr(lower(v.parsed_title), lower(:q)) > 0)
                     AND (NOT :progress OR COALESCE(w.position_ms, 0) > 0)
                     AND (NOT :favorites OR v.id IN (SELECT item_id FROM favorite WHERE account_id = :me))
+                    AND (:onDevice IS NULL OR v.id IN (SELECT unhex(value, '-') FROM json_each(:onDevice)))
                 ORDER BY \(by) LIMIT :limit OFFSET :offset
                 """,
             arguments: [
                 "me": profile, "channel": filter.channelId, "id": filter.id, "unwatched": filter.unwatched,
                 "q": filter.query, "progress": filter.inProgress, "limit": filter.limit + 1, "offset": filter.offset,
-                "favorites": filter.favorites,
+                "favorites": filter.favorites, "onDevice": filter.onDevice.map { ReplicaRows.json($0) },
             ]
         ).map { row in
             let external = text(row["external_id"])

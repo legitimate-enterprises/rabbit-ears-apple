@@ -139,11 +139,14 @@ extension DownloadStore {
     /// not answer is left out.
     func describe(_ title: StoredTitle, profile: UID, _ link: Link) async {
         let (id, kind) = (title.itemId, title.kind)
-        let art =
-            (try? await replica?.read { db in try Self.addresses(Self.art(of: id, kind, profile, db), profile, db) })
-            ?? []
-        let files = await keepArt(art, link.client)
+        // The art keys name the title and each item that holds it, art or not.
+        let read = try? await replica?.read { db in
+            let keys = try Self.art(of: id, kind, profile, db)
+            return (try Self.addresses(keys, profile, db), Set(keys.map(\.id)).subtracting([id]))
+        }
+        let files = await keepArt(read?.0 ?? [], link.client)
         ledger.titles[title.itemId]?.art = files
+        if let above = read?.1 { ledger.titles[title.itemId]?.above = Array(above) }
     }
 
     /// Each key's address for the profile once, in the keys' order; art with none is left out.
