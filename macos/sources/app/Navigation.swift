@@ -84,6 +84,7 @@ final class Browser: VideoBrowser {
     var sharing: Playlist?
     var imaging: ImageRequest?
     var namingCollection: CollectionNameRequest?
+    var smartRules: SmartRulesRequest?
     var deletingCollection: MovieCollection?
     /// The movies or tv station playing in the player, in place of `playing`.
     var tuning: Station?

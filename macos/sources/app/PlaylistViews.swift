@@ -137,6 +137,9 @@ struct PlaylistActions: View {
     var body: some View {
         DownloadMenu(.playlist(playlist))
         if playlist.isOwned {
+            if playlist.smart == true {
+                Button("Edit rules…") { browser.smartRules = SmartRulesRequest(target: .playlist(playlist)) }
+            }
             Button("Share…") { browser.sharing = playlist }
             Button("Rename…") { browser.naming = PlaylistNameRequest(renaming: playlist) }
             if let playlists { imageActions(playlists) }
@@ -165,10 +168,17 @@ struct PlaylistGrid: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             if playlists.adult {
-                Button {
-                    browser.naming = PlaylistNameRequest(kind: kind)
-                } label: {
-                    Label("New playlist", systemImage: "plus")
+                HStack(spacing: 10) {
+                    Button {
+                        browser.naming = PlaylistNameRequest(kind: kind)
+                    } label: {
+                        Label("New playlist", systemImage: "plus")
+                    }
+                    Button {
+                        browser.smartRules = SmartRulesRequest(target: .newPlaylist(kind))
+                    } label: {
+                        Label("New smart playlist…", systemImage: "sparkles")
+                    }
                 }
                 .buttonStyle(SecondaryButtonStyle())
             }
@@ -249,7 +259,10 @@ struct PlaylistScreen: View {
             )
             .frame(width: 150)
             VStack(alignment: .leading, spacing: 12) {
-                Text(playlist.name).font(.system(size: 26, weight: .bold))
+                HStack(spacing: 10) {
+                    Text(playlist.name).font(.system(size: 26, weight: .bold))
+                    if playlist.smart == true { SmartBadge() }
+                }
                 Text(PlaylistText.summary(playlist)).font(.system(size: 13)).foregroundStyle(Theme.secondary)
                 if let shared = playlist.sharedBy {
                     Text(shared).font(.system(size: 13)).foregroundStyle(Theme.secondary)

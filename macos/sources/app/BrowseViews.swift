@@ -160,6 +160,7 @@ struct MainView: View {
         .sheet(item: $browser.namingCollection) { request in
             if let collections { CollectionNameSheet(request: request).environment(collections) }
         }
+        .smartRulesSheet(browser: browser, playlists: playlists, collections: collections)
         .confirmationDialog(
             "Delete “\(browser.deletingCollection?.name ?? "")”?", isPresented: deleteCollectionBinding,
             titleVisibility: .visible

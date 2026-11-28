@@ -246,8 +246,9 @@ struct StationScreen: View {
                 PlaylistEntryList(
                     playlistId: station.playlistId,
                     entries: Binding(get: { entries }, set: { self.entries = $0 }),
-                    // A station's own playlist is listed nowhere and is the owner's to edit.
-                    editable: playlists?.playlists.first { $0.id == station.playlistId }?.isEditable ?? true
+                    // A station's own playlist is listed nowhere and is the owner's to edit, unless rules choose it.
+                    editable: playlists?.playlists.first { $0.id == station.playlistId }?.isEditable
+                        ?? (station.smart != true)
                 )
                 .frame(height: CGFloat(entries.count) * 64)
             }
@@ -264,7 +265,10 @@ struct StationScreen: View {
             )
             .frame(width: station.kind == .music ? 140 : 250)
             VStack(alignment: .leading, spacing: 12) {
-                Text(station.name).font(.system(size: 26, weight: .bold))
+                HStack(spacing: 10) {
+                    Text(station.name).font(.system(size: 26, weight: .bold))
+                    if station.smart == true { SmartBadge() }
+                }
                 HStack(spacing: 10) {
                     Text(StationText.kind(station.kind))
                     Tag(text: StationText.rating(station)).foregroundStyle(Theme.primary)
@@ -282,6 +286,7 @@ struct StationScreen: View {
                     if app.isAdult && stations.isOwner(station) {
                         Button("Edit station") { browser.editingStation = StationEditRequest(station: station) }
                             .buttonStyle(SecondaryButtonStyle())
+                        StationRulesButton(station: station)
                         Button("Set image…") {
                             browser.imaging = ImageRequest(station: station)
                         }

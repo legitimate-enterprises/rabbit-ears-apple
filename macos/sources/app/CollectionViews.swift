@@ -99,10 +99,17 @@ struct CollectionGrid: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             if app.isAdult {
-                Button {
-                    browser.namingCollection = CollectionNameRequest()
-                } label: {
-                    Label("New collection", systemImage: "plus")
+                HStack(spacing: 10) {
+                    Button {
+                        browser.namingCollection = CollectionNameRequest()
+                    } label: {
+                        Label("New collection", systemImage: "plus")
+                    }
+                    Button {
+                        browser.smartRules = SmartRulesRequest(target: .newCollection)
+                    } label: {
+                        Label("New smart collection…", systemImage: "sparkles")
+                    }
                 }
                 .buttonStyle(SecondaryButtonStyle())
             }
@@ -154,7 +161,8 @@ struct CollectionScreen: View {
         let collection = collections.collections.first(where: { $0.id == id })
         Group {
             if let collection {
-                let editable = app.isAdult && collection.source == .custom
+                // A smart one's movies follow its rules; it is still renamed and deleted.
+                let editable = app.isAdult && collection.source == .custom && collection.smart != true
                 if ordering, editable, let movies {
                     VStack(alignment: .leading, spacing: 18) {
                         header(collection, editable: editable)
@@ -251,7 +259,10 @@ struct CollectionScreen: View {
             )
             .frame(width: 150)
             VStack(alignment: .leading, spacing: 12) {
-                Text(collection.name).font(.system(size: 26, weight: .bold))
+                HStack(spacing: 10) {
+                    Text(collection.name).font(.system(size: 26, weight: .bold))
+                    if collection.smart == true { SmartBadge() }
+                }
                 Text(collection.summary).font(.system(size: 13)).foregroundStyle(Theme.secondary)
                 HStack(spacing: 10) {
                     ShuffleButton(items: movies ?? [])
@@ -261,11 +272,18 @@ struct CollectionScreen: View {
                     if ordering {
                         Button("Done") { ordering = false }.buttonStyle(PrimaryButtonStyle())
                     }
-                    if editable {
+                    if app.isAdult && collection.source == .custom {
                         Menu {
-                            Button("Edit order", systemImage: "arrow.up.arrow.down") { ordering = true }
-                                .disabled((movies?.count ?? 0) < 2)
-                            if collection.isHandOrdered {
+                            if collection.smart == true {
+                                Button("Edit rules…") {
+                                    browser.smartRules = SmartRulesRequest(target: .collection(collection))
+                                }
+                            }
+                            if editable {
+                                Button("Edit order", systemImage: "arrow.up.arrow.down") { ordering = true }
+                                    .disabled((movies?.count ?? 0) < 2)
+                            }
+                            if editable && collection.isHandOrdered {
                                 Button("Reset to release order", systemImage: "arrow.counterclockwise") { reset() }
                             }
                             Button("Rename…") { browser.namingCollection = CollectionNameRequest(renaming: collection) }
