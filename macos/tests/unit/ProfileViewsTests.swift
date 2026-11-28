@@ -21,6 +21,7 @@ final class ProfileViewsTests: XCTestCase {
             "GET /me": (.ok, me),
             "POST /me/lock": (.noContent, ""),
             "POST /profiles/\(UID.n(1))/unlock": (.noContent, ""),
+            "POST /profiles/\(UID.n(2))/unlock": (.noContent, ""),
         ])
         let downloads = DownloadStore(directory: Fixtures.replicas, downloader: FakeDownloader(), facts: { .decoder })
         model = AppModel(
@@ -103,6 +104,32 @@ final class ProfileViewsTests: XCTestCase {
         XCTAssertGreaterThan(scroll.documentView?.frame.height ?? 0, scroll.contentView.bounds.height)
     }
 
+    func testPreferencesAreOnlyForAnAdultBrowsing() async throws {
+        XCTAssertFalse(model.offersPreferences, "at Who's watching")
+        try await model.choose(model.profiles[0])
+        XCTAssertTrue(model.offersPreferences)
+        await model.switchProfile()
+        try await model.choose(model.profiles[1], pin: "1234")
+        XCTAssertFalse(model.offersPreferences, "for a kid")
+        await model.signOut()
+        XCTAssertFalse(model.offersPreferences, "signed out")
+    }
+
+    func testTheAppMenusPreferencesOpenTheProfileMenusSheet() async throws {
+        try await model.choose(model.profiles[0])
+        let app = MainWindowState()
+        try await show(ProfileMenu().environment(app), height: 600)
+        let before = Set(NSApp.windows.map(ObjectIdentifier.init))
+        // As the app menu's Preferences… does.
+        app.showingPreferences = true
+        try await settle()
+        // Offscreen, the sheet has its own window, not yet attached to the one it is presented on.
+        let sheet = try XCTUnwrap(NSApp.windows.first { !before.contains(ObjectIdentifier($0)) })
+        defer { sheet.close() }
+        let text = try await shown(in: sheet).map(\.text)
+        XCTAssertTrue(text.contains("Autoplay"), "\(text)")
+    }
+
     // MARK: Drawing and reading back
 
     private struct Line {
@@ -140,8 +167,8 @@ final class ProfileViewsTests: XCTestCase {
         return text
     }
 
-    private func shown() async throws -> [Line] {
-        let view = try XCTUnwrap(window?.contentView)
+    private func shown(in shownWindow: NSWindow? = nil) async throws -> [Line] {
+        let view = try XCTUnwrap((shownWindow ?? window)?.contentView)
         let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
         view.cacheDisplay(in: view.bounds, to: bitmap)
         var request = RecognizeTextRequest()

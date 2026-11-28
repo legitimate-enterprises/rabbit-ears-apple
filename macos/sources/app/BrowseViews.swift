@@ -26,12 +26,14 @@ extension View {
 
 struct MainView: View {
     @Environment(AppModel.self) private var model
+    @Environment(MainWindowState.self) private var app
     let nowPlaying: SystemNowPlayingCenter
     /// Hands each profile's player to a test, which has no other way to play.
     var entered: (MusicPlayer) -> Void = { _ in }
     @State private var section = SidebarSection.home
     @State private var catalog: CatalogModel?
-    @State private var music: MusicPlayer?
+    private var music: MusicPlayer? { app.music }
+    private var audio: AVAudioOutput? { app.audio }
     /// Outlives every player: a new one knows no network path until its monitor first reports.
     @State private var capabilities = SystemCapabilities()
     @State private var playlists: PlaylistsModel?
@@ -44,8 +46,6 @@ struct MainView: View {
     @State private var rootTitle: String?
     @State private var prompt = DownloadPrompt()
     @Environment(\.scenePhase) private var scenePhase
-    /// The music player's output, so the volume slider reaches it.
-    @State private var audio: AVAudioOutput?
 
     var body: some View {
         ZStack {
@@ -207,7 +207,12 @@ struct MainView: View {
                 await playlists?.load()
             }
         }
-        .onDisappear { Task { await music?.stop() } }
+        // Still browsing, the window has closed, and its music plays on.
+        .onDisappear {
+            guard model.phase != .browsing else { return }
+            app.showingPreferences = false
+            Task { await app.endMusic() }
+        }
     }
 
     private func shows(_ section: SidebarSection) -> Bool {
@@ -221,8 +226,7 @@ struct MainView: View {
     /// Builds what one profile browses with; a kid gets only the playlists shared with them and no
     /// stations of their own.
     private func enter() async {
-        await music?.stop()
-        music = nil
+        if app.musicProfile != model.activeProfile?.id { await app.endMusic() }
         playlists = nil
         collections = nil
         browser.tuning = nil
@@ -238,13 +242,18 @@ struct MainView: View {
         let tuned = StationsModel(client: client, replica: sync.replica, queue: sync.queue, profileId: profile.id)
         stations = tuned
         Task { await sets.load() }
-        let output = AVAudioOutput()
-        output.player.volume = Volume.stored
-        audio = output
-        let player = MusicPlayer(
-            client: client, endpoint: endpoint, profileId: profile.id, output: output, capabilities: capabilities)
+        let player: MusicPlayer
+        if let music {
+            player = music
+        } else {
+            let output = AVAudioOutput()
+            output.player.volume = Volume.stored
+            player = MusicPlayer(
+                client: client, endpoint: endpoint, profileId: profile.id, output: output,
+                capabilities: capabilities)
+            app.keep(player, output, for: profile.id)
+        }
         player.attach(nowPlaying)
-        music = player
         entered(player)
         let lists = PlaylistsModel(
             client: client, replica: sync.replica, queue: sync.queue, profileId: profile.id,

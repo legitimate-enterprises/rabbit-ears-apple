@@ -25,7 +25,8 @@ final class TransportTests: XCTestCase {
         let browser = Browser()
         let center = SystemNowPlayingCenter { _ in nil }
         let controller = NSHostingController(
-            rootView: MainView(nowPlaying: center, browser: browser).environment(model))
+            rootView: MainView(nowPlaying: center, browser: browser).environment(model)
+                .environment(MainWindowState()))
         controller.sizingOptions = []
         let window = NSWindow(
             contentRect: .init(x: 0, y: 0, width: 1200, height: 760),

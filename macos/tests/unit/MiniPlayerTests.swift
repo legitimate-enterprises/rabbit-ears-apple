@@ -37,7 +37,7 @@ final class MiniPlayerTests: XCTestCase {
             rootView: MainView(
                 nowPlaying: SystemNowPlayingCenter { _ in nil }, entered: { player = $0 }, browser: browser
             )
-            .environment(model))
+            .environment(model).environment(MainWindowState()))
         controller.sizingOptions = []
         let window = NSWindow(
             contentRect: .init(x: 0, y: 0, width: 1200, height: 760),

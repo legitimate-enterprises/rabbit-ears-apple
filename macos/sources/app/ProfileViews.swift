@@ -4,12 +4,12 @@ import SwiftUI
 
 struct ProfileMenu: View {
     @Environment(AppModel.self) private var model
-    @State private var preferences = false
+    @Environment(MainWindowState.self) private var app
 
     var body: some View {
         Menu {
             Button("Switch profile") { Task { await model.switchProfile() } }
-            if model.isAdult { Button("Preferences…") { preferences = true } }
+            if model.offersPreferences { Button("Preferences…") { app.showingPreferences = true } }
             Divider()
             Button("Sign out") { Task { await model.signOut() } }
         } label: {
@@ -21,7 +21,7 @@ struct ProfileMenu: View {
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
-        .sheet(isPresented: $preferences) { PreferencesSheet() }
+        .sheet(isPresented: Bindable(app).showingPreferences) { PreferencesSheet() }
         .accessibilityLabel("Profile: \(model.activeProfile?.name ?? "")")
     }
 }

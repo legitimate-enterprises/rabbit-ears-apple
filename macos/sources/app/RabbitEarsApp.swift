@@ -3,7 +3,9 @@ import SwiftUI
 
 @main
 struct RabbitEarsApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var model: AppModel
+    @State private var app = MainWindowState()
     @State private var nowPlaying: SystemNowPlayingCenter
 
     init() {
@@ -20,6 +22,8 @@ struct RabbitEarsApp: App {
         _model = State(initialValue: model)
         // The system's command center is process-wide, so the app makes the one center.
         _nowPlaying = State(initialValue: SystemNowPlayingCenter { await model.artwork?.data($0, .poster) })
+        // Once per launch, not per window: the window opened again keeps the profile it closed on.
+        Task { await model.restore() }
     }
 
     var body: some Scene {
@@ -27,14 +31,17 @@ struct RabbitEarsApp: App {
         Window(model.serverName, id: "main") {
             RootView(nowPlaying: nowPlaying)
                 .environment(model)
+                .environment(app)
                 .frame(minWidth: 900, minHeight: 600)
                 .background(Theme.ground)
                 .preferredColorScheme(.dark)
                 .tint(Theme.amber)
-                .task { await model.restore() }
         }
         .defaultSize(width: 1200, height: 760)
-        .commands { NavigationCommands() }
+        .commands {
+            NavigationCommands()
+            PreferencesCommands(model: model, app: app)
+        }
         .windowToolbarStyle(.unified)
     }
 }
