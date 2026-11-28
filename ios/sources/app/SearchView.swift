@@ -7,6 +7,7 @@ struct SearchView: View {
     @Environment(Services.self) private var services
     @Environment(Browser.self) private var browser
     @State private var search = ""
+    @FocusState private var typing: Bool
     @State private var results: SearchResult?
     @State private var target: PlaylistTarget?
 
@@ -32,6 +33,9 @@ struct SearchView: View {
         .navigationTitle("Search")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
+        .searchFocused($typing)
+        // Back from one of its results, a search keeps the keyboard down.
+        .onAppear { if search.isEmpty { typing = true } }
         .addToPlaylist($target)
         .toolbar { BrowseToolbar(search: false) }
         .task(id: query) {

@@ -240,6 +240,7 @@ struct NewFromChannels: View {
 /// Server search over video titles.
 struct YouTubeSearchView: View {
     @State private var search = ""
+    @FocusState private var typing: Bool
 
     var body: some View {
         ScrollView {
@@ -253,6 +254,9 @@ struct YouTubeSearchView: View {
         .navigationTitle("Search")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search YouTube")
+        .searchFocused($typing)
+        // Back from one of its results, a search keeps the keyboard down.
+        .onAppear { if search.isEmpty { typing = true } }
         .toolbar { BrowseToolbar(search: false) }
     }
 

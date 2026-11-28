@@ -195,6 +195,7 @@ struct ShellView: View {
     @Environment(CatalogModel.self) private var catalog
     @Environment(Browser.self) private var browser
     @FocusState private var focus: ShellTab?
+    @FocusState private var searchField: Bool
     @State private var profileMenu = false
     @State private var preferences = false
 
@@ -205,6 +206,8 @@ struct ShellView: View {
                 ForEach(ShellTab.allCases.filter(shows), id: \.self) { tab in
                     Button {
                         browser.tab = tab
+                        // Moving along the bar only shows Search; choosing it goes on to type.
+                        if tab == .search { searchField = true }
                     } label: {
                         HStack(spacing: 10) {
                             if tab == .search { Image(systemName: "magnifyingglass") }
@@ -270,7 +273,7 @@ struct ShellView: View {
             case .home: HomeView()
             case .tv: GridView(kind: .show)
             case .movies: GridView(kind: .movie)
-            case .search: SearchView()
+            case .search: SearchView(field: $searchField)
             case .music: MusicScreen()
             case .youTube: YouTubeScreen()
             case .favorites: FavoritesView()

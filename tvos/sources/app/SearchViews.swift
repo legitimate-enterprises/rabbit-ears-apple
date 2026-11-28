@@ -5,6 +5,7 @@ import SwiftUI
 struct SearchView: View {
     @Environment(CatalogModel.self) private var model
     @Environment(MusicPlayer.self) private var player
+    let field: FocusState<Bool>.Binding
     @State private var search = ""
     @State private var results: SearchResult?
 
@@ -12,7 +13,7 @@ struct SearchView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 50) {
                 TextField("Search", text: $search, prompt: Text("Movies, shows, music, videos and people"))
-                    .autocorrectionDisabled().font(.system(size: 34)).frame(width: 1000)
+                    .autocorrectionDisabled().font(.system(size: 34)).frame(width: 1000).focused(field)
                     .frame(maxWidth: .infinity)
                 if let results, !query.isEmpty {
                     if results.sections.isEmpty {
