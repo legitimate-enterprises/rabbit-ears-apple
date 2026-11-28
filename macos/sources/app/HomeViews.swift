@@ -89,6 +89,7 @@ struct HeroTile: View {
                     Label("Resume", systemImage: "play.fill")
                 }
                 .buttonStyle(PrimaryButtonStyle(height: 30))
+                .needsServer(.play, entry.itemId)
                 Button("Details") {
                     switch entry {
                     case .item(let item): browser.open(catalog.show(of: item) ?? item)
@@ -260,6 +261,7 @@ struct Tile: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .dimmedOffline(item.id)
         .labeled(plays ? EpisodeText.playLabel(item, catalog) : nil)
         .contextMenu {
             ItemContextMenu(

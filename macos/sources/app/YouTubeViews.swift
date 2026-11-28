@@ -155,6 +155,7 @@ struct VideoTile: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .dimmedOffline(video.id)
         .contextMenu { VideoContextMenu(video: video) }
     }
 

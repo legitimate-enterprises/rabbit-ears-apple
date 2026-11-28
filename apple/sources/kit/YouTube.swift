@@ -147,6 +147,14 @@ public enum Resumable: Identifiable, Sendable {
         }
     }
 
+    /// What Resume plays.
+    public var itemId: UID {
+        switch self {
+        case .item(let item): item.id
+        case .video(let video): video.id
+        }
+    }
+
     /// An episode goes by its show's title.
     public func title(_ catalog: Catalog) -> String {
         switch self {

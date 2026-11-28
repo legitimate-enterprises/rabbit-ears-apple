@@ -209,6 +209,7 @@ struct StationRulesButton: View {
             Image(systemName: "sparkles").accessibilityLabel(station.smart == true ? "Edit rules" : "Use rules")
         }
         .buttonStyle(SecondaryButtonStyle())
+        .needsServer(.smartRules)
         .confirmationDialog("Use rules for this station?", isPresented: $asking, titleVisibility: .visible) {
             Button("Use rules…") { browser.smartRules = SmartRulesRequest(target: .station(station)) }
         } message: {

@@ -30,6 +30,7 @@ struct PlayShuffle: View {
 
     @ViewBuilder private var playing: some View {
         Button(action: play) { Label("Play", systemImage: "play.fill") }.buttonStyle(PrimaryButtonStyle()).fixedSize()
+            .needsServer(.play, itemId)
         Button(action: shuffle) { Label("Shuffle", systemImage: "shuffle") }.buttonStyle(SecondaryButtonStyle())
             .fixedSize()
         FavoriteButton(id: itemId)

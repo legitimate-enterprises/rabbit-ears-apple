@@ -30,6 +30,7 @@ struct CollectionsGrid: View {
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
                 }
                 .buttonStyle(.plain).foregroundStyle(Theme.amber)
+                .needsServer(.smartRules)
             }
             if model.collections.isEmpty { EmptyNote(text: "No collections yet.") }
             LazyVGrid(columns: GridView.columns, spacing: 14) {
@@ -185,6 +186,7 @@ struct CollectionView: View {
                     Button("Edit rules", systemImage: "sparkles") {
                         browser.smartRules = SmartRulesRequest(target: .collection(collection))
                     }
+                    .needsServer(.smartRules)
                 }
                 if editable {
                     Button("Edit order", systemImage: "arrow.up.arrow.down") { ordering = true }

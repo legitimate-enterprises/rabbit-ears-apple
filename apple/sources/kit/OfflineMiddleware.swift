@@ -116,26 +116,30 @@ extension DownloadStore {
         {
             return answer
         }
-        return isOffline ? offline(call) : nil
+        return isOffline ? offlineAnswer(call) : nil
     }
 
     func answerOffline(_ call: LocalCall) async -> LocalAnswer? {
         unreachableSince = now()
+        setOffline(true)
         if call.operation == "startPlayback", let request = call.decode(Components.Schemas.PlaybackRequest.self) {
             return await startLocal(request, anyEdition: true)
         }
-        return offline(call)
+        return offlineAnswer(call)
     }
 
     var isOffline: Bool {
         unreachableSince.map { now().timeIntervalSince($0) < Self.offlineGrace } ?? false
     }
 
-    func reached() { unreachableSince = nil }
+    func reached() {
+        unreachableSince = nil
+        setOffline(false)
+    }
 
     /// Kept artwork, and a lock while there is a kept Me; nil for the rest,
     /// which then fail as the server not answering.
-    private func offline(_ call: LocalCall) -> LocalAnswer? {
+    private func offlineAnswer(_ call: LocalCall) -> LocalAnswer? {
         switch call.operation {
         case "getArtwork":
             guard call.segments.count == 3, let store = Components.Schemas.ArtworkStore(rawValue: call.segments[1])

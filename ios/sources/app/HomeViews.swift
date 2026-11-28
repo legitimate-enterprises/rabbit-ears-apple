@@ -148,6 +148,7 @@ struct HeroTile: View {
                     Label("Resume", systemImage: "play.fill")
                 }
                 .buttonStyle(PrimaryButtonStyle())
+                .needsServer(.play, entry.itemId)
                 if let progress = entry.progress(catalog) { ProgressBar(value: progress) }
             }
             .padding(.top, 10)
@@ -254,6 +255,7 @@ struct Tile: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .dimmedOffline(item.id)
         .labeled(plays ? EpisodeText.playLabel(item, catalog) : nil)
         .contextMenu {
             ItemContextMenu(

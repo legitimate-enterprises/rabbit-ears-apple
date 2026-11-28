@@ -151,6 +151,7 @@ struct PreferencesView: View {
             .frame(minHeight: 48).contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .needsServer(.friends)
         .padding(.horizontal, 12).background(Theme.raised, in: .rect(cornerRadius: 8))
     }
 

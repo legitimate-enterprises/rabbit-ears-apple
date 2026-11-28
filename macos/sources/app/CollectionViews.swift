@@ -110,6 +110,7 @@ struct CollectionGrid: View {
                     } label: {
                         Label("New smart collection…", systemImage: "sparkles")
                     }
+                    .needsServer(.smartRules)
                 }
                 .buttonStyle(SecondaryButtonStyle())
             }
@@ -278,6 +279,7 @@ struct CollectionScreen: View {
                                 Button("Edit rules…") {
                                     browser.smartRules = SmartRulesRequest(target: .collection(collection))
                                 }
+                                .needsServer(.smartRules)
                             }
                             if editable {
                                 Button("Edit order", systemImage: "arrow.up.arrow.down") { ordering = true }

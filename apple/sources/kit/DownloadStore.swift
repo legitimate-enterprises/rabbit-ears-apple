@@ -163,8 +163,7 @@ public final class DownloadStore {
         return request.titles.allSatisfy { ledger.titles[$0]?.state == .onDevice }
     }
 
-    /// The library grids' Downloaded filter, one for every grid.
-    public var downloadedOnly = false
+    var offlineFilter = OfflineFilter()
 
     public func file(of title: StoredTitle) -> URL? { title.file.map { media.appending(path: $0) } }
 

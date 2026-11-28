@@ -168,6 +168,7 @@ struct AlbumTile: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .dimmedOffline(album.id)
         .contextMenu {
             Button("Play") { play(shuffled: false) }
             Button("Shuffle") { play(shuffled: true) }
@@ -201,6 +202,7 @@ struct ArtistTile: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .dimmedOffline(artist.id)
         .contextMenu { FavoriteMenuItem(id: artist.id) }
     }
 }

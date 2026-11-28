@@ -205,6 +205,7 @@ struct StationRulesButton: View {
             }
         }
         .buttonStyle(SecondaryButtonStyle())
+        .needsServer(.smartRules)
         .confirmationDialog("Use rules for this station?", isPresented: $asking, titleVisibility: .visible) {
             Button("Use rules…") { browser.smartRules = SmartRulesRequest(target: .station(station)) }
         } message: {

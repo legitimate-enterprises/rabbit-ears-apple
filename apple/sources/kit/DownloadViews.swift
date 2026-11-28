@@ -22,6 +22,7 @@ public struct DownloadMenu: View {
                         Button(quality.label) { prompt?.ask(target, quality: quality, store: store, profile: profile) }
                     }
                 }
+                .needsServer(.download)
             }
         }
     }
@@ -94,6 +95,15 @@ struct DownloadBadge: View {
 }
 
 extension View {
+    /// Grays out an action while it is certain to fail offline, and says why.
+    public func needsServer(_ action: ServerAction, _ id: UID? = nil) -> some View {
+        modifier(NeedsServer(action: action, id: id))
+    }
+
+    /// Fades a title's tile while offline when nothing of it plays from this
+    /// device; it still opens, as its details read from the replica.
+    public func dimmedOffline(_ id: UID) -> some View { modifier(DimmedOffline(id: id)) }
+
     /// Hosts what Download asks: This is a lot for a big request, and why one could not start.
     public func downloadPrompt(_ prompt: DownloadPrompt, store: DownloadStore?) -> some View {
         self
@@ -117,5 +127,33 @@ extension View {
                 Text(prompt.error ?? "")
             }
             .environment(prompt)
+    }
+}
+
+private struct NeedsServer: ViewModifier {
+    @Environment(AppModel.self) private var app
+    let action: ServerAction
+    let id: UID?
+
+    func body(content: Content) -> some View {
+        let blocked = app.downloads?.blocks(action, id, profile: app.activeProfile?.id) == true
+        content.disabled(blocked)
+            .help(blocked ? "Needs the server" : "")
+            .accessibilityHint(blocked ? "Needs the server" : "")
+    }
+}
+
+private struct DimmedOffline: ViewModifier {
+    @Environment(AppModel.self) private var app
+    let id: UID
+
+    func body(content: Content) -> some View {
+        let dim =
+            if let store = app.downloads, store.offline, let profile = app.activeProfile?.id {
+                !store.isPlayable(id, profile: profile)
+            } else {
+                false
+            }
+        content.opacity(dim ? 0.35 : 1).saturation(dim ? 0 : 1)
     }
 }

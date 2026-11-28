@@ -105,7 +105,7 @@ struct PreferencesSheet: View {
         Divider()
         heading("Friends")
         HStack(spacing: 10) {
-            Button("Friends…") { showingFriends = true }.buttonStyle(SecondaryButtonStyle())
+            Button("Friends…") { showingFriends = true }.buttonStyle(SecondaryButtonStyle()).needsServer(.friends)
             Text("\(count) friend\(count == 1 ? "" : "s")").font(.system(size: 12)).foregroundStyle(Theme.secondary)
             if received > 0 {
                 Text("\(received) request\(received == 1 ? "" : "s")").font(.system(size: 11, weight: .semibold))

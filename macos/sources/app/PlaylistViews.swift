@@ -139,6 +139,7 @@ struct PlaylistActions: View {
         if playlist.isOwned {
             if playlist.smart == true {
                 Button("Edit rules…") { browser.smartRules = SmartRulesRequest(target: .playlist(playlist)) }
+                    .needsServer(.smartRules)
             }
             Button("Share…") { browser.sharing = playlist }
             Button("Rename…") { browser.naming = PlaylistNameRequest(renaming: playlist) }
@@ -179,6 +180,7 @@ struct PlaylistGrid: View {
                     } label: {
                         Label("New smart playlist…", systemImage: "sparkles")
                     }
+                    .needsServer(.smartRules)
                 }
                 .buttonStyle(SecondaryButtonStyle())
             }

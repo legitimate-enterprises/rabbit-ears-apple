@@ -121,14 +121,14 @@ struct PlayableDetail: View {
                             together?.inSync == true ? "Play together" : inProgress ? "Resume" : "Play",
                             systemImage: "play.fill")
                     }
-                    .buttonStyle(PrimaryButtonStyle())
+                    .buttonStyle(PrimaryButtonStyle()).needsServer(.play, item.id)
                     if inProgress && together?.inSync != true {
                         Button("Start over") {
                             browser.play(
                                 item, in: catalog, audioTrackId: audioTrackId, edition: sent, from: 0,
                                 together: together)
                         }
-                        .buttonStyle(SecondaryButtonStyle())
+                        .buttonStyle(SecondaryButtonStyle()).needsServer(.play, item.id)
                     }
                     if cuts.offered && !sharing {
                         Picker("Edition", selection: $cuts.editionId) {
@@ -265,7 +265,7 @@ struct GroupDetail: View {
                         } label: {
                             Label(resumeTitle(target, catalog), systemImage: "play.fill")
                         }
-                        .buttonStyle(PrimaryButtonStyle())
+                        .buttonStyle(PrimaryButtonStyle()).needsServer(.play, target.id)
                     }
                     ShuffleButton(items: catalog.episodes(under: item.id))
                     DetailMoreMenu(item: item)

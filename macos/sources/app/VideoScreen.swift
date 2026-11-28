@@ -105,6 +105,7 @@ struct VideoScreen: View {
                 Label(playTitle(video, inProgress), systemImage: "play.fill")
             }
             .buttonStyle(PrimaryButtonStyle())
+            .needsServer(.play, video.id)
             Button {
                 Task {
                     await catalog.setWatched(!video.watched, for: Item(video: video))

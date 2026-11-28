@@ -244,7 +244,7 @@ struct PlayableDetail: View {
             Label(shared != nil ? "Play together" : inProgress ? "Resume" : "Play", systemImage: "play.fill")
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(PrimaryButtonStyle(fullWidth: true))
+        .buttonStyle(PrimaryButtonStyle(fullWidth: true)).needsServer(.play, item.id)
         HStack(spacing: 10) {
             if inProgress && shared == nil {
                 Button {
@@ -252,7 +252,7 @@ struct PlayableDetail: View {
                 } label: {
                     Text("Start over").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(SecondaryButtonStyle(fullWidth: true))
+                .buttonStyle(SecondaryButtonStyle(fullWidth: true)).needsServer(.play, item.id)
             }
             ItemMoreMenu(
                 item: item, together: together, editionId: cuts.sent(together: false) ?? nil, target: $addTarget,
@@ -349,7 +349,7 @@ struct GroupDetail: View {
             if let target {
                 let episodes = catalog.episodes(under: item.id)
                 PlayShuffle(
-                    playTitle: resumeTitle(target, catalog), play: { browser.play(target, in: catalog) },
+                    playTitle: resumeTitle(target, catalog), id: target.id, play: { browser.play(target, in: catalog) },
                     shuffle: episodes.contains(where: VideoQueue.shuffles)
                         ? { browser.shuffle(episodes, downloads: app.downloads, profile: model.profileId) } : nil)
             }

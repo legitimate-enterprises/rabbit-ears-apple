@@ -183,6 +183,7 @@ struct AlbumTile: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .dimmedOffline(album.id)
         .contextMenu {
             SelectMenuItem(id: album.id)
             Button("Play", systemImage: "play.fill") { play(shuffled: false) }
@@ -232,6 +233,7 @@ struct ArtistsList: View {
                         .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
+                    .dimmedOffline(artist.id)
                     .contextMenu {
                         SelectMenuItem(id: artist.id)
                         FavoriteMenuItem(id: artist.id)

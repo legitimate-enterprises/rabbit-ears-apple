@@ -33,6 +33,7 @@ struct PlaylistsList: View {
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
                 }
                 .buttonStyle(.plain).foregroundStyle(Theme.amber)
+                .needsServer(.smartRules)
             }
             ForEach(playlists, id: \.id) { playlist in
                 Button {
@@ -75,6 +76,7 @@ struct PlaylistsList: View {
                             Button("Edit rules", systemImage: "sparkles") {
                                 browser.smartRules = SmartRulesRequest(target: .playlist(playlist))
                             }
+                            .needsServer(.smartRules)
                         }
                         Button("Share", systemImage: "person.2") { sharing = playlist }
                         Button("Rename", systemImage: "pencil") {
@@ -197,6 +199,7 @@ struct PlaylistView: View {
                             Button("Edit rules", systemImage: "sparkles") {
                                 browser.smartRules = SmartRulesRequest(target: .playlist(playlist))
                             }
+                            .needsServer(.smartRules)
                         }
                     } label: {
                         Image(systemName: "ellipsis")

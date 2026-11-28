@@ -21,6 +21,8 @@ struct MoreToolbar<Items: View>: ToolbarContent {
 
 struct PlayShuffle: View {
     var playTitle = "Play"
+    /// What Play plays, which offline it plays only when it is on this device.
+    var id: UID?
     let play: () -> Void
     var shuffle: (() -> Void)?
 
@@ -30,6 +32,7 @@ struct PlayShuffle: View {
                 Label(playTitle, systemImage: "play.fill").frame(maxWidth: .infinity)
             }
             .buttonStyle(PrimaryButtonStyle(fullWidth: true))
+            .needsServer(.play, id)
             if let shuffle {
                 Button(action: shuffle) {
                     Label("Shuffle", systemImage: "shuffle").frame(maxWidth: .infinity)
@@ -106,8 +109,8 @@ struct AlbumView: View {
                     .font(.system(size: 13)).foregroundStyle(Theme.secondary)
                 }
                 PlayShuffle(
-                    play: { play(detail, from: 0, shuffled: false) }, shuffle: { play(detail, from: 0, shuffled: true) }
-                )
+                    id: album.id, play: { play(detail, from: 0, shuffled: false) },
+                    shuffle: { play(detail, from: 0, shuffled: true) })
             }
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(detail.discs, id: \.self) { disc in
@@ -208,7 +211,9 @@ struct ArtistView: View {
                     }
                     .font(.system(size: 13)).foregroundStyle(Theme.secondary)
                 }
-                PlayShuffle(play: { play(artist, shuffled: false) }, shuffle: { play(artist, shuffled: true) })
+                PlayShuffle(
+                    id: artist.id, play: { play(artist, shuffled: false) },
+                    shuffle: { play(artist, shuffled: true) })
                 if let overview = artist.overview, !overview.isEmpty {
                     Text(overview).font(.system(size: 14)).foregroundStyle(Theme.synopsis)
                         .frame(maxWidth: .infinity, alignment: .leading)

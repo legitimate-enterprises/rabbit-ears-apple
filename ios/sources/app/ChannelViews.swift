@@ -269,6 +269,7 @@ struct VideoView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(PrimaryButtonStyle(fullWidth: true))
+            .needsServer(.play, video.id)
             Button {
                 Task {
                     await catalog.setWatched(!video.watched, for: stand)
