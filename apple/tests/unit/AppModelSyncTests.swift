@@ -122,6 +122,36 @@ final class AppModelSyncTests: XCTestCase {
         XCTAssertEqual(try app.fixture.queuedActions(), [], "another server or household's actions are not sent")
     }
 
+    func testTryingAgainWhileTheServerIsDownKeepsTheReplicaAndTheQueue() async throws {
+        do {
+            let kept = try app.fixture.v1()
+            try await kept.write { try $0.execute(sql: ReplicaFixture.enqueue("a")) }
+        }
+        app.store.server = URL(string: "http://rabbit.local:8477")
+        app.store.token = "tok-1"
+        app.routes.failure = URLError(.notConnectedToInternet)
+        await app.model.restore()
+        XCTAssertEqual(app.model.phase, .unreachable)
+
+        await app.model.restore()
+
+        XCTAssertEqual(app.model.phase, .unreachable)
+        XCTAssertEqual(app.model.sync?.replica.isEmpty, false, "the library outlives a retry")
+        XCTAssertEqual(try app.fixture.queuedActions(), ["a"], "what is unsent outlives a retry")
+    }
+
+    func testReconnectingWhileTheServerIsDownOpensOnTheLastMeAndKeepsTheQueue() async throws {
+        let sync = try await app.synced()
+        try await sync.replica.write { try $0.execute(sql: ReplicaFixture.enqueue("a")) }
+        app.routes.failure = URLError(.notConnectedToInternet)
+
+        await app.model.restore()
+
+        XCTAssertEqual(app.model.phase, .choosingProfile)
+        XCTAssertEqual(app.model.profiles.map(\.name), ["Avery", "Robin"])
+        XCTAssertEqual(try app.fixture.queuedActions(), ["a"])
+    }
+
     func testTheLastMeIsKeptForTheNextLaunchToOpenOnWhileTheServerIsDown() async throws {
         _ = try await app.synced()
         let next = app.relaunch()

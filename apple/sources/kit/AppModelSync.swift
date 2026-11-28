@@ -82,12 +82,15 @@ public final class SyncSession {
         following = nil
     }
 
-    /// Stops syncing, gives the queue `lastFlush` to reach the server, and
-    /// deletes the replica and whatever is still unsent.
-    func end() async {
+    /// Stops syncing and closes the replica, keeping its files for the next
+    /// session. `wipe`, for a replica no longer this device's, first gives
+    /// the queue `lastFlush` to reach the server, then deletes the replica
+    /// and whatever is still unsent.
+    func end(wipe: Bool) async {
         following?.cancel()
         following = nil
         pump?.cancel()
+        guard wipe else { return replica.close() }
         if !replica.isEmpty {
             let (done, finished) = AsyncStream.makeStream(of: Void.self)
             let flushing = Task { [queue] in
@@ -127,7 +130,7 @@ extension AppModel {
     /// The client of a session, and its sync opened. A `fresh` sign-in, as
     /// to another server or household, starts from no replica.
     func connect(_ endpoint: ServerEndpoint, token: String, fresh: Bool) async -> Client {
-        end()
+        end(wipe: fresh)
         await ending?.value
         if fresh { try? Replica(directory: replicaDirectory).wipe() }
         sync = SyncSession(
@@ -193,8 +196,8 @@ extension AppModel {
         await launch(held.endpoint, held.client)
     }
 
-    /// Ends the open session, if any, in the background.
-    func end() {
+    /// Ends the open session, if any, in the background, as `SyncSession.end`.
+    func end(wipe: Bool) {
         guard let sync else { return }
         self.sync = nil
         libraryUpdate = nil
@@ -202,7 +205,7 @@ extension AppModel {
         let before = ending
         ending = Task {
             await before?.value
-            await sync.end()
+            await sync.end(wipe: wipe)
         }
     }
 

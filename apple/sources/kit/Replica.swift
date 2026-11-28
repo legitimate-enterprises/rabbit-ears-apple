@@ -241,9 +241,14 @@ public final class Replica: Sendable {
 
     /// Signed out, or on another server: the replica and the unsent actions go.
     public func wipe() throws {
-        _ = install(nil, nil)
+        close()
         guard FileManager.default.fileExists(atPath: directory.path(percentEncoded: false)) else { return }
         try FileManager.default.removeItem(at: directory)
+    }
+
+    /// Lets go of the files, keeping them, for another `Replica` to open; this one reads as empty.
+    public func close() {
+        _ = install(nil, nil)
     }
 
     private func current() throws -> DatabasePool {

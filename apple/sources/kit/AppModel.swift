@@ -49,7 +49,7 @@ public final class AppModel {
     public let live: LiveFeed
     /// The signed-in server's replica, its action queue and its sync engine.
     public internal(set) var sync: SyncSession?
-    /// A signed-out session's last flush and wipe, which the next one waits on.
+    /// The last session's end, a sign-out's flush and wipe among them, which the next one waits on.
     @ObservationIgnored var ending: Task<Void, Never>?
     /// Reads the sections again each time the replica's libraries change.
     @ObservationIgnored var sections: Task<Void, Never>?
@@ -300,7 +300,7 @@ public final class AppModel {
     private func forget() {
         store.token = nil
         downloads?.wipe()
-        end()
+        end(wipe: true)
         heldHomeSlots = [:]
         URLCache.shared.removeAllCachedResponses()
     }
