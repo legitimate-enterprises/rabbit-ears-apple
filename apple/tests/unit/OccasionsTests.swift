@@ -56,14 +56,13 @@ class OccasionCase: XCTestCase {
 }
 
 final class OccasionsModelTests: OccasionCase {
-    func testTheOccasionsInSeasonAreNearestTheirAnchorFirstEachWithItsFirstTitles() async throws {
+    func testTheOccasionsInSeasonAreNearestTheirAnchorFirstEachWithARowOfItsTitles() async throws {
         let model = OccasionsModel()
         await model.load(replica: try seasons(), profileId: 1, now: at("2026-12-24T15:00:00Z"), timeZone: eastern)
         XCTAssertTrue(model.answered)
         XCTAssertEqual(model.shelves.map(\.name), ["Christmas", "New Year"], "1 day off, then 8")
         let christmas = try XCTUnwrap(model.shelves.first)
         XCTAssertEqual(christmas.items.count, Catalog.homeShelfLimit)
-        XCTAssertEqual(christmas.items.prefix(3).map(\.id), [127, 125, 124], "by title, the keyworded one too")
         XCTAssertFalse(christmas.items.contains { $0.id == 126 }, "removed by hand")
         XCTAssertEqual(christmas.title, "Ho, Ho, Ho!")
         XCTAssertEqual(christmas.occasion.colors, ["#C8102E", "#00843D", "#FFD100"])
@@ -74,6 +73,36 @@ final class OccasionsModelTests: OccasionCase {
         XCTAssertEqual(newYear.rowTitle, "New Year", "no phrase")
         XCTAssertNil(newYear.colors)
         XCTAssertEqual([newYear.anchorDate, newYear.firstDate], ["2027-01-01", "2026-12-22"])
+    }
+
+    func testARowHoldsItsOrderThroughADayAndTurnsOverWithTheNext() async throws {
+        let replica = try seasons()
+        let model = OccasionsModel()
+        func row(_ instant: String) async -> [UID] {
+            await model.load(replica: replica, profileId: 1, now: at(instant), timeZone: eastern)
+            return model.shelves.first?.items.map(\.id) ?? []
+        }
+        let morning = await row("2026-12-24T12:00:00Z")
+        let night = await row("2026-12-25T03:00:00Z")
+        let nextDay = await row("2026-12-25T12:00:00Z")
+        XCTAssertEqual(morning.count, Catalog.homeShelfLimit)
+        XCTAssertEqual(night, morning, "still the 24th in New York")
+        XCTAssertNotEqual(nextDay, morning)
+        var seen = Set<UID>()
+        for day in 1...7 { seen.formUnion(await row("2026-12-0\(day)T12:00:00Z")) }
+        XCTAssertEqual(seen.count, 26, "each member has its days, the keyworded one too, not only the first by title")
+    }
+
+    func testTwoOccasionsOnADayOrderTheSameTitlesTheirOwnWays() async throws {
+        let replica = try seasons {
+            try $0.occasion(
+                5, "Christmas Eve", month: 12, day: 24, before: 0, after: 0, members: (101...127).map(UID.n))
+        }
+        let model = OccasionsModel()
+        await model.load(replica: replica, profileId: 1, now: at("2026-12-24T12:00:00Z"), timeZone: utc)
+        let rows = Dictionary(uniqueKeysWithValues: model.shelves.map { ($0.name, $0.items.map(\.id)) })
+        XCTAssertEqual(rows["Christmas Eve"]?.count, Catalog.homeShelfLimit)
+        XCTAssertNotEqual(rows["Christmas Eve"], rows["Christmas"])
     }
 
     func testTheDeviceDayDecidesWhatIsInSeason() async throws {
@@ -155,7 +184,7 @@ final class OccasionMembersTests: OccasionCase {
         XCTAssertFalse(pager.done)
         await pager.loadAll()
         XCTAssertEqual(pager.items.count, 227)
-        XCTAssertEqual(pager.items.first?.id, 127)
+        XCTAssertEqual(pager.items.prefix(3).map(\.id), [127, 125, 124], "by title, the keyworded one too")
         let kid = model(replica, 3).occasionMembers(Self.christmas)
         await kid.loadAll()
         XCTAssertEqual(kid.items.count, 26, "not the R-rated gifts")

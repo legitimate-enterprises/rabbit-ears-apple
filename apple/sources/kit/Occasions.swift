@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import GRDB
 import Observation
@@ -41,23 +42,31 @@ public final class OccasionsModel {
     public func load(replica: Replica, profileId: UID, now: Date = Date(), timeZone: TimeZone = .current) async {
         let day = Self.day(now, in: timeZone)
         let loaded = try? await replica.read { db in
-            try Self.shelves(of: try Self.active(on: day, profileId, db), profileId, db)
+            try Self.shelves(of: try Self.active(on: day, profileId, db), on: day, profileId, db)
         }
         guard !Task.isCancelled else { return }
         if let loaded { shelves = loaded }
         answered = true
     }
 
-    /// The first titles of each occasion the profile browses, in the order
-    /// given; one left with no title but `excluding` is left out.
+    /// A row of each occasion's titles the profile browses, in the order
+    /// given; one left with no title but `excluding` is left out. A row's
+    /// titles, and which of them it holds, are shuffled by `day`, so they
+    /// stay put through a day and turn over with the next.
     nonisolated static func shelves(
-        of active: [ActiveOccasion], _ profile: UID, _ db: Database, excluding itemId: UID? = nil
+        of active: [ActiveOccasion], on day: String, _ profile: UID, _ db: Database, excluding itemId: UID? = nil
     ) throws -> [OccasionShelf] {
         try active.map { occasion in
-            // One more than a row shows, so leaving the title out still fills it.
-            let items = try members(occasion.id, profile, db, limit: Catalog.homeShelfLimit + 1, offset: 0)
+            let browsed = try UID.fetchAll(
+                db,
+                sql: "SELECT item_id FROM occasion_member WHERE occasion_id = ? AND item_id \(ReplicaRows.browsedBy)",
+                arguments: [occasion.id, profile])
+            let ids = browsed.filter { $0 != itemId }
+                .map { (Array(SHA256.hash(data: Data("\(day) \(occasion.id) \($0)".utf8))), $0) }
+                .sorted { $0.0.lexicographicallyPrecedes($1.0) }.map(\.1)
             return OccasionShelf(
-                occasion: occasion, items: Array(items.filter { $0.id != itemId }.prefix(Catalog.homeShelfLimit)))
+                occasion: occasion,
+                items: try ReplicaRows.items(db, ids: Array(ids.prefix(Catalog.homeShelfLimit)), for: profile))
         }
         .filter { !$0.items.isEmpty }
     }
@@ -195,7 +204,7 @@ extension CatalogModel {
         return
             (try? await replica.read { [profileId] db in
                 try OccasionsModel.shelves(
-                    of: try OccasionsModel.active(on: day, profileId, db, holding: itemId), profileId, db,
+                    of: try OccasionsModel.active(on: day, profileId, db, holding: itemId), on: day, profileId, db,
                     excluding: itemId)
             }) ?? []
     }
