@@ -27,6 +27,8 @@ public final class AppModel {
     /// Kept as it changes, for the next launch to open with before the server answers.
     public private(set) var me: Components.Schemas.Me? {
         didSet {
+            // A report held for want of a profile to act as can go now.
+            if let sync { Task { await sync.reporter.send() } }
             guard let me, let endpoint, let sync, store.token != nil,
                 let kept = try? DownloadStore.encoder.encode(me)
             else { return }

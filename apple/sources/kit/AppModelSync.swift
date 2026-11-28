@@ -9,6 +9,8 @@ public final class SyncSession {
     public let replica: Replica
     public let queue: ActionQueue
     public let engine: SyncEngine
+    /// Where the errors met while signed in go, for the server's Logs.
+    let reporter: ErrorReporter
     /// The replica kept lacked what this build reads and was dropped at open.
     let outdated: Bool
     /// The launch a failed library update holds, for `retryLibraryUpdate`.
@@ -28,17 +30,31 @@ public final class SyncSession {
     /// commit to the replica moves `live`'s count for it.
     init(
         directory: URL, endpoint: ServerEndpoint, token: String, transport: (any ClientTransport)?, live: LiveFeed,
-        signOut: @escaping @MainActor () async -> Void
+        acting: @escaping @MainActor @Sendable () -> UID?, signOut: @escaping @MainActor () async -> Void
     ) {
         let replica = Replica(directory: directory)
+        var unopened: String?
         // One that does not open stays empty, and every read finds nothing until a snapshot.
-        try? replica.open()
+        do { try replica.open() } catch { unopened = String(describing: error) }
+        unopened = unopened ?? replica.unopened
         outdated = replica.dropOutdated()
         let wakes = Wakes()
         let queue = ActionQueue(
             replica: replica, client: endpoint.client(token: token, transport: transport),
-            notice: { operation, _ in Task { @MainActor in live.say(Self.rejected(operation)) } },
+            notice: { operation, code in
+                if let code, Self.clientBugs.contains(code) {
+                    ErrorReporter.report("\(operation) was rejected as \(code)", context: "sync.replay")
+                }
+                Task { @MainActor in live.say(Self.rejected(operation)) }
+            },
             afterFlush: { Task { @MainActor in wakes.engine?.wake() } })
+        let reporter = ErrorReporter(queue: queue, replica: replica, acting: acting)
+        reporter.open()
+        if let unopened { reporter.report("The replica failed to open.", context: "launch.replica", detail: unopened) }
+        if outdated {
+            reporter.report("The replica lacked what this build reads and was replaced.", context: "launch.preflight")
+        }
+        self.reporter = reporter
         engine = SyncEngine(
             replica: replica, endpoint: endpoint, token: token, transport: transport,
             flush: {
@@ -55,7 +71,12 @@ public final class SyncSession {
         self.replica = replica
         self.queue = queue
         self.live = live
-        pump = Task { for await group in replica.changes { live.changed(group) } }
+        pump = Task {
+            for await group in replica.changes {
+                live.changed(group)
+                await reporter.send()
+            }
+        }
         if replica.lostActions { live.say("Some changes made offline were lost.") }
         Task { [engine] in
             try? await engine.catchUp()
@@ -90,6 +111,7 @@ public final class SyncSession {
         following?.cancel()
         following = nil
         pump?.cancel()
+        reporter.close()
         guard wipe else { return replica.close() }
         if !replica.isEmpty {
             let (done, finished) = AsyncStream.makeStream(of: Void.self)
@@ -114,6 +136,9 @@ public final class SyncSession {
         live.say("Update Rabbit Ears to keep this device in sync.")
     }
 
+    /// Replay rejection codes that mean this build sent what the server never takes.
+    nonisolated static let clientBugs: Set<String> = ["not_replayable", "bad_request"]
+
     /// The line a user reads when the server refused one of their changes.
     static func rejected(_ operation: String) -> String {
         let named: [(String, String)] = [
@@ -134,8 +159,9 @@ extension AppModel {
         await ending?.value
         if fresh { try? Replica(directory: replicaDirectory).wipe() }
         sync = SyncSession(
-            directory: replicaDirectory, endpoint: endpoint, token: token, transport: transport, live: live
-        ) { [weak self] in await self?.signOut() }
+            directory: replicaDirectory, endpoint: endpoint, token: token, transport: transport, live: live,
+            acting: { [weak self] in self?.activeProfile?.id ?? self?.me?.account.id },
+            signOut: { [weak self] in await self?.signOut() })
         let changes = live.changes()
         sections = Task { [weak self] in
             for await group in changes where group == .library {

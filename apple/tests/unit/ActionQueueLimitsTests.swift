@@ -49,6 +49,20 @@ final class ActionQueueLimitsTests: ActionQueueCase {
         XCTAssertEqual(left, ids)
     }
 
+    func testAnActionTooLargeToQueueGoesWhileOnlyAnErrorReportIsUnsent() async throws {
+        let replica = try replica()
+        let queue = queue(replica)
+        try await replica.write { try $0.execute(sql: ReplicaFixture.enqueueReport("r")) }
+        transport.hold = { sent in if sent.path == "/sync/actions" { throw URLError(.notConnectedToInternet) } }
+        transport.routes["PUT /profiles/\(UID.n(1))/watch-state/batch"] = (.noContent, "")
+
+        try await mark(queue, ActionQueue.touchedLimit + 1)
+
+        XCTAssertEqual(transport.sent.map(\.path), ["/sync/actions", "/profiles/\(UID.n(1))/watch-state/batch"])
+        let left = try await queued(replica)
+        XCTAssertEqual(left, ["r"], "the report waits for the next flush")
+    }
+
     func testLargeActionsGoInBatchesThatFitTheRequestBodyLimit() async throws {
         let replica = try replica()
         let queue = queue(replica)

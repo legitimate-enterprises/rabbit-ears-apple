@@ -189,6 +189,46 @@ final class AppModelSyncTests: XCTestCase {
         XCTAssertEqual(app.model.phase, .choosingHousehold)
     }
 
+    func testAMoveGoesAheadWhileOnlyAnErrorReportIsUnsent() async throws {
+        app.remove()
+        app = try SyncedApp(signIn: HouseholdChoiceTests.signedIn([(1, "Avery"), (2, "Mark")]))
+        let sync = try await app.synced()
+        try await sync.replica.write { try $0.execute(sql: ReplicaFixture.enqueueReport("r")) }
+        app.routes.hold = { sent in if sent.path == "/sync/actions" { throw URLError(.networkConnectionLost) } }
+
+        try await app.model.chooseHousehold(app.model.households[1])
+
+        XCTAssertTrue(app.paths(.put).contains("/me/household"))
+    }
+
+    func testAnActionRefusedAsAClientBugIsReportedAndOthersAreNot() async throws {
+        let sync = try await app.synced()
+        app.routes.respond = { sent in
+            sent.path == "/sync/actions"
+                ? ActionQueueCase.answer(
+                    sent, rejecting: ["putWatchState": "not_replayable", "recordPlay": "forbidden"]) : nil
+        }
+        try await sync.replica.write { db in
+            try db.execute(sql: ReplicaFixture.enqueue("a"))
+            try db.execute(
+                sql: ReplicaFixture.enqueue("b").replacingOccurrences(of: "'putWatchState'", with: "'recordPlay'"))
+        }
+        _ = await sync.queue.flush()
+        await app.until { app.routes.sent.contains { $0.body.contains("reportClientErrors") } }
+
+        let reports = app.routes.sent.filter { $0.path == "/sync/actions" }
+            .flatMap { Fixtures.decode($0.body, as: Components.Schemas.SyncActionBatch.self).actions }
+            .filter { $0.operationId == "reportClientErrors" }
+            .compactMap { $0.body?.value as? [String: (any Sendable)?] }
+            .flatMap { $0["entries"] as? [(any Sendable)?] ?? [] }
+            .compactMap { $0 as? [String: (any Sendable)?] }
+            .map { "\(($0["context"] ?? nil) as? String ?? "-") \(($0["message"] ?? nil) as? String ?? "-")" }
+        XCTAssertEqual(
+            reports, ["sync.replay putWatchState was rejected as not_replayable"], "forbidden is no client bug")
+        XCTAssertEqual(
+            app.model.live.notice.map { $0.hasPrefix("Couldn't save") }, true, "the person is told as before")
+    }
+
     func testARefusedActionIsNamedInPlainWords() async throws {
         let sync = try await app.synced()
         app.routes.respond = { sent in

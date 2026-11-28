@@ -96,6 +96,7 @@ public final class SyncEngine {
                 while try await !rang() {}
             } catch {
                 if Task.isCancelled { return }
+                ErrorReporter.reportUndecoded(error, at: "SyncEngine.follow")
                 if let api = APIError.from(error), api.status < 500, api.code != .deviceLocked {
                     if api.code == .unauthorized { await signOut() }
                     return
@@ -201,11 +202,11 @@ public final class SyncEngine {
     }
 
     /// Applies a diff page whole with the sync state it leads to, or
-    /// nothing: false, writing nothing, while actions wait in the queue.
+    /// nothing: false, writing nothing, while changes wait in the queue.
     nonisolated private static func apply(
         _ page: Components.Schemas.SyncChanges, version: Int64, in db: Database
     ) throws -> Bool {
-        guard try Int.fetchOne(db, sql: "SELECT count(*) FROM queue.action") == 0 else { return false }
+        guard try Int.fetchOne(db, sql: ActionQueue.changesQueued) == 0 else { return false }
         var changed: [String: [DatabaseValue]] = [:]
         for table in page.tables ?? [] {
             let (columns, key) = try shape(table.name, in: db)

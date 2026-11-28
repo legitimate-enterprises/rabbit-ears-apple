@@ -43,14 +43,25 @@ public enum AppError: Error, Equatable, LocalizedError {
 
     private static let log = Logger(subsystem: "enterprises.legitimate.rabbit-ears", category: "errors")
 
-    /// Maps a thrown error; `unauthorized` names what a 401 means where it was made.
-    static func from(_ error: any Error, unauthorized: AppError = .wrongCredentials) -> AppError {
+    /// Maps a thrown error; `unauthorized` names what a 401 means where it
+    /// was made. An answer that did not decode, and an error not written for
+    /// people, go to the server's Logs as well, under the calling file.
+    static func from(
+        _ error: any Error, unauthorized: AppError = .wrongCredentials, file: String = #fileID, line: Int = #line
+    ) -> AppError {
         if let error = error as? AppError { return error }
         guard let api = APIError.from(error) else {
             let underlying = (error as? ClientError)?.underlyingError ?? error
             guard let url = underlying as? URLError else {
+                let site = "\(file):\(line)"
+                let undecoded = ErrorReporter.reportUndecoded(error, at: site)
                 if let text = (underlying as? LocalizedError)?.errorDescription { return .server(text) }
                 log.error("\(String(describing: underlying), privacy: .public)")
+                if !undecoded, !(underlying is CancellationError) {
+                    ErrorReporter.report(
+                        String(describing: underlying), context: Self.context(of: file),
+                        detail: "\(String(reflecting: type(of: underlying))) at \(site)")
+                }
                 return unexpected
             }
             // App Transport Security lets plain http reach only local addresses.
@@ -63,5 +74,10 @@ public enum AppError: Error, Equatable, LocalizedError {
         case .tooManyRequests: return .tooManyAttempts(minutes: max(1, ((api.retryAfter ?? 60) + 59) / 60))
         default: return .server(api.message)
         }
+    }
+
+    /// The type a kit file is named for, as "CatalogModel", which stands for the screen it serves.
+    private static func context(of file: String) -> String {
+        String(file.split(separator: "/").last?.split(separator: ".").first ?? "app")
     }
 }

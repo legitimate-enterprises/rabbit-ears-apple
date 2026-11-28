@@ -97,6 +97,7 @@ public final class Replica: Sendable {
         var name: String?
         var observations: [AnyDatabaseCancellable] = []
         var lostActions = false
+        var unopened: String?
     }
 
     private var pointer: URL { directory.appending(path: "current") }
@@ -115,6 +116,9 @@ public final class Replica: Sendable {
     /// The queue was damaged at open and replaced by an empty one.
     public var lostActions: Bool { state.withLock { $0.lostActions } }
 
+    /// Why the replica `current` named failed to open at the last open, when it did; it was deleted.
+    public var unopened: String? { state.withLock { $0.unopened } }
+
     /// A file to download a snapshot into; one left behind is deleted at the next open.
     public func partFile() -> URL { directory.appending(path: "\(UUID().uuidString).part") }
 
@@ -132,12 +136,21 @@ public final class Replica: Sendable {
             lost = true
         }
         let named = try? String(contentsOf: pointer, encoding: .utf8)
-        let pool = named.flatMap { try? checkedPool(named: $0) }
+        var failure: (any Error)?
+        let pool = named.flatMap { name in
+            do { return try checkedPool(named: name) } catch {
+                failure = error
+                return nil
+            }
+        }
         let name = pool == nil ? nil : named
         let kept = [queueFile.lastPathComponent] + (name.map { [$0] } ?? [])
         remove { file in !kept.contains(where: file.hasPrefix) && (name == nil || file != pointer.lastPathComponent) }
         _ = install(pool, name)
-        state.withLock { $0.lostActions = lost }
+        state.withLock {
+            $0.lostActions = lost
+            $0.unopened = failure.map { String(describing: $0) }
+        }
     }
 
     /// The tables and views of `shippedSchema` by name, each with its columns.

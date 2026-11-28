@@ -289,6 +289,16 @@ final class SyncEngineTests: XCTestCase {
         try await expectState(["8 nil"])
     }
 
+    func testAQueuedErrorReportDropsNoPage() async throws {
+        try adopt(version: 5, titles: ["Antenna"])
+        try await replica.write { try $0.execute(sql: ReplicaFixture.enqueueReport("r")) }
+        changes { _ in (.ok, SyncFixture.diff(version: 8, tables: [Self.movie(3, "Dish")])) }
+        try await engine().catchUp()
+        let flushes = await calls.flushes
+        XCTAssertEqual(flushes, 1, "a report writes no row a page could overwrite")
+        try await expectRows("SELECT id FROM item ORDER BY id", ["1", "3"])
+    }
+
     func testAnUnsupportedClientStopsSyncingOnceAndKeepsItsReplica() async throws {
         let excluded = [
             SyncFixture.mode("unsupported", ranges: SyncFixture.ranges(schemaMax: 1)),

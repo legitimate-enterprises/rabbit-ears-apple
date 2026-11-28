@@ -74,7 +74,45 @@ final class LaunchPreflightTests: XCTestCase {
         let replica = try XCTUnwrap(model.sync?.replica)
         let art = try await replica.read { try $0.viewExists("profile_art") }
         XCTAssertTrue(art, "the views read a replica that has profile_art")
-        XCTAssertEqual(try app.fixture.queuedActions(), ["a"], "what is queued outlives the replica")
+        XCTAssertEqual(try app.fixture.queuedActions().prefix(1), ["a"], "what is queued outlives the replica")
+    }
+
+    func testAReplicaReplacedAsOutdatedIsReportedOnceThereIsOne() async throws {
+        try await kept(Self.withoutProfileArt)
+        unsendable()
+
+        await app.model.restore()
+
+        try await app.until { try app.fixture.queuedOperations().contains("reportClientErrors") }
+        XCTAssertEqual(try app.fixture.queuedOperations(), ["putWatchState", "reportClientErrors"])
+        let text = try reported()
+        XCTAssertTrue(text.contains(#""launch.preflight""#), text)
+    }
+
+    func testAReplicaThatFailsToOpenIsReported() async throws {
+        try await app.fixture.closedWithAnAction()
+        try ReplicaFixture.breakHeader(app.fixture.directory.appending(path: app.fixture.current()))
+        unsendable()
+
+        await app.model.restore()
+
+        try await app.until { try app.fixture.queuedOperations().contains("reportClientErrors") }
+        let text = try reported()
+        XCTAssertTrue(text.contains(#""launch.replica""#), text)
+    }
+
+    /// Every flush fails, so what is queued stays to be read.
+    private func unsendable() {
+        app.routes.routes["POST /sync/actions"] = (.internalServerError, Fixtures.error("internal"))
+        let respond = app.routes.respond
+        app.routes.respond = { sent in sent.path == "/sync/actions" ? nil : respond?(sent) }
+    }
+
+    /// The bodies of the queued error reports, as JSON text.
+    private func reported() throws -> String {
+        try DatabaseQueue(path: app.fixture.queue.path(percentEncoded: false)).read {
+            try Data.fetchAll($0, sql: "SELECT body FROM action WHERE operation_id = 'reportClientErrors'")
+        }.map { String(bytes: $0, encoding: .utf8) ?? "" }.joined(separator: "\n")
     }
 
     func testALaunchOverASoundReplicaTakesNoSnapshot() async throws {

@@ -11,9 +11,9 @@ import RabbitEarsAPI
 /// brings them back.
 public actor ActionQueue {
     public enum Flush: Sendable, Equatable {
-        /// Every action sent was answered and the queue is empty.
+        /// Every action sent was answered and no change is queued; an error report may wait for the next flush.
         case done
-        /// Actions remain, to send again on reconnect.
+        /// Changes remain, to send again on reconnect.
         case offline
         /// The server replays no batch from this build; the queue is kept for a newer one.
         case unsupported
@@ -37,6 +37,8 @@ public actor ActionQueue {
     static let itemsLimit = 2000
     /// The largest request body replaySyncActions takes, an `x-upload` operation's.
     static let bodyLimit = 16 << 20
+    /// Counts the queued changes, which every action but an error report is: a report writes no row.
+    static let changesQueued = "SELECT count(*) FROM queue.action WHERE operation_id <> 'reportClientErrors'"
 
     private let replica: Replica
     private let client: Client
@@ -154,6 +156,11 @@ public actor ActionQueue {
             served = asked
             outcome = await sendAll(removed: &removed)
         }
+        if [.offline, .unsupported].contains(outcome),
+            (try? await replica.read({ try Int.fetchOne($0, sql: Self.changesQueued) })) == 0
+        {
+            outcome = .done
+        }
         draining = nil
         if removed { afterFlush() }
         return outcome
@@ -181,7 +188,7 @@ public actor ActionQueue {
                     }
                     try await remove([first.seq])
                     removed = true
-                    notice(first.operationId, APIError.from(error)?.code.rawValue)
+                    tell(first.operationId, APIError.from(error)?.code.rawValue)
                     continue
                 }
                 if results.contains(where: { $0.code == "unsupported_version" }) {
@@ -195,12 +202,10 @@ public actor ActionQueue {
                 }
                 try await remove(answered.map(\.action.seq))
                 removed = removed || !answered.isEmpty
-                for (action, result) in answered
-                where result.result == .rejected && !Self.madeBefore(action.operationId, result.code) {
-                    notice(action.operationId, result.code)
+                for (action, result) in answered where result.result == .rejected {
+                    tell(action.operationId, result.code)
                 }
-                // The server stops a batch at its first failure; the rest go again later.
-                if answered.count < batch.count { return .offline }
+                if try await stopped(batch, answered: answered.count) { return .offline }
             } catch {
                 if let refusal = APIError.from(error), refusal.code == .unauthorized { return .refused(refusal) }
                 return .offline
@@ -217,6 +222,23 @@ public actor ActionQueue {
             return !(error.underlyingError is ActionRecorder.Recorded)
         } catch {}
         return true
+    }
+
+    /// Whether the server stopped the batch, at its first failure, short of
+    /// an action of it: the rest go again later. A report it stopped at is
+    /// dropped instead, so no change waits behind it.
+    private func stopped(_ batch: [Components.Schemas.SyncAction], answered: Int) async throws -> Bool {
+        guard answered < batch.count else { return false }
+        guard batch[answered].operationId == Self.reportOperation else { return true }
+        try await remove([batch[answered].seq])
+        return false
+    }
+
+    /// A rejection goes to `notice` unless it is an error report's, which is
+    /// dropped unheard, or a create's the server had made already.
+    private func tell(_ operationId: String, _ code: String?) {
+        guard operationId != Self.reportOperation, !Self.madeBefore(operationId, code) else { return }
+        notice(operationId, code)
     }
 
     /// A create under a client id answered `conflict` met its own row: the

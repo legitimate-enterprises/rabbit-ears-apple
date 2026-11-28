@@ -133,6 +133,21 @@ struct ReplicaFixture {
         """
     }
 
+    /// A queued reportClientErrors, as ErrorReporter queues one.
+    static func enqueueReport(_ uuid: String) -> String {
+        """
+        INSERT INTO queue.action(uuid, operation_id, method, path, body, profile_id, at)
+        VALUES ('\(uuid)', 'reportClientErrors', 'POST', '/client-errors', x'7b7d', \(sqlID(1)), 1800000000000)
+        """
+    }
+
+    /// The operation of each queued action, in order.
+    func queuedOperations() throws -> [String] {
+        try DatabaseQueue(path: queue.path(percentEncoded: false)).read {
+            try String.fetchAll($0, sql: "SELECT operation_id FROM action ORDER BY seq")
+        }
+    }
+
     /// SQLite no longer knows the file as a database.
     static func breakHeader(_ file: URL) throws { try overwrite(file, at: 0, count: 100) }
 
