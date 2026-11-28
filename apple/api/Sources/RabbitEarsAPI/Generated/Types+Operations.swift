@@ -13607,7 +13607,7 @@ public enum Operations {
     }
     /// Add many to a playlist, appended in order.
     ///
-    /// Each entry is checked as `addPlaylistEntry` checks it, and its position and rank are ignored: the entries take the ranks of generateNKeysBetween after the last entry's; a title of several editions without an editionId takes its default edition. A station's own playlist is written through its owner's profile, as `addPlaylistEntry` writes it. Nothing is added unless every entry may be.
+    /// Each entry is checked as `addPlaylistEntry` checks it, and its position and rank are ignored: the entries take the ranks of generateNKeysBetween after the last entry's; a title of several editions without an editionId takes its default edition. A station's own playlist is written through its owner's profile, as `addPlaylistEntry` writes it. Nothing is added unless every entry may be; a smart playlist answers 409.
     ///
     /// - Remark: HTTP `POST /profiles/{profileId}/playlists/{playlistId}/entries/batch`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/batch/post(addPlaylistEntries)`.
@@ -42179,7 +42179,7 @@ public enum Operations {
             }
         }
     }
-    /// Renames a playlist. Changing the kind of one that has entries answers 409; anyone but its owner answers 403.
+    /// Renames a playlist. Changing the kind of one that has entries, or of a smart one, answers 409; anyone but its owner answers 403.
     ///
     /// - Remark: HTTP `PUT /profiles/{profileId}/playlists/{playlistId}`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/put(replacePlaylist)`.
@@ -42984,6 +42984,9 @@ public enum Operations {
     /// album, artist or collection, answers 400. The entry keeps its
     /// edition when the title gains another.
     ///
+    /// A smart playlist's entries follow its rules: adding, moving and
+    /// removing one answers 409.
+    ///
     ///
     /// - Remark: HTTP `POST /profiles/{profileId}/playlists/{playlistId}/entries`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/post(addPlaylistEntry)`.
@@ -43786,7 +43789,7 @@ public enum Operations {
     }
     /// Reorder. Moves the entry to position, shifting the others; absent position moves it to the end. Access as addPlaylistEntry.
     ///
-    /// The body names the entry's own item or collection; any other answers 400.
+    /// The body names the entry's own item or collection; any other answers 400. A smart playlist answers 409.
     ///
     /// - Remark: HTTP `PUT /profiles/{profileId}/playlists/{playlistId}/entries/{entryId}`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/{entryId}/put(replacePlaylistEntry)`.
@@ -43996,6 +43999,29 @@ public enum Operations {
                     }
                 }
             }
+            /// The write collides with existing state.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/{entryId}/put(replacePlaylistEntry)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Not available in this server version.
             ///
             /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/{entryId}/put(replacePlaylistEntry)/responses/501`.
@@ -44050,7 +44076,7 @@ public enum Operations {
             }
         }
     }
-    /// Access as addPlaylistEntry.
+    /// Access as addPlaylistEntry; a smart playlist answers 409.
     ///
     /// - Remark: HTTP `DELETE /profiles/{profileId}/playlists/{playlistId}/entries/{entryId}`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/{entryId}/delete(removePlaylistEntry)`.
@@ -44212,9 +44238,533 @@ public enum Operations {
                     }
                 }
             }
+            /// The write collides with existing state.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/{entryId}/delete(removePlaylistEntry)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Not available in this server version.
             ///
             /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/{entryId}/delete(removePlaylistEntry)/responses/501`.
+            ///
+            /// HTTP response code: `501 notImplemented`.
+            case notImplemented(Components.Responses.NotImplemented)
+            /// The associated value of the enum case if `self` is `.notImplemented`.
+            ///
+            /// - Throws: An error if `self` is not `.notImplemented`.
+            /// - SeeAlso: `.notImplemented`.
+            public var notImplemented: Components.Responses.NotImplemented {
+                get throws {
+                    switch self {
+                    case let .notImplemented(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notImplemented",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// A smart playlist's rules. Access as getPlaylist; a playlist without rules answers 404.
+    ///
+    /// - Remark: HTTP `GET /profiles/{profileId}/playlists/{playlistId}/rules`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/get(getPlaylistRules)`.
+    public enum GetPlaylistRules {
+        public static let id: Swift.String = "getPlaylistRules"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/playlists/{playlistId}/rules/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/playlists/{playlistId}/rules/GET/path/profileId`.
+                public var profileId: Components.Parameters.ProfileId
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/playlists/{playlistId}/rules/GET/path/playlistId`.
+                public var playlistId: Components.Parameters.PlaylistId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - profileId:
+                ///   - playlistId:
+                public init(
+                    profileId: Components.Parameters.ProfileId,
+                    playlistId: Components.Parameters.PlaylistId
+                ) {
+                    self.profileId = profileId
+                    self.playlistId = playlistId
+                }
+            }
+            public var path: Operations.GetPlaylistRules.Input.Path
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/playlists/{playlistId}/rules/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetPlaylistRules.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetPlaylistRules.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetPlaylistRules.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.GetPlaylistRules.Input.Path,
+                headers: Operations.GetPlaylistRules.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/playlists/{playlistId}/rules/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/profiles/{profileId}/playlists/{playlistId}/rules/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.SmartRules)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SmartRules {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetPlaylistRules.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetPlaylistRules.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The rules.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/get(getPlaylistRules)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetPlaylistRules.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetPlaylistRules.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/get(getPlaylistRules)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Authenticated but not allowed, such as a non-admin on an admin operation.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/get(getPlaylistRules)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// No such resource visible to this device.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/get(getPlaylistRules)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Not available in this server version.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/get(getPlaylistRules)/responses/501`.
+            ///
+            /// HTTP response code: `501 notImplemented`.
+            case notImplemented(Components.Responses.NotImplemented)
+            /// The associated value of the enum case if `self` is `.notImplemented`.
+            ///
+            /// - Throws: An error if `self` is not `.notImplemented`.
+            /// - SeeAlso: `.notImplemented`.
+            public var notImplemented: Components.Responses.NotImplemented {
+                get throws {
+                    switch self {
+                    case let .notImplemented(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notImplemented",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Makes the playlist smart or replaces its rules; its entries become the titles they match, at once. Its owner only; anyone else answers 403.
+    ///
+    /// A movies playlist holds movies, a tv playlist episodes and a music
+    /// playlist songs, each title once and without an edition (its default
+    /// plays), in a fixed order: movies by sort title; episodes by show,
+    /// season (specials last) and number; songs by artist, album and track.
+    /// An entry keeps its id while its title still matches. watched,
+    /// playCount and favorite read the owner's, whoever the playlist is
+    /// shared with; every profile sees only the entries it may see. While
+    /// it has rules, adding, moving and removing entries, and changing its
+    /// kind, answer 409. The server applies the rules again whenever the
+    /// library or the owner's watch state or favorites change. A field or
+    /// operator the kind lacks, or a missing, blank or extra value, answers
+    /// 400 naming it, as groups.0.conditions.2.text. A station's own
+    /// playlist takes rules through its owner's profile.
+    ///
+    ///
+    /// - Remark: HTTP `PUT /profiles/{profileId}/playlists/{playlistId}/rules`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/put(replacePlaylistRules)`.
+    public enum ReplacePlaylistRules {
+        public static let id: Swift.String = "replacePlaylistRules"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/playlists/{playlistId}/rules/PUT/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/playlists/{playlistId}/rules/PUT/path/profileId`.
+                public var profileId: Components.Parameters.ProfileId
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/playlists/{playlistId}/rules/PUT/path/playlistId`.
+                public var playlistId: Components.Parameters.PlaylistId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - profileId:
+                ///   - playlistId:
+                public init(
+                    profileId: Components.Parameters.ProfileId,
+                    playlistId: Components.Parameters.PlaylistId
+                ) {
+                    self.profileId = profileId
+                    self.playlistId = playlistId
+                }
+            }
+            public var path: Operations.ReplacePlaylistRules.Input.Path
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/playlists/{playlistId}/rules/PUT/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ReplacePlaylistRules.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ReplacePlaylistRules.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ReplacePlaylistRules.Input.Headers
+            /// - Remark: Generated from `#/paths/profiles/{profileId}/playlists/{playlistId}/rules/PUT/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/playlists/{playlistId}/rules/PUT/requestBody/content/application\/json`.
+                case json(Components.Schemas.SmartRules)
+            }
+            public var body: Operations.ReplacePlaylistRules.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.ReplacePlaylistRules.Input.Path,
+                headers: Operations.ReplacePlaylistRules.Input.Headers = .init(),
+                body: Operations.ReplacePlaylistRules.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/profiles/{profileId}/playlists/{playlistId}/rules/PUT/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/profiles/{profileId}/playlists/{playlistId}/rules/PUT/responses/200/content/application\/json`.
+                    case json(Components.Schemas.SmartRules)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SmartRules {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ReplacePlaylistRules.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ReplacePlaylistRules.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Saved and applied.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/put(replacePlaylistRules)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ReplacePlaylistRules.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ReplacePlaylistRules.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/put(replacePlaylistRules)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/put(replacePlaylistRules)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Authenticated but not allowed, such as a non-admin on an admin operation.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/put(replacePlaylistRules)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// No such resource visible to this device.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/put(replacePlaylistRules)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Not available in this server version.
+            ///
+            /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/put(replacePlaylistRules)/responses/501`.
             ///
             /// HTTP response code: `501 notImplemented`.
             case notImplemented(Components.Responses.NotImplemented)
@@ -49963,8 +50513,8 @@ public enum Operations {
     /// Adds a movie to a custom collection.
     ///
     /// Anything but a movie answers 400; an item the profile may not see
-    /// answers 404; a TMDB collection, or any while a kid is active,
-    /// answers 403.
+    /// answers 404; a TMDB collection, a smart one, or any while a kid is
+    /// active, answers 403.
     ///
     ///
     /// - Remark: HTTP `PUT /collections/{collectionId}/movies/{itemId}`.
@@ -50846,6 +51396,485 @@ public enum Operations {
             /// Not available in this server version.
             ///
             /// - Remark: Generated from `#/paths//collections/{collectionId}/order/delete(resetCollectionOrder)/responses/501`.
+            ///
+            /// HTTP response code: `501 notImplemented`.
+            case notImplemented(Components.Responses.NotImplemented)
+            /// The associated value of the enum case if `self` is `.notImplemented`.
+            ///
+            /// - Throws: An error if `self` is not `.notImplemented`.
+            /// - SeeAlso: `.notImplemented`.
+            public var notImplemented: Components.Responses.NotImplemented {
+                get throws {
+                    switch self {
+                    case let .notImplemented(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notImplemented",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// A smart collection's rules, for a collection the active profile may see; one without rules answers 404.
+    ///
+    /// - Remark: HTTP `GET /collections/{collectionId}/rules`.
+    /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/get(getCollectionRules)`.
+    public enum GetCollectionRules {
+        public static let id: Swift.String = "getCollectionRules"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/collections/{collectionId}/rules/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/collections/{collectionId}/rules/GET/path/collectionId`.
+                public var collectionId: Components.Parameters.CollectionId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - collectionId:
+                public init(collectionId: Components.Parameters.CollectionId) {
+                    self.collectionId = collectionId
+                }
+            }
+            public var path: Operations.GetCollectionRules.Input.Path
+            /// - Remark: Generated from `#/paths/collections/{collectionId}/rules/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetCollectionRules.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetCollectionRules.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetCollectionRules.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.GetCollectionRules.Input.Path,
+                headers: Operations.GetCollectionRules.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/collections/{collectionId}/rules/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/collections/{collectionId}/rules/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.SmartRules)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SmartRules {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetCollectionRules.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetCollectionRules.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The rules.
+            ///
+            /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/get(getCollectionRules)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetCollectionRules.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetCollectionRules.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/get(getCollectionRules)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Authenticated but not allowed, such as a non-admin on an admin operation.
+            ///
+            /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/get(getCollectionRules)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// No such resource visible to this device.
+            ///
+            /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/get(getCollectionRules)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Not available in this server version.
+            ///
+            /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/get(getCollectionRules)/responses/501`.
+            ///
+            /// HTTP response code: `501 notImplemented`.
+            case notImplemented(Components.Responses.NotImplemented)
+            /// The associated value of the enum case if `self` is `.notImplemented`.
+            ///
+            /// - Throws: An error if `self` is not `.notImplemented`.
+            /// - SeeAlso: `.notImplemented`.
+            public var notImplemented: Components.Responses.NotImplemented {
+                get throws {
+                    switch self {
+                    case let .notImplemented(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notImplemented",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Makes a custom collection smart or replaces its rules; its movies become those they match, at once. A TMDB collection, or any while a kid is active, answers 403.
+    ///
+    /// Movie fields only: watched, playCount and favorite answer 400. The
+    /// movies keep release order. While it has rules, adding, removing and
+    /// reordering its movies answer 403. The server applies the rules again
+    /// whenever the library changes. Every profile sees only the movies it
+    /// may see.
+    ///
+    ///
+    /// - Remark: HTTP `PUT /collections/{collectionId}/rules`.
+    /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/put(replaceCollectionRules)`.
+    public enum ReplaceCollectionRules {
+        public static let id: Swift.String = "replaceCollectionRules"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/collections/{collectionId}/rules/PUT/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/collections/{collectionId}/rules/PUT/path/collectionId`.
+                public var collectionId: Components.Parameters.CollectionId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - collectionId:
+                public init(collectionId: Components.Parameters.CollectionId) {
+                    self.collectionId = collectionId
+                }
+            }
+            public var path: Operations.ReplaceCollectionRules.Input.Path
+            /// - Remark: Generated from `#/paths/collections/{collectionId}/rules/PUT/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ReplaceCollectionRules.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ReplaceCollectionRules.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ReplaceCollectionRules.Input.Headers
+            /// - Remark: Generated from `#/paths/collections/{collectionId}/rules/PUT/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/collections/{collectionId}/rules/PUT/requestBody/content/application\/json`.
+                case json(Components.Schemas.SmartRules)
+            }
+            public var body: Operations.ReplaceCollectionRules.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.ReplaceCollectionRules.Input.Path,
+                headers: Operations.ReplaceCollectionRules.Input.Headers = .init(),
+                body: Operations.ReplaceCollectionRules.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/collections/{collectionId}/rules/PUT/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/collections/{collectionId}/rules/PUT/responses/200/content/application\/json`.
+                    case json(Components.Schemas.SmartRules)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SmartRules {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ReplaceCollectionRules.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ReplaceCollectionRules.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Saved and applied.
+            ///
+            /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/put(replaceCollectionRules)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ReplaceCollectionRules.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ReplaceCollectionRules.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/put(replaceCollectionRules)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/put(replaceCollectionRules)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Authenticated but not allowed, such as a non-admin on an admin operation.
+            ///
+            /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/put(replaceCollectionRules)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// No such resource visible to this device.
+            ///
+            /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/put(replaceCollectionRules)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Not available in this server version.
+            ///
+            /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/put(replaceCollectionRules)/responses/501`.
             ///
             /// HTTP response code: `501 notImplemented`.
             case notImplemented(Components.Responses.NotImplemented)

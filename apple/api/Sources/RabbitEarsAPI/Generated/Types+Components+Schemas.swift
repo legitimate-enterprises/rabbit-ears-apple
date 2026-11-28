@@ -8157,6 +8157,10 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Playlist/shared`.
             public var shared: Swift.Bool?
+            /// True while rules choose its entries (getPlaylistRules). Always sent; optional so a copy a client stored before the field existed still reads.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Playlist/smart`.
+            public var smart: Swift.Bool?
             /// The owner's name, present when the playlist is shared with the profile or a household of theirs, for "Shared by".
             ///
             /// - Remark: Generated from `#/components/schemas/Playlist/ownerName`.
@@ -8207,6 +8211,7 @@ extension Components {
             ///   - name:
             ///   - access:
             ///   - shared: For its owner, whether it is shared with any profile or household; for anyone else, true. Always sent; optional so a copy a client stored before the field existed still reads, as not shared. Clients draw a shared badge from it.
+            ///   - smart: True while rules choose its entries (getPlaylistRules). Always sent; optional so a copy a client stored before the field existed still reads.
             ///   - ownerName: The owner's name, present when the playlist is shared with the profile or a household of theirs, for "Shared by".
             ///   - kind:
             ///   - itemCount: Rows of the play order now, as 48 songs; a container counts what it expands to.
@@ -8225,6 +8230,7 @@ extension Components {
                 name: Swift.String,
                 access: Components.Schemas.PlaylistAccess,
                 shared: Swift.Bool? = nil,
+                smart: Swift.Bool? = nil,
                 ownerName: Swift.String? = nil,
                 kind: Components.Schemas.PlaylistKind,
                 itemCount: Swift.Int,
@@ -8243,6 +8249,7 @@ extension Components {
                 self.name = name
                 self.access = access
                 self.shared = shared
+                self.smart = smart
                 self.ownerName = ownerName
                 self.kind = kind
                 self.itemCount = itemCount
@@ -8262,6 +8269,7 @@ extension Components {
                 case name
                 case access
                 case shared
+                case smart
                 case ownerName
                 case kind
                 case itemCount
@@ -9130,6 +9138,10 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Collection/customOrder`.
             public var customOrder: Swift.Bool?
+            /// True while rules choose its movies (getCollectionRules). Always sent; optional so a copy a client stored before the field existed still reads.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Collection/smart`.
+            public var smart: Swift.Bool?
             /// Server-relative URL of the collection's poster: its own TMDB image, else its first movie's in listCollectionMovies order for the active profile, served by getArtwork; it changes exactly when the image does. Absent when there is none.
             ///
             /// - Remark: Generated from `#/components/schemas/Collection/posterUrl`.
@@ -9161,6 +9173,7 @@ extension Components {
             ///   - tmdbId: The TMDB collection id; absent for custom.
             ///   - movieCount: Its movies the active profile may see.
             ///   - customOrder: True while a custom collection's movies are in a hand order, set by replaceCollectionMoviePosition; false for release order, and always for TMDB. Always sent; optional so a copy a client stored before the field existed still reads.
+            ///   - smart: True while rules choose its movies (getCollectionRules). Always sent; optional so a copy a client stored before the field existed still reads.
             ///   - posterUrl: Server-relative URL of the collection's poster: its own TMDB image, else its first movie's in listCollectionMovies order for the active profile, served by getArtwork; it changes exactly when the image does. Absent when there is none.
             ///   - backdropUrl: Server-relative URL of the collection's backdrop, as posterUrl, served by getArtwork; it changes exactly when the image does. Absent when there is none.
             ///   - createdAt:
@@ -9176,6 +9189,7 @@ extension Components {
                 tmdbId: Swift.Int64? = nil,
                 movieCount: Swift.Int,
                 customOrder: Swift.Bool? = nil,
+                smart: Swift.Bool? = nil,
                 posterUrl: Swift.String? = nil,
                 backdropUrl: Swift.String? = nil,
                 createdAt: Foundation.Date,
@@ -9191,6 +9205,7 @@ extension Components {
                 self.tmdbId = tmdbId
                 self.movieCount = movieCount
                 self.customOrder = customOrder
+                self.smart = smart
                 self.posterUrl = posterUrl
                 self.backdropUrl = backdropUrl
                 self.createdAt = createdAt
@@ -9207,6 +9222,7 @@ extension Components {
                 case tmdbId
                 case movieCount
                 case customOrder
+                case smart
                 case posterUrl
                 case backdropUrl
                 case createdAt
@@ -9231,6 +9247,156 @@ extension Components {
             public enum CodingKeys: String, CodingKey {
                 case position
             }
+        }
+        /// all: every one of the parts must match; any: one is enough.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SmartMatch`.
+        @frozen public enum SmartMatch: String, Codable, Hashable, Sendable, CaseIterable {
+            case all = "all"
+            case any = "any"
+        }
+        /// What a smart playlist or collection holds: the titles that match `match` of its groups, each group matching `match` of its conditions. At most 50 conditions in all.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SmartRules`.
+        public struct SmartRules: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SmartRules/match`.
+            public var match: Components.Schemas.SmartMatch
+            /// - Remark: Generated from `#/components/schemas/SmartRules/groups`.
+            public var groups: [Components.Schemas.SmartGroup]
+            /// Creates a new `SmartRules`.
+            ///
+            /// - Parameters:
+            ///   - match:
+            ///   - groups:
+            public init(
+                match: Components.Schemas.SmartMatch,
+                groups: [Components.Schemas.SmartGroup]
+            ) {
+                self.match = match
+                self.groups = groups
+            }
+            public enum CodingKeys: String, CodingKey {
+                case match
+                case groups
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SmartGroup`.
+        public struct SmartGroup: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SmartGroup/match`.
+            public var match: Components.Schemas.SmartMatch
+            /// - Remark: Generated from `#/components/schemas/SmartGroup/conditions`.
+            public var conditions: [Components.Schemas.SmartCondition]
+            /// Creates a new `SmartGroup`.
+            ///
+            /// - Parameters:
+            ///   - match:
+            ///   - conditions:
+            public init(
+                match: Components.Schemas.SmartMatch,
+                conditions: [Components.Schemas.SmartCondition]
+            ) {
+                self.match = match
+                self.conditions = conditions
+            }
+            public enum CodingKeys: String, CodingKey {
+                case match
+                case conditions
+            }
+        }
+        /// One test of a title. Text fields take is, isNot, contains,
+        /// notContains, startsWith and endsWith with `text`, trimmed and never
+        /// blank; comparing ignores the case of A to Z only, as search does,
+        /// and counts accents. Number fields take is, isNot, lt, le, gt and ge
+        /// with `number`. Boolean fields take isTrue and isFalse with neither.
+        /// A missing value reads as false for every operator but isNot,
+        /// notContains and isFalse. genre, cast and director are lists: a
+        /// positive operator holds when any one matches, isNot and notContains
+        /// when none does, so also for an empty list.
+        ///
+        /// movies (and collections, without watched, playCount and favorite):
+        /// title, contentRating, genre, cast, director (text); year, runtime in
+        /// minutes, playCount (number); hdr, uhd (a 4K file), watched, favorite
+        /// (boolean). tv, of each episode: title, show, contentRating, genre,
+        /// cast (text, the last three the show's); season, episode, year,
+        /// runtime, playCount (number); hdr, uhd, watched, favorite (boolean,
+        /// favorite also of its season or show). music, of each song: title,
+        /// artist, album, genre (text, genre the album's or its artist's);
+        /// year, duration in seconds, playCount (number); explicit, lossless,
+        /// favorite (boolean, favorite also of its album or an artist of it).
+        ///
+        ///
+        /// - Remark: Generated from `#/components/schemas/SmartCondition`.
+        public struct SmartCondition: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SmartCondition/field`.
+            public var field: Components.Schemas.SmartField
+            /// - Remark: Generated from `#/components/schemas/SmartCondition/operator`.
+            public var _operator: Components.Schemas.SmartOperator
+            /// - Remark: Generated from `#/components/schemas/SmartCondition/text`.
+            public var text: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SmartCondition/number`.
+            public var number: Swift.Int64?
+            /// Creates a new `SmartCondition`.
+            ///
+            /// - Parameters:
+            ///   - field:
+            ///   - _operator:
+            ///   - text:
+            ///   - number:
+            public init(
+                field: Components.Schemas.SmartField,
+                _operator: Components.Schemas.SmartOperator,
+                text: Swift.String? = nil,
+                number: Swift.Int64? = nil
+            ) {
+                self.field = field
+                self._operator = _operator
+                self.text = text
+                self.number = number
+            }
+            public enum CodingKeys: String, CodingKey {
+                case field
+                case _operator = "operator"
+                case text
+                case number
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SmartField`.
+        @frozen public enum SmartField: String, Codable, Hashable, Sendable, CaseIterable {
+            case title = "title"
+            case year = "year"
+            case runtime = "runtime"
+            case contentRating = "contentRating"
+            case genre = "genre"
+            case cast = "cast"
+            case director = "director"
+            case hdr = "hdr"
+            case uhd = "uhd"
+            case watched = "watched"
+            case playCount = "playCount"
+            case favorite = "favorite"
+            case show = "show"
+            case season = "season"
+            case episode = "episode"
+            case artist = "artist"
+            case album = "album"
+            case duration = "duration"
+            case explicit = "explicit"
+            case lossless = "lossless"
+        }
+        /// - Remark: Generated from `#/components/schemas/SmartOperator`.
+        @frozen public enum SmartOperator: String, Codable, Hashable, Sendable, CaseIterable {
+            case _is = "is"
+            case isNot = "isNot"
+            case contains = "contains"
+            case notContains = "notContains"
+            case startsWith = "startsWith"
+            case endsWith = "endsWith"
+            case lt = "lt"
+            case le = "le"
+            case gt = "gt"
+            case ge = "ge"
+            case isTrue = "isTrue"
+            case isFalse = "isFalse"
         }
         /// - Remark: Generated from `#/components/schemas/CollectionInput`.
         public struct CollectionInput: Codable, Hashable, Sendable {
@@ -9732,6 +9898,10 @@ extension Components {
             public var name: Swift.String
             /// - Remark: Generated from `#/components/schemas/Station/kind`.
             public var kind: Components.Schemas.PlaylistKind
+            /// True while rules choose what its playlist plays (getPlaylistRules on playlistId). Always sent; optional so a copy a client stored before the field existed still reads.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Station/smart`.
+            public var smart: Swift.Bool?
             /// The adult profile that owns it.
             ///
             /// - Remark: Generated from `#/components/schemas/Station/ownerId`.
@@ -9782,6 +9952,7 @@ extension Components {
             ///   - id:
             ///   - name:
             ///   - kind:
+            ///   - smart: True while rules choose what its playlist plays (getPlaylistRules on playlistId). Always sent; optional so a copy a client stored before the field existed still reads.
             ///   - ownerId: The adult profile that owns it.
             ///   - householdId: The owner's household.
             ///   - playlistId: The owner's playlist it plays. A station made without a playlistId owns its own playlist, which no playlist listing shows; the owner edits what the station plays through that playlist's entries (addPlaylistEntry, replacePlaylistEntry, removePlaylistEntry), and deleting the station deletes it.
@@ -9801,6 +9972,7 @@ extension Components {
                 id: Components.Schemas.Id,
                 name: Swift.String,
                 kind: Components.Schemas.PlaylistKind,
+                smart: Swift.Bool? = nil,
                 ownerId: Components.Schemas.Id,
                 householdId: Components.Schemas.Id,
                 playlistId: Components.Schemas.Id,
@@ -9820,6 +9992,7 @@ extension Components {
                 self.id = id
                 self.name = name
                 self.kind = kind
+                self.smart = smart
                 self.ownerId = ownerId
                 self.householdId = householdId
                 self.playlistId = playlistId
@@ -9840,6 +10013,7 @@ extension Components {
                 case id
                 case name
                 case kind
+                case smart
                 case ownerId
                 case householdId
                 case playlistId

@@ -294,7 +294,7 @@ final class SyncEngineTests: XCTestCase {
             SyncFixture.mode("unsupported", ranges: SyncFixture.ranges(schemaMax: 1)),
             SyncFixture.diff(
                 version: 8, tables: [Self.movie(3, "Dish")],
-                ranges: SyncFixture.ranges(apiMin: "0.25.0", apiMax: "1.0.0")),
+                ranges: SyncFixture.ranges(apiMin: "0.26.0", apiMax: "1.0.0")),
             SyncFixture.diff(
                 version: 8, tables: [Self.movie(3, "Dish")],
                 ranges: SyncFixture.ranges(apiMin: "0.9.0", apiMax: "0.20.10")),

@@ -41,6 +41,7 @@ enum ReplicaSchema {
         CREATE TABLE favorite (account_id BLOB, item_id BLOB, created_at INTEGER, PRIMARY KEY (account_id, item_id));
         CREATE TABLE playlist (id BLOB, account_id BLOB, name TEXT, kind TEXT, last_played_at INTEGER, created_at INTEGER, modified_at INTEGER, created_by BLOB, modified_by BLOB, station_owned INTEGER, PRIMARY KEY (id));
         CREATE TABLE playlist_entry (id BLOB, playlist_id BLOB, item_id BLOB, collection_id BLOB, rank TEXT, added_at INTEGER, edition_id BLOB, created_at INTEGER, modified_at INTEGER, created_by BLOB, modified_by BLOB, PRIMARY KEY (id));
+        CREATE TABLE smart_list (id BLOB, playlist_id BLOB, collection_id BLOB, created_at INTEGER, PRIMARY KEY (id));
         CREATE TABLE playlist_share (playlist_id BLOB, account_id BLOB, access TEXT, created_at INTEGER, PRIMARY KEY (playlist_id, account_id));
         CREATE TABLE playlist_household_share (playlist_id BLOB, household_id BLOB, access TEXT, created_at INTEGER, PRIMARY KEY (playlist_id, household_id));
         CREATE TABLE station (id BLOB, account_id BLOB, playlist_id BLOB, name TEXT, shuffled INTEGER, visibility TEXT, rating TEXT, loop INTEGER, created_at INTEGER, modified_at INTEGER, created_by BLOB, modified_by BLOB, timing TEXT, household_id BLOB, PRIMARY KEY (id));

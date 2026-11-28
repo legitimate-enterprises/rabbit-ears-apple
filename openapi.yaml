@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rabbit Ears API
-  version: 0.24.0
+  version: 0.25.0
   description: |
     REST API of the Rabbit Ears media server. This document's version is the
     server's. A breaking change takes a new path; additive changes bump the
@@ -1579,7 +1579,8 @@ paths:
         generateNKeysBetween after the last entry's; a title of several editions without an
         editionId takes its default edition. A station's own playlist is
         written through its owner's profile, as `addPlaylistEntry` writes
-        it. Nothing is added unless every entry may be.
+        it. Nothing is added unless every entry may be; a smart playlist
+        answers 409.
       x-replayable: true
       requestBody:
         required: true
@@ -4524,7 +4525,7 @@ paths:
     put:
       operationId: replacePlaylist
       tags: [playlists]
-      summary: Renames a playlist. Changing the kind of one that has entries answers 409; anyone but its owner answers 403.
+      summary: Renames a playlist. Changing the kind of one that has entries, or of a smart one, answers 409; anyone but its owner answers 403.
       x-replayable: true
       requestBody:
         required: true
@@ -4596,6 +4597,9 @@ paths:
         editionId. An editionId of another item, or on a show, season,
         album, artist or collection, answers 400. The entry keeps its
         edition when the title gains another.
+
+        A smart playlist's entries follow its rules: adding, moving and
+        removing one answers 409.
       x-replayable: true
       requestBody:
         required: true
@@ -4675,7 +4679,7 @@ paths:
       operationId: replacePlaylistEntry
       tags: [playlists]
       summary: Reorder. Moves the entry to position, shifting the others; absent position moves it to the end. Access as addPlaylistEntry.
-      description: The body names the entry's own item or collection; any other answers 400.
+      description: The body names the entry's own item or collection; any other answers 400. A smart playlist answers 409.
       x-replayable: true
       requestBody:
         required: true
@@ -4692,14 +4696,69 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
         "501": { $ref: "#/components/responses/NotImplemented" }
     delete:
       operationId: removePlaylistEntry
       tags: [playlists]
-      summary: Access as addPlaylistEntry.
+      summary: Access as addPlaylistEntry; a smart playlist answers 409.
       x-replayable: true
       responses:
         "204": { description: Removed; later entries move up. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "501": { $ref: "#/components/responses/NotImplemented" }
+
+  /profiles/{profileId}/playlists/{playlistId}/rules:
+    parameters:
+      - $ref: "#/components/parameters/ProfileId"
+      - $ref: "#/components/parameters/PlaylistId"
+    get:
+      operationId: getPlaylistRules
+      tags: [playlists]
+      summary: A smart playlist's rules. Access as getPlaylist; a playlist without rules answers 404.
+      responses:
+        "200":
+          description: The rules.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SmartRules" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "501": { $ref: "#/components/responses/NotImplemented" }
+    put:
+      operationId: replacePlaylistRules
+      tags: [playlists]
+      summary: Makes the playlist smart or replaces its rules; its entries become the titles they match, at once. Its owner only; anyone else answers 403.
+      description: |
+        A movies playlist holds movies, a tv playlist episodes and a music
+        playlist songs, each title once and without an edition (its default
+        plays), in a fixed order: movies by sort title; episodes by show,
+        season (specials last) and number; songs by artist, album and track.
+        An entry keeps its id while its title still matches. watched,
+        playCount and favorite read the owner's, whoever the playlist is
+        shared with; every profile sees only the entries it may see. While
+        it has rules, adding, moving and removing entries, and changing its
+        kind, answer 409. The server applies the rules again whenever the
+        library or the owner's watch state or favorites change. A field or
+        operator the kind lacks, or a missing, blank or extra value, answers
+        400 naming it, as groups.0.conditions.2.text. A station's own
+        playlist takes rules through its owner's profile.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SmartRules" }
+      responses:
+        "200":
+          description: Saved and applied.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SmartRules" }
+        "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
@@ -5213,8 +5272,8 @@ paths:
       summary: Adds a movie to a custom collection.
       description: |
         Anything but a movie answers 400; an item the profile may not see
-        answers 404; a TMDB collection, or any while a kid is active,
-        answers 403.
+        answers 404; a TMDB collection, a smart one, or any while a kid is
+        active, answers 403.
       x-replayable: true
       responses:
         "204": { description: Added; idempotent. }
@@ -5282,6 +5341,50 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Collection" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "501": { $ref: "#/components/responses/NotImplemented" }
+
+  /collections/{collectionId}/rules:
+    parameters:
+      - $ref: "#/components/parameters/CollectionId"
+    get:
+      operationId: getCollectionRules
+      tags: [collections]
+      summary: A smart collection's rules, for a collection the active profile may see; one without rules answers 404.
+      responses:
+        "200":
+          description: The rules.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SmartRules" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "501": { $ref: "#/components/responses/NotImplemented" }
+    put:
+      operationId: replaceCollectionRules
+      tags: [collections]
+      summary: Makes a custom collection smart or replaces its rules; its movies become those they match, at once. A TMDB collection, or any while a kid is active, answers 403.
+      description: |
+        Movie fields only: watched, playCount and favorite answer 400. The
+        movies keep release order. While it has rules, adding, removing and
+        reordering its movies answer 403. The server applies the rules again
+        whenever the library changes. Every profile sees only the movies it
+        may see.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SmartRules" }
+      responses:
+        "200":
+          description: Saved and applied.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SmartRules" }
+        "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
@@ -9377,6 +9480,7 @@ components:
         name: { type: string }
         access: { $ref: "#/components/schemas/PlaylistAccess" }
         shared: { type: boolean, description: "For its owner, whether it is shared with any profile or household; for anyone else, true. Always sent; optional so a copy a client stored before the field existed still reads, as not shared. Clients draw a shared badge from it." }
+        smart: { type: boolean, description: "True while rules choose its entries (getPlaylistRules). Always sent; optional so a copy a client stored before the field existed still reads." }
         ownerName: { type: string, description: "The owner's name, present when the playlist is shared with the profile or a household of theirs, for \"Shared by\"." }
         kind: { $ref: "#/components/schemas/PlaylistKind" }
         itemCount: { type: integer, description: "Rows of the play order now, as 48 songs; a container counts what it expands to." }
@@ -9677,6 +9781,7 @@ components:
         tmdbId: { type: integer, format: int64, description: The TMDB collection id; absent for custom. }
         movieCount: { type: integer, minimum: 0, description: Its movies the active profile may see. }
         customOrder: { type: boolean, description: "True while a custom collection's movies are in a hand order, set by replaceCollectionMoviePosition; false for release order, and always for TMDB. Always sent; optional so a copy a client stored before the field existed still reads." }
+        smart: { type: boolean, description: "True while rules choose its movies (getCollectionRules). Always sent; optional so a copy a client stored before the field existed still reads." }
         posterUrl: { type: string, description: "Server-relative URL of the collection's poster: its own TMDB image, else its first movie's in listCollectionMovies order for the active profile, served by getArtwork; it changes exactly when the image does. Absent when there is none." }
         backdropUrl: { type: string, description: "Server-relative URL of the collection's backdrop, as posterUrl, served by getArtwork; it changes exactly when the image does. Absent when there is none." }
         createdAt: { type: string, format: date-time }
@@ -9688,6 +9793,76 @@ components:
       type: object
       properties:
         position: { type: integer, minimum: 0, description: "Where the movie goes, from 0; past the end or absent puts it last." }
+
+    SmartMatch:
+      type: string
+      description: "all: every one of the parts must match; any: one is enough."
+      enum: [all, any]
+
+    SmartRules:
+      type: object
+      description: >-
+        What a smart playlist or collection holds: the titles that match
+        `match` of its groups, each group matching `match` of its
+        conditions. At most 50 conditions in all.
+      required: [match, groups]
+      properties:
+        match: { $ref: "#/components/schemas/SmartMatch" }
+        groups:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { $ref: "#/components/schemas/SmartGroup" }
+
+    SmartGroup:
+      type: object
+      required: [match, conditions]
+      properties:
+        match: { $ref: "#/components/schemas/SmartMatch" }
+        conditions:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { $ref: "#/components/schemas/SmartCondition" }
+
+    SmartCondition:
+      type: object
+      description: |
+        One test of a title. Text fields take is, isNot, contains,
+        notContains, startsWith and endsWith with `text`, trimmed and never
+        blank; comparing ignores the case of A to Z only, as search does,
+        and counts accents. Number fields take is, isNot, lt, le, gt and ge
+        with `number`. Boolean fields take isTrue and isFalse with neither.
+        A missing value reads as false for every operator but isNot,
+        notContains and isFalse. genre, cast and director are lists: a
+        positive operator holds when any one matches, isNot and notContains
+        when none does, so also for an empty list.
+
+        movies (and collections, without watched, playCount and favorite):
+        title, contentRating, genre, cast, director (text); year, runtime in
+        minutes, playCount (number); hdr, uhd (a 4K file), watched, favorite
+        (boolean). tv, of each episode: title, show, contentRating, genre,
+        cast (text, the last three the show's); season, episode, year,
+        runtime, playCount (number); hdr, uhd, watched, favorite (boolean,
+        favorite also of its season or show). music, of each song: title,
+        artist, album, genre (text, genre the album's or its artist's);
+        year, duration in seconds, playCount (number); explicit, lossless,
+        favorite (boolean, favorite also of its album or an artist of it).
+      required: [field, operator]
+      properties:
+        field: { $ref: "#/components/schemas/SmartField" }
+        operator: { $ref: "#/components/schemas/SmartOperator" }
+        text: { type: string, minLength: 1, maxLength: 200 }
+        number: { type: integer, format: int64 }
+
+    SmartField:
+      type: string
+      enum: [title, year, runtime, contentRating, genre, cast, director, hdr, uhd, watched, playCount, favorite, show, season, episode,
+        artist, album, duration, explicit, lossless]
+
+    SmartOperator:
+      type: string
+      enum: [is, isNot, contains, notContains, startsWith, endsWith, lt, le, gt, ge, isTrue, isFalse]
 
     CollectionInput:
       type: object
@@ -9906,6 +10081,7 @@ components:
         id: { $ref: "#/components/schemas/Id" }
         name: { type: string }
         kind: { $ref: "#/components/schemas/PlaylistKind" }
+        smart: { type: boolean, description: "True while rules choose what its playlist plays (getPlaylistRules on playlistId). Always sent; optional so a copy a client stored before the field existed still reads." }
         ownerId: { $ref: "#/components/schemas/Id", description: The adult profile that owns it. }
         householdId: { $ref: "#/components/schemas/Id", description: The owner's household. }
         playlistId:

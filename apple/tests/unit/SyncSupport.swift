@@ -63,7 +63,7 @@ enum SyncFixture {
         return file
     }
 
-    static func ranges(apiMin: String = "0.24.0", apiMax: String = "0.24.0", schemaMax: Int = 1) -> String {
+    static func ranges(apiMin: String = "0.25.0", apiMax: String = "0.25.0", schemaMax: Int = 1) -> String {
         #"{"apiMin":"\#(apiMin)","apiMax":"\#(apiMax)","schemaMin":1,"schemaMax":\#(schemaMax)}"#
     }
 

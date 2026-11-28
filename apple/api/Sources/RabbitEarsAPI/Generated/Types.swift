@@ -471,7 +471,7 @@ public protocol APIProtocol: Sendable {
     func setKidsContents(_ input: Operations.SetKidsContents.Input) async throws -> Operations.SetKidsContents.Output
     /// Add many to a playlist, appended in order.
     ///
-    /// Each entry is checked as `addPlaylistEntry` checks it, and its position and rank are ignored: the entries take the ranks of generateNKeysBetween after the last entry's; a title of several editions without an editionId takes its default edition. A station's own playlist is written through its owner's profile, as `addPlaylistEntry` writes it. Nothing is added unless every entry may be.
+    /// Each entry is checked as `addPlaylistEntry` checks it, and its position and rank are ignored: the entries take the ranks of generateNKeysBetween after the last entry's; a title of several editions without an editionId takes its default edition. A station's own playlist is written through its owner's profile, as `addPlaylistEntry` writes it. Nothing is added unless every entry may be; a smart playlist answers 409.
     ///
     /// - Remark: HTTP `POST /profiles/{profileId}/playlists/{playlistId}/entries/batch`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/batch/post(addPlaylistEntries)`.
@@ -1234,7 +1234,7 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /profiles/{profileId}/playlists/{playlistId}`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/get(getPlaylist)`.
     func getPlaylist(_ input: Operations.GetPlaylist.Input) async throws -> Operations.GetPlaylist.Output
-    /// Renames a playlist. Changing the kind of one that has entries answers 409; anyone but its owner answers 403.
+    /// Renames a playlist. Changing the kind of one that has entries, or of a smart one, answers 409; anyone but its owner answers 403.
     ///
     /// - Remark: HTTP `PUT /profiles/{profileId}/playlists/{playlistId}`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/put(replacePlaylist)`.
@@ -1264,6 +1264,9 @@ public protocol APIProtocol: Sendable {
     /// editionId. An editionId of another item, or on a show, season,
     /// album, artist or collection, answers 400. The entry keeps its
     /// edition when the title gains another.
+    ///
+    /// A smart playlist's entries follow its rules: adding, moving and
+    /// removing one answers 409.
     ///
     ///
     /// - Remark: HTTP `POST /profiles/{profileId}/playlists/{playlistId}/entries`.
@@ -1295,16 +1298,41 @@ public protocol APIProtocol: Sendable {
     func getPlaylistEntry(_ input: Operations.GetPlaylistEntry.Input) async throws -> Operations.GetPlaylistEntry.Output
     /// Reorder. Moves the entry to position, shifting the others; absent position moves it to the end. Access as addPlaylistEntry.
     ///
-    /// The body names the entry's own item or collection; any other answers 400.
+    /// The body names the entry's own item or collection; any other answers 400. A smart playlist answers 409.
     ///
     /// - Remark: HTTP `PUT /profiles/{profileId}/playlists/{playlistId}/entries/{entryId}`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/{entryId}/put(replacePlaylistEntry)`.
     func replacePlaylistEntry(_ input: Operations.ReplacePlaylistEntry.Input) async throws -> Operations.ReplacePlaylistEntry.Output
-    /// Access as addPlaylistEntry.
+    /// Access as addPlaylistEntry; a smart playlist answers 409.
     ///
     /// - Remark: HTTP `DELETE /profiles/{profileId}/playlists/{playlistId}/entries/{entryId}`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/{entryId}/delete(removePlaylistEntry)`.
     func removePlaylistEntry(_ input: Operations.RemovePlaylistEntry.Input) async throws -> Operations.RemovePlaylistEntry.Output
+    /// A smart playlist's rules. Access as getPlaylist; a playlist without rules answers 404.
+    ///
+    /// - Remark: HTTP `GET /profiles/{profileId}/playlists/{playlistId}/rules`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/get(getPlaylistRules)`.
+    func getPlaylistRules(_ input: Operations.GetPlaylistRules.Input) async throws -> Operations.GetPlaylistRules.Output
+    /// Makes the playlist smart or replaces its rules; its entries become the titles they match, at once. Its owner only; anyone else answers 403.
+    ///
+    /// A movies playlist holds movies, a tv playlist episodes and a music
+    /// playlist songs, each title once and without an edition (its default
+    /// plays), in a fixed order: movies by sort title; episodes by show,
+    /// season (specials last) and number; songs by artist, album and track.
+    /// An entry keeps its id while its title still matches. watched,
+    /// playCount and favorite read the owner's, whoever the playlist is
+    /// shared with; every profile sees only the entries it may see. While
+    /// it has rules, adding, moving and removing entries, and changing its
+    /// kind, answer 409. The server applies the rules again whenever the
+    /// library or the owner's watch state or favorites change. A field or
+    /// operator the kind lacks, or a missing, blank or extra value, answers
+    /// 400 naming it, as groups.0.conditions.2.text. A station's own
+    /// playlist takes rules through its owner's profile.
+    ///
+    ///
+    /// - Remark: HTTP `PUT /profiles/{profileId}/playlists/{playlistId}/rules`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/put(replacePlaylistRules)`.
+    func replacePlaylistRules(_ input: Operations.ReplacePlaylistRules.Input) async throws -> Operations.ReplacePlaylistRules.Output
     /// Who the playlist is shared with, by name. Only its owner reads them; anyone it is shared with answers 403.
     ///
     /// - Remark: HTTP `GET /profiles/{profileId}/playlists/{playlistId}/shares`.
@@ -1486,8 +1514,8 @@ public protocol APIProtocol: Sendable {
     /// Adds a movie to a custom collection.
     ///
     /// Anything but a movie answers 400; an item the profile may not see
-    /// answers 404; a TMDB collection, or any while a kid is active,
-    /// answers 403.
+    /// answers 404; a TMDB collection, a smart one, or any while a kid is
+    /// active, answers 403.
     ///
     ///
     /// - Remark: HTTP `PUT /collections/{collectionId}/movies/{itemId}`.
@@ -1516,6 +1544,23 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /collections/{collectionId}/order`.
     /// - Remark: Generated from `#/paths//collections/{collectionId}/order/delete(resetCollectionOrder)`.
     func resetCollectionOrder(_ input: Operations.ResetCollectionOrder.Input) async throws -> Operations.ResetCollectionOrder.Output
+    /// A smart collection's rules, for a collection the active profile may see; one without rules answers 404.
+    ///
+    /// - Remark: HTTP `GET /collections/{collectionId}/rules`.
+    /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/get(getCollectionRules)`.
+    func getCollectionRules(_ input: Operations.GetCollectionRules.Input) async throws -> Operations.GetCollectionRules.Output
+    /// Makes a custom collection smart or replaces its rules; its movies become those they match, at once. A TMDB collection, or any while a kid is active, answers 403.
+    ///
+    /// Movie fields only: watched, playCount and favorite answer 400. The
+    /// movies keep release order. While it has rules, adding, removing and
+    /// reordering its movies answer 403. The server applies the rules again
+    /// whenever the library changes. Every profile sees only the movies it
+    /// may see.
+    ///
+    ///
+    /// - Remark: HTTP `PUT /collections/{collectionId}/rules`.
+    /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/put(replaceCollectionRules)`.
+    func replaceCollectionRules(_ input: Operations.ReplaceCollectionRules.Input) async throws -> Operations.ReplaceCollectionRules.Output
     /// The collection's image.
     ///
     /// A TMDB collection's own poster or backdrop. A custom collection, or
@@ -3078,7 +3123,7 @@ extension APIProtocol {
     }
     /// Add many to a playlist, appended in order.
     ///
-    /// Each entry is checked as `addPlaylistEntry` checks it, and its position and rank are ignored: the entries take the ranks of generateNKeysBetween after the last entry's; a title of several editions without an editionId takes its default edition. A station's own playlist is written through its owner's profile, as `addPlaylistEntry` writes it. Nothing is added unless every entry may be.
+    /// Each entry is checked as `addPlaylistEntry` checks it, and its position and rank are ignored: the entries take the ranks of generateNKeysBetween after the last entry's; a title of several editions without an editionId takes its default edition. A station's own playlist is written through its owner's profile, as `addPlaylistEntry` writes it. Nothing is added unless every entry may be; a smart playlist answers 409.
     ///
     /// - Remark: HTTP `POST /profiles/{profileId}/playlists/{playlistId}/entries/batch`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/batch/post(addPlaylistEntries)`.
@@ -4973,7 +5018,7 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// Renames a playlist. Changing the kind of one that has entries answers 409; anyone but its owner answers 403.
+    /// Renames a playlist. Changing the kind of one that has entries, or of a smart one, answers 409; anyone but its owner answers 403.
     ///
     /// - Remark: HTTP `PUT /profiles/{profileId}/playlists/{playlistId}`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/put(replacePlaylist)`.
@@ -5031,6 +5076,9 @@ extension APIProtocol {
     /// editionId. An editionId of another item, or on a show, season,
     /// album, artist or collection, answers 400. The entry keeps its
     /// edition when the title gains another.
+    ///
+    /// A smart playlist's entries follow its rules: adding, moving and
+    /// removing one answers 409.
     ///
     ///
     /// - Remark: HTTP `POST /profiles/{profileId}/playlists/{playlistId}/entries`.
@@ -5090,7 +5138,7 @@ extension APIProtocol {
     }
     /// Reorder. Moves the entry to position, shifting the others; absent position moves it to the end. Access as addPlaylistEntry.
     ///
-    /// The body names the entry's own item or collection; any other answers 400.
+    /// The body names the entry's own item or collection; any other answers 400. A smart playlist answers 409.
     ///
     /// - Remark: HTTP `PUT /profiles/{profileId}/playlists/{playlistId}/entries/{entryId}`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/{entryId}/put(replacePlaylistEntry)`.
@@ -5105,7 +5153,7 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// Access as addPlaylistEntry.
+    /// Access as addPlaylistEntry; a smart playlist answers 409.
     ///
     /// - Remark: HTTP `DELETE /profiles/{profileId}/playlists/{playlistId}/entries/{entryId}`.
     /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/entries/{entryId}/delete(removePlaylistEntry)`.
@@ -5116,6 +5164,49 @@ extension APIProtocol {
         try await removePlaylistEntry(Operations.RemovePlaylistEntry.Input(
             path: path,
             headers: headers
+        ))
+    }
+    /// A smart playlist's rules. Access as getPlaylist; a playlist without rules answers 404.
+    ///
+    /// - Remark: HTTP `GET /profiles/{profileId}/playlists/{playlistId}/rules`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/get(getPlaylistRules)`.
+    public func getPlaylistRules(
+        path: Operations.GetPlaylistRules.Input.Path,
+        headers: Operations.GetPlaylistRules.Input.Headers = .init()
+    ) async throws -> Operations.GetPlaylistRules.Output {
+        try await getPlaylistRules(Operations.GetPlaylistRules.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Makes the playlist smart or replaces its rules; its entries become the titles they match, at once. Its owner only; anyone else answers 403.
+    ///
+    /// A movies playlist holds movies, a tv playlist episodes and a music
+    /// playlist songs, each title once and without an edition (its default
+    /// plays), in a fixed order: movies by sort title; episodes by show,
+    /// season (specials last) and number; songs by artist, album and track.
+    /// An entry keeps its id while its title still matches. watched,
+    /// playCount and favorite read the owner's, whoever the playlist is
+    /// shared with; every profile sees only the entries it may see. While
+    /// it has rules, adding, moving and removing entries, and changing its
+    /// kind, answer 409. The server applies the rules again whenever the
+    /// library or the owner's watch state or favorites change. A field or
+    /// operator the kind lacks, or a missing, blank or extra value, answers
+    /// 400 naming it, as groups.0.conditions.2.text. A station's own
+    /// playlist takes rules through its owner's profile.
+    ///
+    ///
+    /// - Remark: HTTP `PUT /profiles/{profileId}/playlists/{playlistId}/rules`.
+    /// - Remark: Generated from `#/paths//profiles/{profileId}/playlists/{playlistId}/rules/put(replacePlaylistRules)`.
+    public func replacePlaylistRules(
+        path: Operations.ReplacePlaylistRules.Input.Path,
+        headers: Operations.ReplacePlaylistRules.Input.Headers = .init(),
+        body: Operations.ReplacePlaylistRules.Input.Body
+    ) async throws -> Operations.ReplacePlaylistRules.Output {
+        try await replacePlaylistRules(Operations.ReplacePlaylistRules.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// Who the playlist is shared with, by name. Only its owner reads them; anyone it is shared with answers 403.
@@ -5517,8 +5608,8 @@ extension APIProtocol {
     /// Adds a movie to a custom collection.
     ///
     /// Anything but a movie answers 400; an item the profile may not see
-    /// answers 404; a TMDB collection, or any while a kid is active,
-    /// answers 403.
+    /// answers 404; a TMDB collection, a smart one, or any while a kid is
+    /// active, answers 403.
     ///
     ///
     /// - Remark: HTTP `PUT /collections/{collectionId}/movies/{itemId}`.
@@ -5579,6 +5670,41 @@ extension APIProtocol {
         try await resetCollectionOrder(Operations.ResetCollectionOrder.Input(
             path: path,
             headers: headers
+        ))
+    }
+    /// A smart collection's rules, for a collection the active profile may see; one without rules answers 404.
+    ///
+    /// - Remark: HTTP `GET /collections/{collectionId}/rules`.
+    /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/get(getCollectionRules)`.
+    public func getCollectionRules(
+        path: Operations.GetCollectionRules.Input.Path,
+        headers: Operations.GetCollectionRules.Input.Headers = .init()
+    ) async throws -> Operations.GetCollectionRules.Output {
+        try await getCollectionRules(Operations.GetCollectionRules.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Makes a custom collection smart or replaces its rules; its movies become those they match, at once. A TMDB collection, or any while a kid is active, answers 403.
+    ///
+    /// Movie fields only: watched, playCount and favorite answer 400. The
+    /// movies keep release order. While it has rules, adding, removing and
+    /// reordering its movies answer 403. The server applies the rules again
+    /// whenever the library changes. Every profile sees only the movies it
+    /// may see.
+    ///
+    ///
+    /// - Remark: HTTP `PUT /collections/{collectionId}/rules`.
+    /// - Remark: Generated from `#/paths//collections/{collectionId}/rules/put(replaceCollectionRules)`.
+    public func replaceCollectionRules(
+        path: Operations.ReplaceCollectionRules.Input.Path,
+        headers: Operations.ReplaceCollectionRules.Input.Headers = .init(),
+        body: Operations.ReplaceCollectionRules.Input.Body
+    ) async throws -> Operations.ReplaceCollectionRules.Output {
+        try await replaceCollectionRules(Operations.ReplaceCollectionRules.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// The collection's image.
