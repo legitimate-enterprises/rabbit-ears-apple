@@ -93,6 +93,27 @@ final class ReplicaRowsTests: XCTestCase {
         XCTAssertEqual(entries.map(\.item?.posterUrl), [dune])
     }
 
+    /// A poster in the server's own store shows by its file name, as the server shows it to all but an admin;
+    /// TMDB's path is shown whole, and so is the address the image is at.
+    func testAnItemsStoredArtShowsByItsFileNameAndTMDBsWhole() async throws {
+        let replica = try fixture.v1 { db in
+            try db.account(1, "Avery")
+            try db.preferLocal()
+            try db.item(10, "movie", "Dune")
+            try db.item(11, "movie", "Heat")
+            try db.art(10, poster: "dune", backdrop: "dune-wide")
+            try db.execute(
+                sql: """
+                    INSERT INTO item_metadata(item_id, source, status, poster_path, backdrop_path)
+                    VALUES (?, 'local', 'matched', 'local/heat.jpg', 'local/heat-wide.jpg')
+                    """, arguments: [UID.n(11)])
+        }
+        let found = try await replica.read { try ReplicaRows.items($0, ids: [10, 11], for: 1) }
+        XCTAssertEqual(found.map(\.metadata?.posterPath), ["/dune.jpg", "heat.jpg"])
+        XCTAssertEqual(found.map(\.metadata?.backdropPath), ["/dune-wide.jpg", "heat-wide.jpg"])
+        XCTAssertEqual(found.last?.posterUrl, "/api/v2/artwork/local/heat.jpg")
+    }
+
     private func items(_ replica: Replica, _ ids: [UID]) async throws -> [UID: Item] {
         let list = try await replica.read { db in
             try ReplicaRows.items(db, ids: ids, for: 103)

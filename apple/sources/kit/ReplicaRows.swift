@@ -80,8 +80,15 @@ enum ReplicaRows {
             status: .init(rawValue: row["status"]) ?? .unmatched, title: text(row["title"]),
             overview: text(row["overview"]), releaseDate: day(row["release_date"]),
             runtimeMinutes: row["runtime_minutes"], contentRating: text(row["content_rating"]),
-            posterPath: text(row["poster_path"]), backdropPath: text(row["backdrop_path"]),
+            posterPath: shown(text(row["poster_path"])), backdropPath: shown(text(row["backdrop_path"])),
             fetchedAt: (row["fetched_at"] as Int64?).map(instant))
+    }
+
+    /// An image path as the server shows it to all but an admin: TMDB's (`/<name>`) whole, and an address in the
+    /// server's own store (`<store>/<name>`) by its file name.
+    private static func shown(_ path: String?) -> String? {
+        guard let path, !path.hasPrefix("/") else { return path }
+        return path.split(separator: "/").last.map(String.init)
     }
 
     /// Each item's genres by name, as the server reads them.
