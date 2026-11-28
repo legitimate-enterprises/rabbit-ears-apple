@@ -29,7 +29,7 @@ struct OccasionView: View {
         .background {
             ZStack {
                 Theme.ground
-                OccasionWash(colors: occasion.colors)
+                OccasionWash(colors: occasion.colors, wash: occasion.wash)
             }
             .ignoresSafeArea()
         }

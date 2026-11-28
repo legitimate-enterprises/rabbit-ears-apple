@@ -29,7 +29,7 @@ struct OccasionScreen: View {
             .padding(EdgeInsets(top: 18, leading: 22, bottom: 24, trailing: 22))
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background { OccasionWash(colors: occasion.colors).ignoresSafeArea() }
+        .background { OccasionWash(colors: occasion.colors, wash: occasion.wash).ignoresSafeArea() }
         .pageTitle(occasion.name)
         .task(id: "\(model.profileId)/\(model.revision)") {
             let next = model.occasionMembers(occasion.id)
