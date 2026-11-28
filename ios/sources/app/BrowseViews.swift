@@ -65,6 +65,7 @@ final class Browser: VideoBrowser {
     /// The movies or tv station playing in its own player, in place of `playing`.
     var tuning: Station?
     var editingStation: StationEditRequest?
+    var smartRules: SmartRulesRequest?
     /// A refusal to show in an alert, as deleting a playlist a station plays.
     var alert: String?
     /// Rises after a station edit, so the views showing stations read them again.
@@ -137,7 +138,7 @@ struct MainView: View {
     var body: some View {
         Group {
             if let catalog, let services {
-                tabs(catalog, services)
+                tabs(catalog, services).smartRulesSheet(browser: browser, services: services)
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }

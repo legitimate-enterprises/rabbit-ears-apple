@@ -23,6 +23,13 @@ struct CollectionsGrid: View {
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
                 }
                 .buttonStyle(.plain).foregroundStyle(Theme.amber)
+                Button {
+                    browser.smartRules = SmartRulesRequest(target: .newCollection)
+                } label: {
+                    Label("New smart collection", systemImage: "sparkles").font(.system(size: 15, weight: .semibold))
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
+                }
+                .buttonStyle(.plain).foregroundStyle(Theme.amber)
             }
             if model.collections.isEmpty { EmptyNote(text: "No collections yet.") }
             LazyVGrid(columns: GridView.columns, spacing: 14) {
@@ -70,6 +77,7 @@ struct CollectionView: View {
     @Environment(Services.self) private var services
     @Environment(CatalogModel.self) private var catalog
     @Environment(AppModel.self) private var app
+    @Environment(Browser.self) private var browser
     @Environment(\.dismiss) private var dismiss
     let id: UID
     @State private var movies: [Item]?
@@ -82,7 +90,9 @@ struct CollectionView: View {
     var body: some View {
         let collection = services.collections.collections.first { $0.id == id }
         let adult = app.activeProfile?.kind == .adult
-        let editable = adult && collection?.source == .custom
+        let custom = adult && collection?.source == .custom
+        // A smart one's movies follow its rules; it is still renamed and deleted.
+        let editable = custom && collection?.smart != true
         Group {
             if ordering, editable, let collection, let movies {
                 orderList(collection, movies)
@@ -124,7 +134,7 @@ struct CollectionView: View {
             if ordering {
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { ordering = false }.fontWeight(.semibold) }
             }
-            if adult, let collection { more(collection, editable: editable) }
+            if adult, let collection { more(collection, custom: custom, editable: editable) }
         }
         .addToPlaylist($addTarget)
         .alert("Rename collection", isPresented: $renaming) {
@@ -155,6 +165,7 @@ struct CollectionView: View {
             VStack(spacing: 6) {
                 Text(collection.name).font(.system(size: 26, weight: .bold)).multilineTextAlignment(.center)
                     .accessibilityAddTraits(.isHeader)
+                if collection.smart == true { SmartBadge() }
                 Text(collection.summary).font(.system(size: 13)).foregroundStyle(Theme.secondary)
             }
             if let overview = collection.overview {
@@ -165,17 +176,24 @@ struct CollectionView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func more(_ collection: MovieCollection, editable: Bool) -> some ToolbarContent {
+    private func more(_ collection: MovieCollection, custom: Bool, editable: Bool) -> some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
                 AddToButtons(target: $addTarget, itemIds: [], kind: .movies, collectionId: collection.id)
                 DownloadMenu(.collection(collection))
+                if custom && collection.smart == true {
+                    Button("Edit rules", systemImage: "sparkles") {
+                        browser.smartRules = SmartRulesRequest(target: .collection(collection))
+                    }
+                }
                 if editable {
                     Button("Edit order", systemImage: "arrow.up.arrow.down") { ordering = true }
                         .disabled((movies?.count ?? 0) < 2)
                     if collection.isHandOrdered {
                         Button("Reset to release order", systemImage: "arrow.counterclockwise") { reset() }
                     }
+                }
+                if custom {
                     Button("Rename", systemImage: "pencil") {
                         name = collection.name
                         renaming = true

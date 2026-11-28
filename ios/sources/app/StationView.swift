@@ -29,11 +29,11 @@ struct StationView: View {
                     }
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
                     if owns(station), let entries {
-                        // A station's own playlist is listed nowhere and is the owner's to edit.
+                        // A station's own playlist is listed nowhere and is the owner's to edit unless it is smart.
                         PlaylistEntryRows(
                             playlistId: station.playlistId, entries: entries,
                             editable: services.playlists.playlists.first { $0.id == station.playlistId }?.isEditable
-                                ?? true
+                                ?? (station.smart != true)
                         ) { self.entries = $0 }
                     }
                 }
@@ -48,7 +48,9 @@ struct StationView: View {
         .background(Theme.ground)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if let station, owns(station) { ToolbarItem(placement: .topBarTrailing) { EditButton() } }
+            if let station, owns(station), station.smart != true {
+                ToolbarItem(placement: .topBarTrailing) { EditButton() }
+            }
             BrowseToolbar()
         }
         .imageSheet($imaging, playlists: services.playlists) { await reload() }
@@ -80,6 +82,7 @@ struct StationView: View {
             .frame(width: station.kind == .music ? 160 : 240)
             Text(station.name).font(.system(size: 26, weight: .bold)).multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
+            if station.smart == true { SmartBadge() }
             HStack(spacing: 10) {
                 Text(StationText.kind(station.kind))
                 Tag(text: StationText.rating(station))
@@ -100,6 +103,7 @@ struct StationView: View {
                         Text("Edit station").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(SecondaryButtonStyle(fullWidth: true))
+                    StationRulesButton(station: station)
                     Menu {
                         ImageActions(
                             request: ImageRequest(station: station),

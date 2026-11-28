@@ -26,6 +26,13 @@ struct PlaylistsList: View {
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
                 }
                 .buttonStyle(.plain).foregroundStyle(Theme.amber)
+                Button {
+                    browser.smartRules = SmartRulesRequest(target: .newPlaylist(kind))
+                } label: {
+                    Label("New smart playlist", systemImage: "sparkles").font(.system(size: 15, weight: .semibold))
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
+                }
+                .buttonStyle(.plain).foregroundStyle(Theme.amber)
             }
             ForEach(playlists, id: \.id) { playlist in
                 Button {
@@ -64,6 +71,11 @@ struct PlaylistsList: View {
                 .contextMenu {
                     DownloadMenu(.playlist(playlist))
                     if playlist.isOwned {
+                        if playlist.smart == true {
+                            Button("Edit rules", systemImage: "sparkles") {
+                                browser.smartRules = SmartRulesRequest(target: .playlist(playlist))
+                            }
+                        }
                         Button("Share", systemImage: "person.2") { sharing = playlist }
                         Button("Rename", systemImage: "pencil") {
                             name = playlist.name
@@ -144,7 +156,10 @@ struct PlaylistView: View {
         VStack(alignment: .leading, spacing: 12) {
             if let playlist {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(playlist.name).font(.system(size: 26, weight: .bold)).accessibilityAddTraits(.isHeader)
+                    HStack(spacing: 10) {
+                        Text(playlist.name).font(.system(size: 26, weight: .bold)).accessibilityAddTraits(.isHeader)
+                        if playlist.smart == true { SmartBadge() }
+                    }
                     Text(PlaylistText.summary(playlist)).font(.system(size: 13)).foregroundStyle(Theme.secondary)
                     if let shared = playlist.sharedBy {
                         Text(shared).font(.system(size: 13)).foregroundStyle(Theme.secondary)
@@ -178,6 +193,11 @@ struct PlaylistView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         DownloadMenu(.playlist(playlist))
+                        if playlist.isOwned && playlist.smart == true {
+                            Button("Edit rules", systemImage: "sparkles") {
+                                browser.smartRules = SmartRulesRequest(target: .playlist(playlist))
+                            }
+                        }
                     } label: {
                         Image(systemName: "ellipsis")
                     }
