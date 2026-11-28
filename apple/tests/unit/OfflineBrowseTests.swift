@@ -131,19 +131,13 @@ final class OfflineBrowseTests: XCTestCase {
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: art), [])
     }
 
-    func testOfflineArtUnderAGenerationIsKeptAndACustomImageIsSimplyMissing() async throws {
-        let generation = ArtworkGeneration()
-        let client = harness.endpoint.client(
-            token: "tok-1", transport: harness.transport, generation: generation, offline: store)
-        harness.transport.headers[HTTPField.Name("Artwork-Generation")!] = "3"
-        _ = try await client.getMe()
-        let art = ArtworkStore(client: client, generation: generation)
+    func testOfflineArtIsKeptAndACustomImageIsSimplyMissing() async throws {
+        let art = ArtworkStore(client: harness.client)
         harness.goOffline()
         let poster = await art.data(20, .poster)
         XCTAssertEqual(poster, Data("jpeg".utf8))
         let custom = await art.data(imageUrl: "/api/v2/stations/\(UID.n(5))/image?v=\(UID.n(9))")
         XCTAssertNil(custom)
-        XCTAssertEqual(generation.value, 3)
         XCTAssertEqual(store.titles[20]?.state, .onDevice)
         let again = await art.data(20, .poster)
         XCTAssertEqual(again, Data("jpeg".utf8))

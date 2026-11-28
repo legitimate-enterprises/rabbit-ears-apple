@@ -10,10 +10,6 @@ public import Foundation
 extension Components {
     /// Types generated from the `#/components/parameters` section of the OpenAPI document.
     public enum Parameters {
-        /// The `Artwork-Generation` of the latest response the client has seen. An image asked for with it is the same until the generation moves, which it does once any image has been added, replaced or removed and changes have stopped for a few seconds, so the answer is cached for a year, immutable, and the client asks again only under a new generation. Without it the answer is cached for a day and revalidated. Any value is served the current image.
-        ///
-        /// - Remark: Generated from `#/components/parameters/ArtworkGeneration`.
-        public typealias ArtworkGeneration = Swift.Int64
         /// Minimum level; entries at or above it match.
         ///
         /// - Remark: Generated from `#/components/parameters/LogLevel`.

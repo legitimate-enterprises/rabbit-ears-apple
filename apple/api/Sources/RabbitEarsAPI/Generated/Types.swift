@@ -517,10 +517,20 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /items/{itemId}/metadata`.
     /// - Remark: Generated from `#/paths//items/{itemId}/metadata/delete(deleteItemMetadata)`.
     func deleteItemMetadata(_ input: Operations.DeleteItemMetadata.Input) async throws -> Operations.DeleteItemMetadata.Output
+    /// The image a posterUrl, backdropUrl or headshotUrl names.
+    ///
+    /// An address names one image and never another, so the answer is cached for a year, immutable; when what a title, collection or person shows changes, the data carries a new address. Clients never build one. Any device of the server may fetch any address; which profile is shown an address is decided by the data that carries it.
+    ///
+    /// - Remark: HTTP `GET /artwork/{store}/{name}`.
+    /// - Remark: Generated from `#/paths//artwork/{store}/{name}/get(getArtwork)`.
+    func getArtwork(_ input: Operations.GetArtwork.Input) async throws -> Operations.GetArtwork.Output
     /// The item's image, or its nearest ancestor's when it has none.
+    ///
+    /// The image Item.posterUrl or backdropUrl names, cached for a day and revalidated; kept because released clients use it.
     ///
     /// - Remark: HTTP `GET /items/{itemId}/artwork/{kind}`.
     /// - Remark: Generated from `#/paths//items/{itemId}/artwork/{kind}/get(getItemArtwork)`.
+    @available(*, deprecated)
     func getItemArtwork(_ input: Operations.GetItemArtwork.Input) async throws -> Operations.GetItemArtwork.Output
     /// - Remark: HTTP `GET /items/{itemId}/credits`.
     /// - Remark: Generated from `#/paths//items/{itemId}/credits/get(getItemCredits)`.
@@ -646,8 +656,11 @@ public protocol APIProtocol: Sendable {
     func deletePerson(_ input: Operations.DeletePerson.Input) async throws -> Operations.DeletePerson.Output
     /// The person's headshot.
     ///
+    /// The image Person.headshotUrl names, cached for a day and revalidated; kept because released clients use it.
+    ///
     /// - Remark: HTTP `GET /people/{personId}/artwork`.
     /// - Remark: Generated from `#/paths//people/{personId}/artwork/get(getPersonArtwork)`.
+    @available(*, deprecated)
     func getPersonArtwork(_ input: Operations.GetPersonArtwork.Input) async throws -> Operations.GetPersonArtwork.Output
     /// Takes itemId or problem; neither is a 400. Listing by problem is for admins only.
     ///
@@ -1005,7 +1018,7 @@ public protocol APIProtocol: Sendable {
     func refreshAllMetadata(_ input: Operations.RefreshAllMetadata.Input) async throws -> Operations.RefreshAllMetadata.Output
     /// Artists of Music libraries A to Z by sort name, as the Artists view and CarPlay's Artists tab list them.
     ///
-    /// An artist's image is `/items/{id}/artwork/poster`. While a kid is
+    /// An artist's image is its posterUrl. While a kid is
     /// active an artist with no song but explicit ones is left out, and
     /// its counts leave out explicit songs and the albums holding only them.
     ///
@@ -1026,7 +1039,7 @@ public protocol APIProtocol: Sendable {
     /// Albums of Music libraries, for the Albums view, Artist details, More by and CarPlay's Albums tab.
     ///
     /// Recently added (Home and CarPlay's Recent tab) is `sort=added`. An
-    /// album's art is `/items/{id}/artwork/poster`. While a kid is active
+    /// album's art is its posterUrl. While a kid is active
     /// an album whose every song is explicit is left out, and the counts,
     /// duration and lossless of the rest cover only their clean songs.
     ///
@@ -1091,7 +1104,7 @@ public protocol APIProtocol: Sendable {
     /// Channels of YouTube libraries, for the Channels view and the Channel select.
     ///
     /// Every channel folder with videos in the library. A channel's avatar
-    /// is `/items/{id}/artwork/poster`. While a kid is active only the
+    /// is its posterUrl. While a kid is active only the
     /// channels the kid may see are listed: under rating ceilings those
     /// forKids, on a manual allow list those on it. An adult with
     /// hideKidsContent is not listed channels forKids.
@@ -1117,7 +1130,7 @@ public protocol APIProtocol: Sendable {
     /// Home's New from your channels is `sort=newest` with
     /// `unwatched=true`; its Continue watching takes
     /// `inProgress=true` with `sort=played`. A video's thumbnail is
-    /// `/items/{id}/artwork/poster`. Only videos of the channels
+    /// its posterUrl. Only videos of the channels
     /// listYouTubeChannels lists to the active profile are listed.
     ///
     ///
@@ -1452,11 +1465,14 @@ public protocol APIProtocol: Sendable {
     /// A TMDB collection's own poster or backdrop. A custom collection, or
     /// a TMDB one without that image, shows its first movie's, in
     /// listCollectionMovies order for the active profile. 404 when none
-    /// has one.
+    /// has one. The image Collection.posterUrl or backdropUrl names,
+    /// cached for a day and revalidated; kept because released clients
+    /// use it.
     ///
     ///
     /// - Remark: HTTP `GET /collections/{collectionId}/artwork/{kind}`.
     /// - Remark: Generated from `#/paths//collections/{collectionId}/artwork/{kind}/get(getCollectionArtwork)`.
+    @available(*, deprecated)
     func getCollectionArtwork(_ input: Operations.GetCollectionArtwork.Input) async throws -> Operations.GetCollectionArtwork.Output
     /// Open Watch togethers the active profile finds, newest first, for Join on a details screen.
     ///
@@ -3134,18 +3150,34 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// The image a posterUrl, backdropUrl or headshotUrl names.
+    ///
+    /// An address names one image and never another, so the answer is cached for a year, immutable; when what a title, collection or person shows changes, the data carries a new address. Clients never build one. Any device of the server may fetch any address; which profile is shown an address is decided by the data that carries it.
+    ///
+    /// - Remark: HTTP `GET /artwork/{store}/{name}`.
+    /// - Remark: Generated from `#/paths//artwork/{store}/{name}/get(getArtwork)`.
+    public func getArtwork(
+        path: Operations.GetArtwork.Input.Path,
+        headers: Operations.GetArtwork.Input.Headers = .init()
+    ) async throws -> Operations.GetArtwork.Output {
+        try await getArtwork(Operations.GetArtwork.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// The item's image, or its nearest ancestor's when it has none.
+    ///
+    /// The image Item.posterUrl or backdropUrl names, cached for a day and revalidated; kept because released clients use it.
     ///
     /// - Remark: HTTP `GET /items/{itemId}/artwork/{kind}`.
     /// - Remark: Generated from `#/paths//items/{itemId}/artwork/{kind}/get(getItemArtwork)`.
+    @available(*, deprecated)
     public func getItemArtwork(
         path: Operations.GetItemArtwork.Input.Path,
-        query: Operations.GetItemArtwork.Input.Query = .init(),
         headers: Operations.GetItemArtwork.Input.Headers = .init()
     ) async throws -> Operations.GetItemArtwork.Output {
         try await getItemArtwork(Operations.GetItemArtwork.Input(
             path: path,
-            query: query,
             headers: headers
         ))
     }
@@ -3499,16 +3531,17 @@ extension APIProtocol {
     }
     /// The person's headshot.
     ///
+    /// The image Person.headshotUrl names, cached for a day and revalidated; kept because released clients use it.
+    ///
     /// - Remark: HTTP `GET /people/{personId}/artwork`.
     /// - Remark: Generated from `#/paths//people/{personId}/artwork/get(getPersonArtwork)`.
+    @available(*, deprecated)
     public func getPersonArtwork(
         path: Operations.GetPersonArtwork.Input.Path,
-        query: Operations.GetPersonArtwork.Input.Query = .init(),
         headers: Operations.GetPersonArtwork.Input.Headers = .init()
     ) async throws -> Operations.GetPersonArtwork.Output {
         try await getPersonArtwork(Operations.GetPersonArtwork.Input(
             path: path,
-            query: query,
             headers: headers
         ))
     }
@@ -4432,7 +4465,7 @@ extension APIProtocol {
     }
     /// Artists of Music libraries A to Z by sort name, as the Artists view and CarPlay's Artists tab list them.
     ///
-    /// An artist's image is `/items/{id}/artwork/poster`. While a kid is
+    /// An artist's image is its posterUrl. While a kid is
     /// active an artist with no song but explicit ones is left out, and
     /// its counts leave out explicit songs and the albums holding only them.
     ///
@@ -4469,7 +4502,7 @@ extension APIProtocol {
     /// Albums of Music libraries, for the Albums view, Artist details, More by and CarPlay's Albums tab.
     ///
     /// Recently added (Home and CarPlay's Recent tab) is `sort=added`. An
-    /// album's art is `/items/{id}/artwork/poster`. While a kid is active
+    /// album's art is its posterUrl. While a kid is active
     /// an album whose every song is explicit is left out, and the counts,
     /// duration and lossless of the rest cover only their clean songs.
     ///
@@ -4592,7 +4625,7 @@ extension APIProtocol {
     /// Channels of YouTube libraries, for the Channels view and the Channel select.
     ///
     /// Every channel folder with videos in the library. A channel's avatar
-    /// is `/items/{id}/artwork/poster`. While a kid is active only the
+    /// is its posterUrl. While a kid is active only the
     /// channels the kid may see are listed: under rating ceilings those
     /// forKids, on a manual allow list those on it. An adult with
     /// hideKidsContent is not listed channels forKids.
@@ -4644,7 +4677,7 @@ extension APIProtocol {
     /// Home's New from your channels is `sort=newest` with
     /// `unwatched=true`; its Continue watching takes
     /// `inProgress=true` with `sort=played`. A video's thumbnail is
-    /// `/items/{id}/artwork/poster`. Only videos of the channels
+    /// its posterUrl. Only videos of the channels
     /// listYouTubeChannels lists to the active profile are listed.
     ///
     ///
@@ -5359,19 +5392,20 @@ extension APIProtocol {
     /// A TMDB collection's own poster or backdrop. A custom collection, or
     /// a TMDB one without that image, shows its first movie's, in
     /// listCollectionMovies order for the active profile. 404 when none
-    /// has one.
+    /// has one. The image Collection.posterUrl or backdropUrl names,
+    /// cached for a day and revalidated; kept because released clients
+    /// use it.
     ///
     ///
     /// - Remark: HTTP `GET /collections/{collectionId}/artwork/{kind}`.
     /// - Remark: Generated from `#/paths//collections/{collectionId}/artwork/{kind}/get(getCollectionArtwork)`.
+    @available(*, deprecated)
     public func getCollectionArtwork(
         path: Operations.GetCollectionArtwork.Input.Path,
-        query: Operations.GetCollectionArtwork.Input.Query = .init(),
         headers: Operations.GetCollectionArtwork.Input.Headers = .init()
     ) async throws -> Operations.GetCollectionArtwork.Output {
         try await getCollectionArtwork(Operations.GetCollectionArtwork.Input(
             path: path,
-            query: query,
             headers: headers
         ))
     }

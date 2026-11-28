@@ -103,12 +103,11 @@ extension ServerEndpoint {
     /// from the device and answers while the server cannot be reached. Tests
     /// pass their own transport.
     public func client(
-        token: String?, transport: (any ClientTransport)? = nil, generation: ArtworkGeneration? = nil,
-        offline: DownloadStore? = nil, locked: (@MainActor @Sendable () -> Void)? = nil
+        token: String?, transport: (any ClientTransport)? = nil, offline: DownloadStore? = nil,
+        locked: (@MainActor @Sendable () -> Void)? = nil
     ) -> Client {
         let middlewares: [any ClientMiddleware] =
             (offline.map { [OfflineMiddleware(store: $0)] } ?? []) + [ErrorMiddleware(locked: locked)]
-            + (generation.map { [$0] } ?? [])
         return Client.connect(
             to: baseURL, token: token, transport: transport ?? Client.sharedTransport, middlewares: middlewares)
     }

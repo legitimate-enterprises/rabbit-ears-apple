@@ -36,7 +36,6 @@ public final class AppModel {
     public private(set) var client: Client?
     /// The sections of primary navigation the server has libraries for; all until a server has answered.
     public internal(set) var librarySections = Set(LibrarySection.allCases)
-    let generation = ArtworkGeneration()
     /// The lock last sent, which an unlock waits on.
     @ObservationIgnored private var locking: Task<Void, Never>?
     /// Each profile's HomeSlots as read or last kept, so a Home redraw reads no file.
@@ -344,7 +343,7 @@ public final class AppModel {
         await loadLibrarySections()
         // Off the way in, as a launch offline must not wait on the server.
         Task { await learnName(endpoint) }
-        artwork = ArtworkStore(client: client, generation: generation, kept: .shared)
+        artwork = ArtworkStore(client: client, kept: .shared)
         self.me = me
         activeProfile = nil
         pinPrompt = nil

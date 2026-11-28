@@ -15647,7 +15647,307 @@ public enum Operations {
             }
         }
     }
+    /// The image a posterUrl, backdropUrl or headshotUrl names.
+    ///
+    /// An address names one image and never another, so the answer is cached for a year, immutable; when what a title, collection or person shows changes, the data carries a new address. Clients never build one. Any device of the server may fetch any address; which profile is shown an address is decided by the data that carries it.
+    ///
+    /// - Remark: HTTP `GET /artwork/{store}/{name}`.
+    /// - Remark: Generated from `#/paths//artwork/{store}/{name}/get(getArtwork)`.
+    public enum GetArtwork {
+        public static let id: Swift.String = "getArtwork"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/artwork/{store}/{name}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/artwork/{store}/{name}/GET/path/store`.
+                public var store: Components.Schemas.ArtworkStore
+                /// - Remark: Generated from `#/paths/artwork/{store}/{name}/GET/path/name`.
+                public var name: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - store:
+                ///   - name:
+                public init(
+                    store: Components.Schemas.ArtworkStore,
+                    name: Swift.String
+                ) {
+                    self.store = store
+                    self.name = name
+                }
+            }
+            public var path: Operations.GetArtwork.Input.Path
+            /// - Remark: Generated from `#/paths/artwork/{store}/{name}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/artwork/{store}/{name}/GET/header/If-None-Match`.
+                public var ifNoneMatch: Swift.String?
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetArtwork.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - ifNoneMatch:
+                ///   - accept:
+                public init(
+                    ifNoneMatch: Swift.String? = nil,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetArtwork.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.ifNoneMatch = ifNoneMatch
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetArtwork.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.GetArtwork.Input.Path,
+                headers: Operations.GetArtwork.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/artwork/{store}/{name}/GET/responses/200/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/artwork/{store}/{name}/GET/responses/200/headers/ETag`.
+                    public var eTag: Swift.String
+                    /// - Remark: Generated from `#/paths/artwork/{store}/{name}/GET/responses/200/headers/Cache-Control`.
+                    public var cacheControl: Swift.String
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - eTag:
+                    ///   - cacheControl:
+                    public init(
+                        eTag: Swift.String,
+                        cacheControl: Swift.String
+                    ) {
+                        self.eTag = eTag
+                        self.cacheControl = cacheControl
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.GetArtwork.Output.Ok.Headers
+                /// - Remark: Generated from `#/paths/artwork/{store}/{name}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/artwork/{store}/{name}/GET/responses/200/content/image\/*`.
+                    case image_Ast_(OpenAPIRuntime.HTTPBody)
+                    /// The associated value of the enum case if `self` is `.image_Ast_`.
+                    ///
+                    /// - Throws: An error if `self` is not `.image_Ast_`.
+                    /// - SeeAlso: `.image_Ast_`.
+                    public var image_Ast_: OpenAPIRuntime.HTTPBody {
+                        get throws {
+                            switch self {
+                            case let .image_Ast_(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetArtwork.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.GetArtwork.Output.Ok.Headers,
+                    body: Operations.GetArtwork.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// Image bytes.
+            ///
+            /// - Remark: Generated from `#/paths//artwork/{store}/{name}/get(getArtwork)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetArtwork.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetArtwork.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotModified: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/artwork/{store}/{name}/GET/responses/304/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/artwork/{store}/{name}/GET/responses/304/headers/ETag`.
+                    public var eTag: Swift.String
+                    /// - Remark: Generated from `#/paths/artwork/{store}/{name}/GET/responses/304/headers/Cache-Control`.
+                    public var cacheControl: Swift.String
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - eTag:
+                    ///   - cacheControl:
+                    public init(
+                        eTag: Swift.String,
+                        cacheControl: Swift.String
+                    ) {
+                        self.eTag = eTag
+                        self.cacheControl = cacheControl
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.GetArtwork.Output.NotModified.Headers
+                /// Creates a new `NotModified`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                public init(headers: Operations.GetArtwork.Output.NotModified.Headers) {
+                    self.headers = headers
+                }
+            }
+            /// The client's copy, named by If-None-Match, is current.
+            ///
+            /// - Remark: Generated from `#/paths//artwork/{store}/{name}/get(getArtwork)/responses/304`.
+            ///
+            /// HTTP response code: `304 notModified`.
+            case notModified(Operations.GetArtwork.Output.NotModified)
+            /// The associated value of the enum case if `self` is `.notModified`.
+            ///
+            /// - Throws: An error if `self` is not `.notModified`.
+            /// - SeeAlso: `.notModified`.
+            public var notModified: Operations.GetArtwork.Output.NotModified {
+                get throws {
+                    switch self {
+                    case let .notModified(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notModified",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request failed validation.
+            ///
+            /// - Remark: Generated from `#/paths//artwork/{store}/{name}/get(getArtwork)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, unknown or revoked device token, or bad credentials.
+            ///
+            /// - Remark: Generated from `#/paths//artwork/{store}/{name}/get(getArtwork)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// No such resource visible to this device.
+            ///
+            /// - Remark: Generated from `#/paths//artwork/{store}/{name}/get(getArtwork)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case image_Ast_
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "image/*":
+                    self = .image_Ast_
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .image_Ast_:
+                    return "image/*"
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .image_Ast_,
+                    .json
+                ]
+            }
+        }
+    }
     /// The item's image, or its nearest ancestor's when it has none.
+    ///
+    /// The image Item.posterUrl or backdropUrl names, cached for a day and revalidated; kept because released clients use it.
     ///
     /// - Remark: HTTP `GET /items/{itemId}/artwork/{kind}`.
     /// - Remark: Generated from `#/paths//items/{itemId}/artwork/{kind}/get(getItemArtwork)`.
@@ -15674,21 +15974,6 @@ public enum Operations {
                 }
             }
             public var path: Operations.GetItemArtwork.Input.Path
-            /// - Remark: Generated from `#/paths/items/{itemId}/artwork/{kind}/GET/query`.
-            public struct Query: Sendable, Hashable {
-                /// The `Artwork-Generation` of the latest response the client has seen. An image asked for with it is the same until the generation moves, which it does once any image has been added, replaced or removed and changes have stopped for a few seconds, so the answer is cached for a year, immutable, and the client asks again only under a new generation. Without it the answer is cached for a day and revalidated. Any value is served the current image.
-                ///
-                /// - Remark: Generated from `#/paths/items/{itemId}/artwork/{kind}/GET/query/v`.
-                public var v: Components.Parameters.ArtworkGeneration?
-                /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - v: The `Artwork-Generation` of the latest response the client has seen. An image asked for with it is the same until the generation moves, which it does once any image has been added, replaced or removed and changes have stopped for a few seconds, so the answer is cached for a year, immutable, and the client asks again only under a new generation. Without it the answer is cached for a day and revalidated. Any value is served the current image.
-                public init(v: Components.Parameters.ArtworkGeneration? = nil) {
-                    self.v = v
-                }
-            }
-            public var query: Operations.GetItemArtwork.Input.Query
             /// - Remark: Generated from `#/paths/items/{itemId}/artwork/{kind}/GET/header`.
             public struct Headers: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/items/{itemId}/artwork/{kind}/GET/header/If-None-Match`.
@@ -15712,15 +15997,12 @@ public enum Operations {
             ///
             /// - Parameters:
             ///   - path:
-            ///   - query:
             ///   - headers:
             public init(
                 path: Operations.GetItemArtwork.Input.Path,
-                query: Operations.GetItemArtwork.Input.Query = .init(),
                 headers: Operations.GetItemArtwork.Input.Headers = .init()
             ) {
                 self.path = path
-                self.query = query
                 self.headers = headers
             }
         }
@@ -21448,6 +21730,8 @@ public enum Operations {
     }
     /// The person's headshot.
     ///
+    /// The image Person.headshotUrl names, cached for a day and revalidated; kept because released clients use it.
+    ///
     /// - Remark: HTTP `GET /people/{personId}/artwork`.
     /// - Remark: Generated from `#/paths//people/{personId}/artwork/get(getPersonArtwork)`.
     public enum GetPersonArtwork {
@@ -21466,21 +21750,6 @@ public enum Operations {
                 }
             }
             public var path: Operations.GetPersonArtwork.Input.Path
-            /// - Remark: Generated from `#/paths/people/{personId}/artwork/GET/query`.
-            public struct Query: Sendable, Hashable {
-                /// The `Artwork-Generation` of the latest response the client has seen. An image asked for with it is the same until the generation moves, which it does once any image has been added, replaced or removed and changes have stopped for a few seconds, so the answer is cached for a year, immutable, and the client asks again only under a new generation. Without it the answer is cached for a day and revalidated. Any value is served the current image.
-                ///
-                /// - Remark: Generated from `#/paths/people/{personId}/artwork/GET/query/v`.
-                public var v: Components.Parameters.ArtworkGeneration?
-                /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - v: The `Artwork-Generation` of the latest response the client has seen. An image asked for with it is the same until the generation moves, which it does once any image has been added, replaced or removed and changes have stopped for a few seconds, so the answer is cached for a year, immutable, and the client asks again only under a new generation. Without it the answer is cached for a day and revalidated. Any value is served the current image.
-                public init(v: Components.Parameters.ArtworkGeneration? = nil) {
-                    self.v = v
-                }
-            }
-            public var query: Operations.GetPersonArtwork.Input.Query
             /// - Remark: Generated from `#/paths/people/{personId}/artwork/GET/header`.
             public struct Headers: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/people/{personId}/artwork/GET/header/If-None-Match`.
@@ -21504,15 +21773,12 @@ public enum Operations {
             ///
             /// - Parameters:
             ///   - path:
-            ///   - query:
             ///   - headers:
             public init(
                 path: Operations.GetPersonArtwork.Input.Path,
-                query: Operations.GetPersonArtwork.Input.Query = .init(),
                 headers: Operations.GetPersonArtwork.Input.Headers = .init()
             ) {
                 self.path = path
-                self.query = query
                 self.headers = headers
             }
         }
@@ -35714,7 +35980,7 @@ public enum Operations {
     }
     /// Artists of Music libraries A to Z by sort name, as the Artists view and CarPlay's Artists tab list them.
     ///
-    /// An artist's image is `/items/{id}/artwork/poster`. While a kid is
+    /// An artist's image is its posterUrl. While a kid is
     /// active an artist with no song but explicit ones is left out, and
     /// its counts leave out explicit songs and the albums holding only them.
     ///
@@ -36152,7 +36418,7 @@ public enum Operations {
     /// Albums of Music libraries, for the Albums view, Artist details, More by and CarPlay's Albums tab.
     ///
     /// Recently added (Home and CarPlay's Recent tab) is `sort=added`. An
-    /// album's art is `/items/{id}/artwork/poster`. While a kid is active
+    /// album's art is its posterUrl. While a kid is active
     /// an album whose every song is explicit is left out, and the counts,
     /// duration and lossless of the rest cover only their clean songs.
     ///
@@ -37746,7 +38012,7 @@ public enum Operations {
     /// Channels of YouTube libraries, for the Channels view and the Channel select.
     ///
     /// Every channel folder with videos in the library. A channel's avatar
-    /// is `/items/{id}/artwork/poster`. While a kid is active only the
+    /// is its posterUrl. While a kid is active only the
     /// channels the kid may see are listed: under rating ceilings those
     /// forKids, on a manual allow list those on it. An adult with
     /// hideKidsContent is not listed channels forKids.
@@ -38429,7 +38695,7 @@ public enum Operations {
     /// Home's New from your channels is `sort=newest` with
     /// `unwatched=true`; its Continue watching takes
     /// `inProgress=true` with `sort=played`. A video's thumbnail is
-    /// `/items/{id}/artwork/poster`. Only videos of the channels
+    /// its posterUrl. Only videos of the channels
     /// listYouTubeChannels lists to the active profile are listed.
     ///
     ///
@@ -48625,7 +48891,9 @@ public enum Operations {
     /// A TMDB collection's own poster or backdrop. A custom collection, or
     /// a TMDB one without that image, shows its first movie's, in
     /// listCollectionMovies order for the active profile. 404 when none
-    /// has one.
+    /// has one. The image Collection.posterUrl or backdropUrl names,
+    /// cached for a day and revalidated; kept because released clients
+    /// use it.
     ///
     ///
     /// - Remark: HTTP `GET /collections/{collectionId}/artwork/{kind}`.
@@ -48653,21 +48921,6 @@ public enum Operations {
                 }
             }
             public var path: Operations.GetCollectionArtwork.Input.Path
-            /// - Remark: Generated from `#/paths/collections/{collectionId}/artwork/{kind}/GET/query`.
-            public struct Query: Sendable, Hashable {
-                /// The `Artwork-Generation` of the latest response the client has seen. An image asked for with it is the same until the generation moves, which it does once any image has been added, replaced or removed and changes have stopped for a few seconds, so the answer is cached for a year, immutable, and the client asks again only under a new generation. Without it the answer is cached for a day and revalidated. Any value is served the current image.
-                ///
-                /// - Remark: Generated from `#/paths/collections/{collectionId}/artwork/{kind}/GET/query/v`.
-                public var v: Components.Parameters.ArtworkGeneration?
-                /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - v: The `Artwork-Generation` of the latest response the client has seen. An image asked for with it is the same until the generation moves, which it does once any image has been added, replaced or removed and changes have stopped for a few seconds, so the answer is cached for a year, immutable, and the client asks again only under a new generation. Without it the answer is cached for a day and revalidated. Any value is served the current image.
-                public init(v: Components.Parameters.ArtworkGeneration? = nil) {
-                    self.v = v
-                }
-            }
-            public var query: Operations.GetCollectionArtwork.Input.Query
             /// - Remark: Generated from `#/paths/collections/{collectionId}/artwork/{kind}/GET/header`.
             public struct Headers: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/collections/{collectionId}/artwork/{kind}/GET/header/If-None-Match`.
@@ -48691,15 +48944,12 @@ public enum Operations {
             ///
             /// - Parameters:
             ///   - path:
-            ///   - query:
             ///   - headers:
             public init(
                 path: Operations.GetCollectionArtwork.Input.Path,
-                query: Operations.GetCollectionArtwork.Input.Query = .init(),
                 headers: Operations.GetCollectionArtwork.Input.Headers = .init()
             ) {
                 self.path = path
-                self.query = query
                 self.headers = headers
             }
         }

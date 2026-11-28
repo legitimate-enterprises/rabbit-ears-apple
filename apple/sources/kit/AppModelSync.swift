@@ -134,9 +134,9 @@ extension AppModel {
                 await self?.downloads?.loadLibraries()
             }
         }
-        let client = endpoint.client(
-            token: token, transport: transport, generation: generation, offline: downloads
-        ) { [weak self] in self?.lockedOut() }
+        let client = endpoint.client(token: token, transport: transport, offline: downloads) { [weak self] in
+            self?.lockedOut()
+        }
         let plays = sync.map { session in
             let queue = session.queue
             // A position is saved at the queue's own instant, which is the report's.

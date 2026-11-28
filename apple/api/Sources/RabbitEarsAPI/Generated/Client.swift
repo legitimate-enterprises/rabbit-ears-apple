@@ -35,8 +35,8 @@ import HTTPTypes
 /// row before the server has answered; an id already in use answers 409.
 /// Ids are opaque: their order is not creation order.
 ///
-/// Every response carries `Artwork-Generation`, the number clients pass as
-/// `v` when they ask for an image; see the `v` parameter of getItemArtwork.
+/// An image is fetched at the posterUrl, backdropUrl or headshotUrl the
+/// data carries; see getArtwork.
 ///
 public struct Client: APIProtocol {
     /// The underlying HTTP client.
@@ -10438,10 +10438,178 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// The image a posterUrl, backdropUrl or headshotUrl names.
+    ///
+    /// An address names one image and never another, so the answer is cached for a year, immutable; when what a title, collection or person shows changes, the data carries a new address. Clients never build one. Any device of the server may fetch any address; which profile is shown an address is decided by the data that carries it.
+    ///
+    /// - Remark: HTTP `GET /artwork/{store}/{name}`.
+    /// - Remark: Generated from `#/paths//artwork/{store}/{name}/get(getArtwork)`.
+    public func getArtwork(_ input: Operations.GetArtwork.Input) async throws -> Operations.GetArtwork.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.GetArtwork.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/artwork/{}/{}",
+                    parameters: [
+                        input.path.store,
+                        input.path.name
+                    ]
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .get
+                )
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsURI(
+                    in: &request.headerFields,
+                    name: "If-None-Match",
+                    value: input.headers.ifNoneMatch
+                )
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let headers: Operations.GetArtwork.Output.Ok.Headers = .init(
+                        eTag: try converter.getRequiredHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "ETag",
+                            as: Swift.String.self
+                        ),
+                        cacheControl: try converter.getRequiredHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "Cache-Control",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.GetArtwork.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "image/*"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "image/*":
+                        body = try converter.getResponseBodyAsBinary(
+                            OpenAPIRuntime.HTTPBody.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .image_Ast_(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(
+                        headers: headers,
+                        body: body
+                    ))
+                case 304:
+                    let headers: Operations.GetArtwork.Output.NotModified.Headers = .init(
+                        eTag: try converter.getRequiredHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "ETag",
+                            as: Swift.String.self
+                        ),
+                        cacheControl: try converter.getRequiredHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "Cache-Control",
+                            as: Swift.String.self
+                        )
+                    )
+                    return .notModified(.init(headers: headers))
+                case 400:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.BadRequest.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .badRequest(.init(body: body))
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.Unauthorized.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                case 404:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.NotFound.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .notFound(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
     /// The item's image, or its nearest ancestor's when it has none.
+    ///
+    /// The image Item.posterUrl or backdropUrl names, cached for a day and revalidated; kept because released clients use it.
     ///
     /// - Remark: HTTP `GET /items/{itemId}/artwork/{kind}`.
     /// - Remark: Generated from `#/paths//items/{itemId}/artwork/{kind}/get(getItemArtwork)`.
+    @available(*, deprecated)
     public func getItemArtwork(_ input: Operations.GetItemArtwork.Input) async throws -> Operations.GetItemArtwork.Output {
         try await client.send(
             input: input,
@@ -10459,13 +10627,6 @@ public struct Client: APIProtocol {
                     method: .get
                 )
                 suppressMutabilityWarning(&request)
-                try converter.setQueryItemAsURI(
-                    in: &request,
-                    style: .form,
-                    explode: true,
-                    name: "v",
-                    value: input.query.v
-                )
                 try converter.setHeaderFieldAsURI(
                     in: &request.headerFields,
                     name: "If-None-Match",
@@ -14240,8 +14401,11 @@ public struct Client: APIProtocol {
     }
     /// The person's headshot.
     ///
+    /// The image Person.headshotUrl names, cached for a day and revalidated; kept because released clients use it.
+    ///
     /// - Remark: HTTP `GET /people/{personId}/artwork`.
     /// - Remark: Generated from `#/paths//people/{personId}/artwork/get(getPersonArtwork)`.
+    @available(*, deprecated)
     public func getPersonArtwork(_ input: Operations.GetPersonArtwork.Input) async throws -> Operations.GetPersonArtwork.Output {
         try await client.send(
             input: input,
@@ -14258,13 +14422,6 @@ public struct Client: APIProtocol {
                     method: .get
                 )
                 suppressMutabilityWarning(&request)
-                try converter.setQueryItemAsURI(
-                    in: &request,
-                    style: .form,
-                    explode: true,
-                    name: "v",
-                    value: input.query.v
-                )
                 try converter.setHeaderFieldAsURI(
                     in: &request.headerFields,
                     name: "If-None-Match",
@@ -23857,7 +24014,7 @@ public struct Client: APIProtocol {
     }
     /// Artists of Music libraries A to Z by sort name, as the Artists view and CarPlay's Artists tab list them.
     ///
-    /// An artist's image is `/items/{id}/artwork/poster`. While a kid is
+    /// An artist's image is its posterUrl. While a kid is
     /// active an artist with no song but explicit ones is left out, and
     /// its counts leave out explicit songs and the albums holding only them.
     ///
@@ -24164,7 +24321,7 @@ public struct Client: APIProtocol {
     /// Albums of Music libraries, for the Albums view, Artist details, More by and CarPlay's Albums tab.
     ///
     /// Recently added (Home and CarPlay's Recent tab) is `sort=added`. An
-    /// album's art is `/items/{id}/artwork/poster`. While a kid is active
+    /// album's art is its posterUrl. While a kid is active
     /// an album whose every song is explicit is left out, and the counts,
     /// duration and lossless of the rest cover only their clean songs.
     ///
@@ -25294,7 +25451,7 @@ public struct Client: APIProtocol {
     /// Channels of YouTube libraries, for the Channels view and the Channel select.
     ///
     /// Every channel folder with videos in the library. A channel's avatar
-    /// is `/items/{id}/artwork/poster`. While a kid is active only the
+    /// is its posterUrl. While a kid is active only the
     /// channels the kid may see are listed: under rating ceilings those
     /// forKids, on a manual allow list those on it. An adult with
     /// hideKidsContent is not listed channels forKids.
@@ -25775,7 +25932,7 @@ public struct Client: APIProtocol {
     /// Home's New from your channels is `sort=newest` with
     /// `unwatched=true`; its Continue watching takes
     /// `inProgress=true` with `sort=played`. A video's thumbnail is
-    /// `/items/{id}/artwork/poster`. Only videos of the channels
+    /// its posterUrl. Only videos of the channels
     /// listYouTubeChannels lists to the active profile are listed.
     ///
     ///
@@ -32776,11 +32933,14 @@ public struct Client: APIProtocol {
     /// A TMDB collection's own poster or backdrop. A custom collection, or
     /// a TMDB one without that image, shows its first movie's, in
     /// listCollectionMovies order for the active profile. 404 when none
-    /// has one.
+    /// has one. The image Collection.posterUrl or backdropUrl names,
+    /// cached for a day and revalidated; kept because released clients
+    /// use it.
     ///
     ///
     /// - Remark: HTTP `GET /collections/{collectionId}/artwork/{kind}`.
     /// - Remark: Generated from `#/paths//collections/{collectionId}/artwork/{kind}/get(getCollectionArtwork)`.
+    @available(*, deprecated)
     public func getCollectionArtwork(_ input: Operations.GetCollectionArtwork.Input) async throws -> Operations.GetCollectionArtwork.Output {
         try await client.send(
             input: input,
@@ -32798,13 +32958,6 @@ public struct Client: APIProtocol {
                     method: .get
                 )
                 suppressMutabilityWarning(&request)
-                try converter.setQueryItemAsURI(
-                    in: &request,
-                    style: .form,
-                    explode: true,
-                    name: "v",
-                    value: input.query.v
-                )
                 try converter.setHeaderFieldAsURI(
                     in: &request.headerFields,
                     name: "If-None-Match",

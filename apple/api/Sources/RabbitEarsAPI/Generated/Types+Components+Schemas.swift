@@ -2659,6 +2659,14 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Item/kidsContentOverride`.
             public var kidsContentOverride: Swift.Bool?
+            /// Server-relative URL of the poster the item shows, served by getArtwork; it changes exactly when the image does. It is the item's own under the metadata settings, else its nearest ancestor's: a season's or episode's show, a song's album, a video's channel. An artist's is its newest album's that the active profile may hear. Absent when there is none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Item/posterUrl`.
+            public var posterUrl: Swift.String?
+            /// Server-relative URL of the backdrop the item shows, served by getArtwork, chosen as posterUrl is; an artist has none. Absent when there is none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Item/backdropUrl`.
+            public var backdropUrl: Swift.String?
             /// Creates a new `Item`.
             ///
             /// - Parameters:
@@ -2682,6 +2690,8 @@ extension Components {
             ///   - unavailable: A movie or episode with files, every one of them marked missing (MediaFile.missingAt): it stays listed and startPlayback answers 409 until a file is back. Absent means false.
             ///   - kidsContent: Movies and shows only: whether it is kids' content, which an adult with hideKidsContent does not browse. It is kidsContentOverride when set, else whether it is rated G (a movie) or TV-Y, TV-Y7 or TV-G (a show). A show's seasons and episodes follow it.
             ///   - kidsContentOverride: Movies and shows only. An adult's setKidsContent; absent when none is set and the rating decides.
+            ///   - posterUrl: Server-relative URL of the poster the item shows, served by getArtwork; it changes exactly when the image does. It is the item's own under the metadata settings, else its nearest ancestor's: a season's or episode's show, a song's album, a video's channel. An artist's is its newest album's that the active profile may hear. Absent when there is none.
+            ///   - backdropUrl: Server-relative URL of the backdrop the item shows, served by getArtwork, chosen as posterUrl is; an artist has none. Absent when there is none.
             public init(
                 id: Components.Schemas.Id,
                 libraryId: Components.Schemas.Id,
@@ -2702,7 +2712,9 @@ extension Components {
                 modifiedAt: Foundation.Date,
                 unavailable: Swift.Bool? = nil,
                 kidsContent: Swift.Bool? = nil,
-                kidsContentOverride: Swift.Bool? = nil
+                kidsContentOverride: Swift.Bool? = nil,
+                posterUrl: Swift.String? = nil,
+                backdropUrl: Swift.String? = nil
             ) {
                 self.id = id
                 self.libraryId = libraryId
@@ -2724,6 +2736,8 @@ extension Components {
                 self.unavailable = unavailable
                 self.kidsContent = kidsContent
                 self.kidsContentOverride = kidsContentOverride
+                self.posterUrl = posterUrl
+                self.backdropUrl = backdropUrl
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -2746,6 +2760,8 @@ extension Components {
                 case unavailable
                 case kidsContent
                 case kidsContentOverride
+                case posterUrl
+                case backdropUrl
             }
         }
         /// - Remark: Generated from `#/components/schemas/WatchStateBatchInput`.
@@ -3593,6 +3609,10 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Person/profilePath`.
             public var profilePath: Swift.String?
+            /// Server-relative URL of the person's headshot, served by getArtwork; it changes exactly when the image does. Absent when there is none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Person/headshotUrl`.
+            public var headshotUrl: Swift.String?
             /// Creates a new `Person`.
             ///
             /// - Parameters:
@@ -3600,22 +3620,26 @@ extension Components {
             ///   - name:
             ///   - tmdbId: Absent for people added by hand.
             ///   - profilePath: Provider headshot name; present when the artwork endpoint has an image.
+            ///   - headshotUrl: Server-relative URL of the person's headshot, served by getArtwork; it changes exactly when the image does. Absent when there is none.
             public init(
                 id: Components.Schemas.Id,
                 name: Swift.String,
                 tmdbId: Swift.Int64? = nil,
-                profilePath: Swift.String? = nil
+                profilePath: Swift.String? = nil,
+                headshotUrl: Swift.String? = nil
             ) {
                 self.id = id
                 self.name = name
                 self.tmdbId = tmdbId
                 self.profilePath = profilePath
+                self.headshotUrl = headshotUrl
             }
             public enum CodingKeys: String, CodingKey {
                 case id
                 case name
                 case tmdbId
                 case profilePath
+                case headshotUrl
             }
         }
         /// - Remark: Generated from `#/components/schemas/PersonInput`.
@@ -3678,6 +3702,10 @@ extension Components {
             public var name: Swift.String
             /// - Remark: Generated from `#/components/schemas/Credit/profilePath`.
             public var profilePath: Swift.String?
+            /// Server-relative URL of the person's headshot, served by getArtwork; it changes exactly when the image does. Absent when there is none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Credit/headshotUrl`.
+            public var headshotUrl: Swift.String?
             /// Cast only.
             ///
             /// - Remark: Generated from `#/components/schemas/Credit/character`.
@@ -3694,6 +3722,7 @@ extension Components {
             ///   - personId:
             ///   - name:
             ///   - profilePath:
+            ///   - headshotUrl: Server-relative URL of the person's headshot, served by getArtwork; it changes exactly when the image does. Absent when there is none.
             ///   - character: Cast only.
             ///   - job: Crew only: Director, Writer, Screenplay or Creator.
             ///   - department:
@@ -3701,6 +3730,7 @@ extension Components {
                 personId: Components.Schemas.Id,
                 name: Swift.String,
                 profilePath: Swift.String? = nil,
+                headshotUrl: Swift.String? = nil,
                 character: Swift.String? = nil,
                 job: Swift.String? = nil,
                 department: Swift.String? = nil
@@ -3708,6 +3738,7 @@ extension Components {
                 self.personId = personId
                 self.name = name
                 self.profilePath = profilePath
+                self.headshotUrl = headshotUrl
                 self.character = character
                 self.job = job
                 self.department = department
@@ -3716,6 +3747,7 @@ extension Components {
                 case personId
                 case name
                 case profilePath
+                case headshotUrl
                 case character
                 case job
                 case department
@@ -4396,6 +4428,18 @@ extension Components {
         @frozen public enum ArtworkKind: String, Codable, Hashable, Sendable, CaseIterable {
             case poster = "poster"
             case backdrop = "backdrop"
+        }
+        /// Part of an address getArtwork serves; clients take addresses whole from the data.
+        ///
+        /// - Remark: Generated from `#/components/schemas/ArtworkStore`.
+        @frozen public enum ArtworkStore: String, Codable, Hashable, Sendable, CaseIterable {
+            case w185 = "w185"
+            case w500 = "w500"
+            case w1280 = "w1280"
+            case caa = "caa"
+            case local = "local"
+            case music = "music"
+            case youtube = "youtube"
         }
         /// - Remark: Generated from `#/components/schemas/HdrFormat`.
         @frozen public enum HdrFormat: String, Codable, Hashable, Sendable, CaseIterable {
@@ -6927,6 +6971,10 @@ extension Components {
             public var musicBrainzId: Swift.String?
             /// - Remark: Generated from `#/components/schemas/MusicArtist/addedAt`.
             public var addedAt: Foundation.Date
+            /// Server-relative URL of the artist's image, served by getArtwork; it changes exactly when the image does. It is its newest album's that the active profile may hear. Absent when there is none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MusicArtist/posterUrl`.
+            public var posterUrl: Swift.String?
             /// Creates a new `MusicArtist`.
             ///
             /// - Parameters:
@@ -6940,6 +6988,7 @@ extension Components {
             ///   - genres:
             ///   - musicBrainzId: The MusicBrainz artist MBID when matched.
             ///   - addedAt:
+            ///   - posterUrl: Server-relative URL of the artist's image, served by getArtwork; it changes exactly when the image does. It is its newest album's that the active profile may hear. Absent when there is none.
             public init(
                 id: Components.Schemas.Id,
                 libraryId: Components.Schemas.Id,
@@ -6950,7 +6999,8 @@ extension Components {
                 overview: Swift.String? = nil,
                 genres: [Components.Schemas.Genre],
                 musicBrainzId: Swift.String? = nil,
-                addedAt: Foundation.Date
+                addedAt: Foundation.Date,
+                posterUrl: Swift.String? = nil
             ) {
                 self.id = id
                 self.libraryId = libraryId
@@ -6962,6 +7012,7 @@ extension Components {
                 self.genres = genres
                 self.musicBrainzId = musicBrainzId
                 self.addedAt = addedAt
+                self.posterUrl = posterUrl
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -6974,6 +7025,7 @@ extension Components {
                 case genres
                 case musicBrainzId
                 case addedAt
+                case posterUrl
             }
         }
         /// - Remark: Generated from `#/components/schemas/MusicArtistPage`.
@@ -7047,6 +7099,10 @@ extension Components {
             public var lastPlayedAt: Foundation.Date?
             /// - Remark: Generated from `#/components/schemas/MusicAlbum/addedAt`.
             public var addedAt: Foundation.Date
+            /// Server-relative URL of the album's cover, served by getArtwork; it changes exactly when the image does. Absent when there is none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MusicAlbum/posterUrl`.
+            public var posterUrl: Swift.String?
             /// Creates a new `MusicAlbum`.
             ///
             /// - Parameters:
@@ -7064,6 +7120,7 @@ extension Components {
             ///   - musicBrainzId: The MusicBrainz release MBID when matched.
             ///   - lastPlayedAt: When the active profile last played one of its songs; absent when never.
             ///   - addedAt:
+            ///   - posterUrl: Server-relative URL of the album's cover, served by getArtwork; it changes exactly when the image does. Absent when there is none.
             public init(
                 id: Components.Schemas.Id,
                 libraryId: Components.Schemas.Id,
@@ -7078,7 +7135,8 @@ extension Components {
                 genres: [Components.Schemas.Genre],
                 musicBrainzId: Swift.String? = nil,
                 lastPlayedAt: Foundation.Date? = nil,
-                addedAt: Foundation.Date
+                addedAt: Foundation.Date,
+                posterUrl: Swift.String? = nil
             ) {
                 self.id = id
                 self.libraryId = libraryId
@@ -7094,6 +7152,7 @@ extension Components {
                 self.musicBrainzId = musicBrainzId
                 self.lastPlayedAt = lastPlayedAt
                 self.addedAt = addedAt
+                self.posterUrl = posterUrl
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -7110,6 +7169,7 @@ extension Components {
                 case musicBrainzId
                 case lastPlayedAt
                 case addedAt
+                case posterUrl
             }
         }
         /// - Remark: Generated from `#/components/schemas/MusicAlbumPage`.
@@ -7195,6 +7255,10 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/MusicSong/unavailable`.
             public var unavailable: Swift.Bool?
+            /// Server-relative URL of the song's art, its album's, served by getArtwork; it changes exactly when the image does. Absent when there is none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MusicSong/posterUrl`.
+            public var posterUrl: Swift.String?
             /// Creates a new `MusicSong`.
             ///
             /// - Parameters:
@@ -7213,6 +7277,7 @@ extension Components {
             ///   - codec: ffprobe name of the file's audio codec, such as flac or mp3.
             ///   - lossless:
             ///   - unavailable: Its file is marked missing (MediaFile.missingAt); startPlayback answers 409. Absent means false.
+            ///   - posterUrl: Server-relative URL of the song's art, its album's, served by getArtwork; it changes exactly when the image does. Absent when there is none.
             public init(
                 id: Components.Schemas.Id,
                 libraryId: Components.Schemas.Id,
@@ -7228,7 +7293,8 @@ extension Components {
                 year: Swift.Int? = nil,
                 codec: Swift.String? = nil,
                 lossless: Swift.Bool,
-                unavailable: Swift.Bool? = nil
+                unavailable: Swift.Bool? = nil,
+                posterUrl: Swift.String? = nil
             ) {
                 self.id = id
                 self.libraryId = libraryId
@@ -7245,6 +7311,7 @@ extension Components {
                 self.codec = codec
                 self.lossless = lossless
                 self.unavailable = unavailable
+                self.posterUrl = posterUrl
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -7262,6 +7329,7 @@ extension Components {
                 case codec
                 case lossless
                 case unavailable
+                case posterUrl
             }
         }
         /// - Remark: Generated from `#/components/schemas/MusicSongPage`.
@@ -7556,6 +7624,10 @@ extension Components {
             public var forKids: Swift.Bool?
             /// - Remark: Generated from `#/components/schemas/YouTubeChannel/addedAt`.
             public var addedAt: Foundation.Date
+            /// Server-relative URL of the channel's avatar, served by getArtwork; it changes exactly when the image does. Absent when there is none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/YouTubeChannel/posterUrl`.
+            public var posterUrl: Swift.String?
             /// Creates a new `YouTubeChannel`.
             ///
             /// - Parameters:
@@ -7570,6 +7642,7 @@ extension Components {
             ///   - sourceUrl: The channel or playlist on YouTube, for Open on YouTube.
             ///   - forKids: Always present. Set by an adult with setYouTubeChannelForKids; a new channel is not. A kid under rating ceilings sees the channels for kids and their videos; an adult with hideKidsContent does not browse them.
             ///   - addedAt:
+            ///   - posterUrl: Server-relative URL of the channel's avatar, served by getArtwork; it changes exactly when the image does. Absent when there is none.
             public init(
                 id: Components.Schemas.Id,
                 libraryId: Components.Schemas.Id,
@@ -7581,7 +7654,8 @@ extension Components {
                 externalId: Swift.String? = nil,
                 sourceUrl: Swift.String? = nil,
                 forKids: Swift.Bool? = nil,
-                addedAt: Foundation.Date
+                addedAt: Foundation.Date,
+                posterUrl: Swift.String? = nil
             ) {
                 self.id = id
                 self.libraryId = libraryId
@@ -7594,6 +7668,7 @@ extension Components {
                 self.sourceUrl = sourceUrl
                 self.forKids = forKids
                 self.addedAt = addedAt
+                self.posterUrl = posterUrl
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -7607,6 +7682,7 @@ extension Components {
                 case sourceUrl
                 case forKids
                 case addedAt
+                case posterUrl
             }
         }
         /// - Remark: Generated from `#/components/schemas/YouTubeChannelForKidsInput`.
@@ -7702,6 +7778,14 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/YouTubeVideo/unavailable`.
             public var unavailable: Swift.Bool?
+            /// Server-relative URL of the video's thumbnail, else its channel's avatar, served by getArtwork; it changes exactly when the image does. Absent when there is none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/YouTubeVideo/posterUrl`.
+            public var posterUrl: Swift.String?
+            /// Server-relative URL of the channel's poster, as that channel's posterUrl, served by getArtwork; it changes exactly when the image does. Absent when there is none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/YouTubeVideo/channelPosterUrl`.
+            public var channelPosterUrl: Swift.String?
             /// Creates a new `YouTubeVideo`.
             ///
             /// - Parameters:
@@ -7721,6 +7805,8 @@ extension Components {
             ///   - sourceUrl: The video on YouTube, for Open on YouTube.
             ///   - addedAt: When a scan first found it.
             ///   - unavailable: Its file is marked missing (MediaFile.missingAt); startPlayback answers 409. Absent means false.
+            ///   - posterUrl: Server-relative URL of the video's thumbnail, else its channel's avatar, served by getArtwork; it changes exactly when the image does. Absent when there is none.
+            ///   - channelPosterUrl: Server-relative URL of the channel's poster, as that channel's posterUrl, served by getArtwork; it changes exactly when the image does. Absent when there is none.
             public init(
                 id: Components.Schemas.Id,
                 libraryId: Components.Schemas.Id,
@@ -7737,7 +7823,9 @@ extension Components {
                 externalId: Swift.String? = nil,
                 sourceUrl: Swift.String? = nil,
                 addedAt: Foundation.Date,
-                unavailable: Swift.Bool? = nil
+                unavailable: Swift.Bool? = nil,
+                posterUrl: Swift.String? = nil,
+                channelPosterUrl: Swift.String? = nil
             ) {
                 self.id = id
                 self.libraryId = libraryId
@@ -7755,6 +7843,8 @@ extension Components {
                 self.sourceUrl = sourceUrl
                 self.addedAt = addedAt
                 self.unavailable = unavailable
+                self.posterUrl = posterUrl
+                self.channelPosterUrl = channelPosterUrl
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -7773,6 +7863,8 @@ extension Components {
                 case sourceUrl
                 case addedAt
                 case unavailable
+                case posterUrl
+                case channelPosterUrl
             }
         }
         /// - Remark: Generated from `#/components/schemas/YouTubeVideoPage`.
@@ -7880,6 +7972,10 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Playlist/lastPlayedAt`.
             public var lastPlayedAt: Foundation.Date?
+            /// Server-relative URL of artItemId's poster, as that item's posterUrl, served by getArtwork; it changes exactly when the image does. Absent when there is none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Playlist/posterUrl`.
+            public var posterUrl: Swift.String?
             /// Server-relative URL of the custom image the owner set, served by getPlaylistImage with the device token like artwork; it changes whenever the image does. Absent while none is set, and while getPlaylistImage would not find it; the client then shows artItemId's poster.
             ///
             /// - Remark: Generated from `#/components/schemas/Playlist/imageUrl`.
@@ -7910,6 +8006,7 @@ extension Components {
             ///   - durationMs: The play order's rows' edition runtimes added up.
             ///   - artItemId: The item whose poster stands for the playlist: the item of its first entry the active profile may see, which may be a show, season, artist or album, or for a collection its first such movie.
             ///   - lastPlayedAt: When playback last started with this playlistId.
+            ///   - posterUrl: Server-relative URL of artItemId's poster, as that item's posterUrl, served by getArtwork; it changes exactly when the image does. Absent when there is none.
             ///   - imageUrl: Server-relative URL of the custom image the owner set, served by getPlaylistImage with the device token like artwork; it changes whenever the image does. Absent while none is set, and while getPlaylistImage would not find it; the client then shows artItemId's poster.
             ///   - createdAt:
             ///   - modifiedAt:
@@ -7927,6 +8024,7 @@ extension Components {
                 durationMs: Swift.Int64,
                 artItemId: Components.Schemas.Id? = nil,
                 lastPlayedAt: Foundation.Date? = nil,
+                posterUrl: Swift.String? = nil,
                 imageUrl: Swift.String? = nil,
                 createdAt: Foundation.Date,
                 modifiedAt: Foundation.Date,
@@ -7944,6 +8042,7 @@ extension Components {
                 self.durationMs = durationMs
                 self.artItemId = artItemId
                 self.lastPlayedAt = lastPlayedAt
+                self.posterUrl = posterUrl
                 self.imageUrl = imageUrl
                 self.createdAt = createdAt
                 self.modifiedAt = modifiedAt
@@ -7962,6 +8061,7 @@ extension Components {
                 case durationMs
                 case artItemId
                 case lastPlayedAt
+                case posterUrl
                 case imageUrl
                 case createdAt
                 case modifiedAt
@@ -8438,10 +8538,8 @@ extension Components {
         /// with show for a season or episode; artist, album or song for music;
         /// collection for a collection. The row's title is
         /// item.metadata.title else item.parsedTitle, artist.name,
-        /// album.title, song.title or collection.name; its art is
-        /// /items/{itemId}/artwork/poster, a song's
-        /// /items/{song.albumId}/artwork/poster, a collection's
-        /// /collections/{collectionId}/artwork/poster.
+        /// album.title, song.title or collection.name; its art is that
+        /// object's posterUrl.
         ///
         ///
         /// - Remark: Generated from `#/components/schemas/PlaylistEntry`.
@@ -8825,6 +8923,14 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Collection/customOrder`.
             public var customOrder: Swift.Bool?
+            /// Server-relative URL of the collection's poster: its own TMDB image, else its first movie's in listCollectionMovies order for the active profile, served by getArtwork; it changes exactly when the image does. Absent when there is none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Collection/posterUrl`.
+            public var posterUrl: Swift.String?
+            /// Server-relative URL of the collection's backdrop, as posterUrl, served by getArtwork; it changes exactly when the image does. Absent when there is none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Collection/backdropUrl`.
+            public var backdropUrl: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Collection/createdAt`.
             public var createdAt: Foundation.Date
             /// - Remark: Generated from `#/components/schemas/Collection/modifiedAt`.
@@ -8848,6 +8954,8 @@ extension Components {
             ///   - tmdbId: The TMDB collection id; absent for custom.
             ///   - movieCount: Its movies the active profile may see.
             ///   - customOrder: True while a custom collection's movies are in a hand order, set by replaceCollectionMoviePosition; false for release order, and always for TMDB. Always sent; optional so a copy a client stored before the field existed still reads.
+            ///   - posterUrl: Server-relative URL of the collection's poster: its own TMDB image, else its first movie's in listCollectionMovies order for the active profile, served by getArtwork; it changes exactly when the image does. Absent when there is none.
+            ///   - backdropUrl: Server-relative URL of the collection's backdrop, as posterUrl, served by getArtwork; it changes exactly when the image does. Absent when there is none.
             ///   - createdAt:
             ///   - modifiedAt:
             ///   - createdBy: The profile that created it; absent when none did, as for what the server made, or when that profile is gone.
@@ -8861,6 +8969,8 @@ extension Components {
                 tmdbId: Swift.Int64? = nil,
                 movieCount: Swift.Int,
                 customOrder: Swift.Bool? = nil,
+                posterUrl: Swift.String? = nil,
+                backdropUrl: Swift.String? = nil,
                 createdAt: Foundation.Date,
                 modifiedAt: Foundation.Date,
                 createdBy: Components.Schemas.Id? = nil,
@@ -8874,6 +8984,8 @@ extension Components {
                 self.tmdbId = tmdbId
                 self.movieCount = movieCount
                 self.customOrder = customOrder
+                self.posterUrl = posterUrl
+                self.backdropUrl = backdropUrl
                 self.createdAt = createdAt
                 self.modifiedAt = modifiedAt
                 self.createdBy = createdBy
@@ -8888,6 +9000,8 @@ extension Components {
                 case tmdbId
                 case movieCount
                 case customOrder
+                case posterUrl
+                case backdropUrl
                 case createdAt
                 case modifiedAt
                 case createdBy

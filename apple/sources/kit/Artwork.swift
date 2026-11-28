@@ -5,8 +5,8 @@ import RabbitEarsAPI
 
 /// Item artwork and headshots from the server, held in memory for the signed-in session; beneath it,
 /// URLCache keeps images on disk under the server's Cache-Control. An image the server does not have
-/// stays missing until the artwork generation moves; one that failed to arrive is asked for again,
-/// and meanwhile is the copy `kept` holds from its last arrival.
+/// stays missing until the profile changes; one that failed to arrive is asked for again, and
+/// meanwhile is the copy `kept` holds from its last arrival.
 @MainActor
 public final class ArtworkStore {
     public enum Kind: String, Sendable { case poster, backdrop }
@@ -18,9 +18,6 @@ public final class ArtworkStore {
     let bitmaps = NSCache<NSString, CGImage>()
     private var loading: [String: Task<Fetched, Never>] = [:]
     private var missing: Set<String> = []
-    private let generation: ArtworkGeneration?
-    private var seen: Int64?
-    /// Keyed by the image alone, not its address, which carries a generation only the server can name.
     private let kept: URLCache?
 
     private enum Fetched {
@@ -28,9 +25,8 @@ public final class ArtworkStore {
         case missing, failed
     }
 
-    public init(client: Client, generation: ArtworkGeneration? = nil, kept: URLCache? = nil) {
+    public init(client: Client, kept: URLCache? = nil) {
         self.client = client
-        self.generation = generation
         self.kept = kept
         images.totalCostLimit = 64 << 20
         bitmaps.totalCostLimit = 96 << 20
@@ -53,41 +49,36 @@ public final class ArtworkStore {
     /// The artwork decoded at this size if it is in memory now, so a view that has it needs no
     /// placeholder or fade.
     public func resident(_ id: UID, _ kind: Kind, maxPixel: Int) -> CGImage? {
-        _ = currentGeneration()
-        return bitmaps.object(forKey: "\(id)/\(kind.rawValue)@\(maxPixel)" as NSString)
+        bitmaps.object(forKey: "\(id)/\(kind.rawValue)@\(maxPixel)" as NSString)
     }
 
     public func resident(collection id: UID, _ kind: Kind, maxPixel: Int) -> CGImage? {
-        _ = currentGeneration()
-        return bitmaps.object(forKey: "collection/\(id)/\(kind.rawValue)@\(maxPixel)" as NSString)
+        bitmaps.object(forKey: "collection/\(id)/\(kind.rawValue)@\(maxPixel)" as NSString)
     }
 
     /// The image bytes, or nil when the item has none or the server is unreachable.
     public func data(_ id: UID, _ kind: Kind) async -> Data? {
         let client = client
-        let query = Operations.GetItemArtwork.Input.Query(v: currentGeneration())
         return await cached("\(id)/\(kind.rawValue)") {
             let path = Operations.GetItemArtwork.Input.Path(itemId: id, kind: kind == .poster ? .poster : .backdrop)
-            return try await client.getItemArtwork(path: path, query: query).ok.body.image_Ast_
+            return try await client.getItemArtwork(path: path).ok.body.image_Ast_
         }
     }
 
     /// A collection's own image, else its first movie's; nil when none has one.
     public func data(collection id: UID, _ kind: Kind) async -> Data? {
         let client = client
-        let query = Operations.GetCollectionArtwork.Input.Query(v: currentGeneration())
         return await cached("collection/\(id)/\(kind.rawValue)") {
             let path = Operations.GetCollectionArtwork.Input.Path(
                 collectionId: id, kind: kind == .poster ? .poster : .backdrop)
-            return try await client.getCollectionArtwork(path: path, query: query).ok.body.image_Ast_
+            return try await client.getCollectionArtwork(path: path).ok.body.image_Ast_
         }
     }
 
     public func headshot(_ personId: UID) async -> Data? {
         let client = client
-        let query = Operations.GetPersonArtwork.Input.Query(v: currentGeneration())
         return await cached("person/\(personId)") {
-            try await client.getPersonArtwork(path: .init(personId: personId), query: query).ok.body.image_Ast_
+            try await client.getPersonArtwork(path: .init(personId: personId)).ok.body.image_Ast_
         }
     }
 
@@ -105,7 +96,6 @@ public final class ArtworkStore {
     }
 
     func bitmap(_ key: String, _ maxPixel: Int, _ bytes: () async -> Data?) async -> CGImage? {
-        _ = currentGeneration()
         let key = "\(key)@\(maxPixel)" as NSString
         if let hit = bitmaps.object(forKey: key) { return hit }
         guard maxPixel > 0, let data = await bytes(), let image = await Self.downsample(data, maxPixel: maxPixel)
@@ -129,22 +119,6 @@ public final class ArtworkStore {
     /// What one profile may not see another may, so art missing for the last one is asked for again.
     func profileChanged() {
         missing = []
-    }
-
-    /// The generation the server last named. Images are asked for under it, which lets the server have
-    /// URLCache keep one until some image changes; when it has moved, what is held, and what was
-    /// missing, is asked for again. The first one named only starts the asking under it.
-    private func currentGeneration() -> Int64? {
-        let named = generation?.value
-        if named != seen {
-            if seen != nil {
-                images.removeAllObjects()
-                bitmaps.removeAllObjects()
-                missing = []
-            }
-            seen = named
-        }
-        return named
     }
 
     func cached(_ key: String, _ fetch: @escaping @Sendable () async throws -> HTTPBody) async -> Data? {

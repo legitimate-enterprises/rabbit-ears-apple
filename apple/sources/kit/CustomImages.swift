@@ -177,8 +177,7 @@ public final class CustomImageModel {
 
 extension ArtworkStore {
     /// The custom image an imageUrl names, decoded no larger than `maxPixel`; nil when it
-    /// cannot be had. The address changes with the cover, so it keys the caches; a picked
-    /// title's art changing under it moves the generation, which empties them.
+    /// cannot be had. The address changes with the cover, so it keys the caches.
     public func image(url: String, maxPixel: Int) async -> CGImage? {
         await bitmap("image:\(url)", maxPixel) { await self.data(imageUrl: url) }
     }
