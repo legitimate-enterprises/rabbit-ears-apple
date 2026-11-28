@@ -140,6 +140,32 @@ public final class Replica: Sendable {
         state.withLock { $0.lostActions = lost }
     }
 
+    /// The tables and views of `shippedSchema` by name, each with its columns.
+    static let shipped: [String: Set<String>] = Dictionary(
+        uniqueKeysWithValues: shippedSchema.split(separator: "\n").map { line in
+            let words = line.split(separator: " ").map(String.init)
+            return (words[0], Set(words.dropFirst()))
+        })
+
+    /// Closes and deletes a replica that lacks a table or view of `shipped`,
+    /// or a column of one, keeping the queue, so the store is empty until a
+    /// snapshot; a view that no longer prepares counts as lacking. True when
+    /// it did. For between `open` and the first read.
+    public func dropOutdated() -> Bool {
+        guard let pool = state.withLock({ $0.pool }) else { return false }
+        let holds = try? pool.read { db in
+            try Self.shipped.allSatisfy { name, columns in
+                let held = try String.fetchAll(
+                    db, sql: "SELECT name FROM pragma_table_info(?, 'main')", arguments: [name])
+                return columns.isSubset(of: held)
+            }
+        }
+        guard holds != true else { return false }
+        if let name = install(nil, nil) { remove { $0.hasPrefix(name) } }
+        try? FileManager.default.removeItem(at: pointer)
+        return true
+    }
+
     /// Makes the snapshot at `file` current once it passes its check and
     /// `prepare` has run inside it; the file is taken either way. A
     /// snapshot that fails leaves the current replica as it was.

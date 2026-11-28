@@ -3,6 +3,11 @@ import GRDB
 import RabbitEarsAPI
 
 extension AppModel {
+    func signedInClient() throws -> Client {
+        guard let client else { throw AppError.signedOut }
+        return client
+    }
+
     /// Replaces the signed-in adult's password; their other devices are signed out.
     public func changePassword(current: String, new: String) async throws {
         let client = try signedInClient()

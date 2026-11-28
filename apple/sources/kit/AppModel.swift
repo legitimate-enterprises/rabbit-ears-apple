@@ -20,6 +20,8 @@ public final class AppModel {
     }
 
     public private(set) var phase = Phase.starting
+    /// What the splash says while a launch replaces a replica this build cannot read.
+    public internal(set) var libraryUpdate: LibraryUpdate?
     /// The signed-in adult's households, their own first, while `choosingHousehold`.
     public private(set) var households: [Components.Schemas.HouseholdChoice] = []
     /// Kept as it changes, for the next launch to open with before the server answers.
@@ -92,7 +94,12 @@ public final class AppModel {
             return
         }
         phase = .starting
-        let client = await connect(endpoint, token: token, fresh: false)
+        await launch(endpoint, await connect(endpoint, token: token, fresh: false))
+    }
+
+    /// A launch once the replica holds what this build reads.
+    func launch(_ endpoint: ServerEndpoint, _ client: Client) async {
+        guard await updateLibrary(endpoint, client) else { return }
         if let kept = sync?.replica.kept(Self.keptMe(endpoint)),
             let kept = try? DownloadStore.decoder.decode(Components.Schemas.Me.self, from: kept)
         {
@@ -296,11 +303,6 @@ public final class AppModel {
         end()
         heldHomeSlots = [:]
         URLCache.shared.removeAllCachedResponses()
-    }
-
-    func signedInClient() throws -> Client {
-        guard let client else { throw AppError.signedOut }
-        return client
     }
 
     func signedIn(

@@ -9,6 +9,10 @@ public final class SyncSession {
     public let replica: Replica
     public let queue: ActionQueue
     public let engine: SyncEngine
+    /// The replica kept lacked what this build reads and was dropped at open.
+    let outdated: Bool
+    /// The launch a failed library update holds, for `retryLibraryUpdate`.
+    var heldLaunch: (endpoint: ServerEndpoint, client: Client)?
     private let live: LiveFeed
     private var following: Task<Void, Never>?
     private var followers = 0
@@ -29,6 +33,7 @@ public final class SyncSession {
         let replica = Replica(directory: directory)
         // One that does not open stays empty, and every read finds nothing until a snapshot.
         try? replica.open()
+        outdated = replica.dropOutdated()
         let wakes = Wakes()
         let queue = ActionQueue(
             replica: replica, client: endpoint.client(token: token, transport: transport),
@@ -154,10 +159,45 @@ extension AppModel {
         return client
     }
 
+    public enum LibraryUpdate: Equatable, Sendable {
+        /// A snapshot is on its way in place of a replica this build cannot read.
+        case updating
+        /// The server can't be reached to send one; the launch waits for `retryLibraryUpdate`.
+        case unreachable
+    }
+
+    /// A launch whose replica was dropped at open as outdated waits for its
+    /// snapshot before any view reads the replica. A refusal, as a device
+    /// locked at Who's watching, or a server that no longer syncs with this
+    /// build lets it go on with no replica, as after a sign-in. False holds
+    /// the launch while the server can't be reached.
+    func updateLibrary(_ endpoint: ServerEndpoint, _ client: Client) async -> Bool {
+        guard let sync, sync.outdated, sync.replica.isEmpty else { return true }
+        libraryUpdate = .updating
+        do {
+            try await sync.engine.catchUp()
+        } catch let error where sync.replica.isEmpty && (APIError.from(error).map { $0.status >= 500 } ?? true) {
+            libraryUpdate = .unreachable
+            sync.heldLaunch = (endpoint, client)
+            return false
+        } catch {}
+        libraryUpdate = nil
+        return true
+    }
+
+    /// Tries the update a launch is held on again, then goes on with the launch.
+    public func retryLibraryUpdate() async {
+        guard let held = sync?.heldLaunch else { return }
+        sync?.heldLaunch = nil
+        libraryUpdate = nil
+        await launch(held.endpoint, held.client)
+    }
+
     /// Ends the open session, if any, in the background.
     func end() {
         guard let sync else { return }
         self.sync = nil
+        libraryUpdate = nil
         sections?.cancel()
         let before = ending
         ending = Task {

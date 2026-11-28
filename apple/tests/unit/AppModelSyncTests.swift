@@ -107,7 +107,10 @@ final class AppModelSyncTests: XCTestCase {
     }
 
     func testALaunchOpensWhatIsKeptAndASignInStartsFromNothing() async throws {
-        try await app.fixture.closedWithAnAction()
+        do {
+            let kept = try app.fixture.v1()
+            try await kept.write { try $0.execute(sql: ReplicaFixture.enqueue("a")) }
+        }
         app.routes.respond = nil
         app.store.server = URL(string: "http://rabbit.local:8477")
         app.store.token = "tok-1"
